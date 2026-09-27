@@ -1,6 +1,7 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
-import { X, Download, ZoomIn, ZoomOut, Loader2 } from "lucide-react";
+import { useModal } from "@/hooks/useModal";
+import { ImageViewerToolbar } from "@/components/ui/ImageViewerToolbar";
 import { getImageUrl, readImage, readImageMetadata, formatFileSize } from "@/services/fileStorageService";
 import { toast } from "@/stores/toastStore";
 
@@ -53,16 +54,15 @@ interface ImagePreviewModalProps {
 
 export function ImagePreviewModal({ imageData, imagePath, onClose, fileName }: ImagePreviewModalProps) {
   const [scale, setScale] = useState(1);
-  const [isVisible, setIsVisible] = useState(false);
-  const [isClosing, setIsClosing] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [imageInfo, setImageInfo] = useState<ImageInfo | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
-  // 进入动画
-  useEffect(() => {
-    requestAnimationFrame(() => setIsVisible(true));
-  }, []);
+  // 统一 Modal 交互（ESC 关闭、过渡动画）
+  const { isVisible, isClosing, handleClose } = useModal({
+    isOpen: true,
+    onClose,
+  });
 
   // 获取图片 URL
   const imageUrl = imagePath
@@ -114,14 +114,7 @@ export function ImagePreviewModal({ imageData, imagePath, onClose, fileName }: I
     setImageInfo({ width: w, height: h, ratio, decimalRatio, fileSize, createdAt });
   }, [imageData, imagePath]);
 
-  // 关闭时先播放退出动画
-  const handleClose = useCallback(() => {
-    setIsClosing(true);
-    setIsVisible(false);
-    setTimeout(onClose, 200);
-  }, [onClose]);
-
-  // 处理背景点击，阻止事件冒泡
+  // 关闭时先播放退出动画（useModal）；阻止冒泡避免触发父级 Modal 的关闭
   const handleBackgroundClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation(); // 阻止事件冒泡到父级 Modal
     handleClose();
@@ -177,24 +170,13 @@ export function ImagePreviewModal({ imageData, imagePath, onClose, fileName }: I
   const handleZoomIn = () => setScale((s) => Math.min(s + 0.25, 3));
   const handleZoomOut = () => setScale((s) => Math.max(s - 0.25, 0.5));
 
-  // ESC 键关闭
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        handleClose();
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [handleClose]);
-
   // 使用 Portal 渲染到 body，避免被节点的 transform 影响
   return createPortal(
     <div
       className={`
-        fixed inset-0 z-[9999] flex items-center justify-center
+        nc-modal-backdrop nc-modal-backdrop-deep
         transition-all duration-200 ease-out
-        ${isVisible && !isClosing ? "bg-black/80" : "bg-black/0"}
+        ${isVisible && !isClosing ? "opacity-100" : "opacity-0"}
       `}
       onClick={handleBackgroundClick}
     >
@@ -230,40 +212,14 @@ export function ImagePreviewModal({ imageData, imagePath, onClose, fileName }: I
         `}
         onClick={(e) => e.stopPropagation()}
       >
-        <button
-          className="btn btn-circle btn-sm bg-base-100/90 hover:bg-base-100 border-0"
-          onClick={handleZoomOut}
-        >
-          <ZoomOut className="w-4 h-4" />
-        </button>
-        <span className="text-white text-sm min-w-[60px] text-center">
-          {Math.round(scale * 100)}%
-        </span>
-        <button
-          className="btn btn-circle btn-sm bg-base-100/90 hover:bg-base-100 border-0"
-          onClick={handleZoomIn}
-        >
-          <ZoomIn className="w-4 h-4" />
-        </button>
-        <div className="w-px h-6 bg-white/20 mx-1" />
-        <button
-          className={`btn btn-circle btn-sm bg-base-100/90 hover:bg-base-100 border-0 ${isDownloading ? "btn-disabled" : ""}`}
-          onClick={handleDownload}
-          disabled={isDownloading}
-          title="下载图片"
-        >
-          {isDownloading ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Download className="w-4 h-4" />
-          )}
-        </button>
-        <button
-          className="btn btn-circle btn-sm bg-base-100/90 hover:bg-base-100 border-0"
-          onClick={handleClose}
-        >
-          <X className="w-4 h-4" />
-        </button>
+        <ImageViewerToolbar
+          scale={scale}
+          isDownloading={isDownloading}
+          onZoomIn={handleZoomIn}
+          onZoomOut={handleZoomOut}
+          onDownload={() => void handleDownload()}
+          onClose={handleClose}
+        />
       </div>
 
       {/* 图片信息 - 固定在窗口右下角 */}
@@ -301,7 +257,7 @@ export function ImagePreviewModal({ imageData, imagePath, onClose, fileName }: I
       {/* 提示 */}
       <div
         className={`
-          absolute bottom-4 left-1/2 -translate-x-1/2 text-white/60 text-sm
+          nc-overlay-hint
           transition-all duration-200 ease-out
           ${isVisible && !isClosing ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"}
         `}

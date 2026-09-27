@@ -129,7 +129,7 @@ export const FileUploadNode = memo(({ id, data, selected }: NodeProps<FileUpload
         <span className="nc-node-header-icon">
           <FileUp className="w-4 h-4" />
         </span>
-        <span className="text-sm font-semibold truncate">{data.label}</span>
+        <span className="nc-node-title truncate">{data.label}</span>
       </div>
 
       {/* 节点内容 */}
@@ -152,10 +152,10 @@ export const FileUploadNode = memo(({ id, data, selected }: NodeProps<FileUpload
                   {data.fileName}
                 </p>
                 <div className="flex items-center justify-center gap-2 mt-1">
-                  <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded">
+                  <span className="nc-chip nc-chip-accent text-[11px]!">
                     {getFileTypeName(data.mimeType)}
                   </span>
-                  <span className="text-[10px] text-base-content/60">
+                  <span className="text-[11px] text-base-content/60">
                     {formatFileSize(data.fileSize)}
                   </span>
                 </div>
@@ -163,7 +163,7 @@ export const FileUploadNode = memo(({ id, data, selected }: NodeProps<FileUpload
             </div>
             {/* 清除按钮 */}
             <button
-              className="btn btn-circle btn-xs btn-error absolute top-1 right-1 opacity-80 hover:opacity-100"
+              className="nc-icon-btn nc-icon-btn-xs nc-icon-btn-danger absolute top-1 right-1 opacity-80 hover:opacity-100"
               onClick={(e) => {
                 e.stopPropagation();
                 handleClearFile();
@@ -175,13 +175,13 @@ export const FileUploadNode = memo(({ id, data, selected }: NodeProps<FileUpload
           </div>
         ) : (
           <button
-            className="btn btn-ghost w-full h-[100px] border border-dashed border-base-300 hover:border-primary flex-col gap-1"
+            className="btn btn-ghost w-full h-[100px] rounded-[var(--nc-radius-md)] border border-dashed border-base-300 hover:border-primary flex-col gap-1"
             onClick={() => fileInputRef.current?.click()}
             onPointerDown={(e) => e.stopPropagation()}
           >
             <Upload className="w-6 h-6 text-base-content/40" />
             <span className="text-xs text-base-content/60">点击上传文件</span>
-            <span className="text-[10px] text-base-content/40">支持图片/PDF/音频/视频</span>
+            <span className="text-[11px] text-base-content/40">支持图片/PDF/音频/视频</span>
           </button>
         )}
       </div>

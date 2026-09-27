@@ -4,14 +4,7 @@ import type { ImageGenerationRequest } from "@/services/imageGeneration";
 
 export type ImageNodeProviderKey = Extract<
   keyof NodeProviderMapping,
-  | "imageGeneratorPro"
-  | "imageGeneratorFast"
-  | "imageGeneratorNB2"
-  | "dalleGenerator"
-  | "fluxGenerator"
-  | "gptImageGenerator"
-  | "doubaoGenerator"
-  | "zImageGenerator"
+  "imageGeneratorNB2" | "gptImageGenerator"
 >;
 
 export type GptImageSize = "auto" | `${number}x${number}`;
@@ -34,12 +27,13 @@ export interface ImageGeneratorRunRecord {
     prompt: string;
     imageCount: number;
     imageLabels?: string[];
-    request: ImageGenerationRequest;
+    request?: ImageGenerationRequest;
   };
   output?: {
     text?: string;
     metadata?: ImageGenerationRequest | Record<string, unknown>;
     imagePaths?: string[];
+    thumbPaths?: string[];
     imageDataList?: string[];
   };
   durationMs?: number;
@@ -67,10 +61,13 @@ export interface ImageGeneratorNodeData {
   inputFidelity?: OpenAIImageInputFidelity;
   n?: number;
   status: "idle" | "loading" | "success" | "error";
+  queued?: boolean;
   outputImage?: string;
   outputImagePath?: string;
+  outputThumbPath?: string;
   outputImages?: string[];
   outputImagePaths?: string[];
+  outputThumbPaths?: string[];
   error?: string;
   errorDetails?: ErrorDetails;
   runRecords?: ImageGeneratorRunRecord[];

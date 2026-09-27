@@ -7,6 +7,8 @@
 let storeInstance: Awaited<ReturnType<typeof import("@tauri-apps/plugin-store").load>> | null = null;
 // Store 初始化 Promise，避免重复初始化
 let storeInitPromise: Promise<Awaited<ReturnType<typeof import("@tauri-apps/plugin-store").load>> | null> | null = null;
+// 存储初始化失败提示只弹一次（每个会话）
+let warnedStorageFailure = false;
 
 // 获取或创建 Store 实例
 async function getStore() {
@@ -29,6 +31,13 @@ async function getStore() {
     } catch (error) {
       console.error("Failed to initialize Tauri store:", error);
       storeInitPromise = null;
+      if (!warnedStorageFailure) {
+        warnedStorageFailure = true;
+        const { useToastStore } = await import("@/stores/toastStore");
+        useToastStore
+          .getState()
+          .warning("本地数据存储初始化失败，本次更改可能无法保存，请检查存储目录是否可用");
+      }
       return null;
     }
   })();

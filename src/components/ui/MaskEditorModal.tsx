@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X, Paintbrush, Eraser, Undo2, Trash2, Save, Minus, Plus } from "lucide-react";
+import { useModal } from "@/hooks/useModal";
 import { getImageUrl } from "@/services/fileStorageService";
 
 interface MaskEditorModalProps {
@@ -18,8 +19,6 @@ export function MaskEditorModal({
   onSave,
   onClose,
 }: MaskEditorModalProps) {
-  const [isVisible, setIsVisible] = useState(false);
-  const [isClosing, setIsClosing] = useState(false);
   const [brushSize, setBrushSize] = useState(30);
   const [isEraser, setIsEraser] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -40,26 +39,11 @@ export function MaskEditorModal({
     ? `data:image/png;base64,${existingMaskData}`
     : null;
 
-  // 进入动画
-  useEffect(() => {
-    requestAnimationFrame(() => setIsVisible(true));
-  }, []);
-
-  // 关闭动画
-  const handleClose = useCallback(() => {
-    setIsClosing(true);
-    setIsVisible(false);
-    setTimeout(onClose, 200);
-  }, [onClose]);
-
-  // ESC 关闭
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") handleClose();
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [handleClose]);
+  // 统一 Modal 交互（ESC 关闭、背景点击、过渡动画）
+  const { isVisible, isClosing, handleClose } = useModal({
+    isOpen: true,
+    onClose,
+  });
 
   // 加载图片并初始化 canvas
   useEffect(() => {
@@ -257,9 +241,9 @@ export function MaskEditorModal({
   return createPortal(
     <div
       className={`
-        fixed inset-0 z-[9999] flex items-center justify-center
+        nc-modal-backdrop nc-modal-backdrop-deep
         transition-all duration-200 ease-out
-        ${isVisible && !isClosing ? "bg-black/85" : "bg-black/0"}
+        ${isVisible && !isClosing ? "opacity-100" : "opacity-0"}
       `}
       onClick={handleClose}
     >
@@ -298,10 +282,11 @@ export function MaskEditorModal({
       <div
         className={`
           absolute top-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2
-          bg-base-100/95 backdrop-blur-sm shadow-xl rounded-xl px-4 py-2.5
+          bg-base-100/95 backdrop-blur-sm rounded-[var(--nc-radius-lg)] px-4 py-2.5
           transition-all duration-200 ease-out
           ${isVisible && !isClosing ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-4"}
         `}
+        style={{ boxShadow: "var(--nc-shadow-deep)" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* 画笔/橡皮切换 */}

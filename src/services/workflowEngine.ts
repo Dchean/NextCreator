@@ -338,7 +338,7 @@ export class WorkflowEngine {
 
     const missingInputs: string[] = [];
     const canUseInlinePrompt =
-      (nodeType === "imageGeneratorNode" || nodeType === "videoGeneratorNode" || nodeType === "llmContentNode") &&
+      (nodeType === "imageGeneratorNode" || nodeType === "llmContentNode") &&
       hasInlinePrompt(node);
 
     // 获取上游连接
@@ -366,7 +366,7 @@ export class WorkflowEngine {
       }
     } else {
       // 需要 prompt 输入的节点类型
-      const needsPrompt = ["imageGeneratorNode", "videoGeneratorNode", "llmContentNode"];
+      const needsPrompt = ["imageGeneratorNode", "llmContentNode"];
       if (needsPrompt.includes(nodeType) && !canUseInlinePrompt) {
         missingInputs.push("缺少提示词连接");
       }

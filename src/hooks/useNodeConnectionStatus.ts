@@ -6,6 +6,14 @@ import {
   isPromptInputEdge,
 } from "@/utils/connectionHandles";
 
+/** 已连接的提示词来源（提示词节点 / LLM 内容节点）的结构化描述 */
+export interface NodePromptSource {
+  id: string;
+  label: string;
+  kind: "prompt" | "llm";
+  charCount: number;
+}
+
 /**
  * 节点连接状态 Hook
  * 用 selector 精确订阅与当前节点相关的上游数据，避免在渲染路径中遍历全图
@@ -13,6 +21,7 @@ import {
  * 返回：
  * - isPromptConnected: 是否有提示词连接（包括内容为空的情况）
  * - promptText: 连接的提示词文本（undefined 表示未连接）
+ * - promptSources: 已连接的提示词来源列表（即使内容为空也包含，charCount 为 0 表示"已连接但为空"）
  * - hasEmptyImageInputs: 是否有空的图片输入连接
  * - emptyImageLabels: 空图片输入的标签列表
  * - hasImageInputs: 是否有图片输入（非空）
@@ -30,6 +39,8 @@ export function useNodeConnectionStatus(nodeId: string) {
 
     const prompts: string[] = [];
     let hasPromptConnection = false;
+    const promptSources: NodePromptSource[] = [];
+    const seenPromptSourceIds = new Set<string>();
     const emptyImages: Array<{ id: string; label: string }> = [];
     const emptyFiles: Array<{ id: string; label: string }> = [];
     let imageCount = 0;
@@ -44,10 +55,30 @@ export function useNodeConnectionStatus(nodeId: string) {
       if (isPromptInputEdge(edge, sourceNode, targetNode)) {
         hasPromptConnection = true;
         if (sourceNode.type === "promptNode") {
-          const data = sourceNode.data as { prompt?: string };
+          const data = sourceNode.data as { prompt?: string; label?: string };
+          if (!seenPromptSourceIds.has(sourceNode.id)) {
+            seenPromptSourceIds.add(sourceNode.id);
+            const rawLabel = typeof data.label === "string" ? data.label.trim() : "";
+            promptSources.push({
+              id: sourceNode.id,
+              label: rawLabel || "提示词",
+              kind: "prompt",
+              charCount: (data.prompt ?? "").length,
+            });
+          }
           if (data.prompt) prompts.push(data.prompt);
         } else if (sourceNode.type === "llmContentNode") {
-          const data = sourceNode.data as { outputContent?: string };
+          const data = sourceNode.data as { outputContent?: string; label?: string };
+          if (!seenPromptSourceIds.has(sourceNode.id)) {
+            seenPromptSourceIds.add(sourceNode.id);
+            const rawLabel = typeof data.label === "string" ? data.label.trim() : "";
+            promptSources.push({
+              id: sourceNode.id,
+              label: rawLabel || "LLM 内容",
+              kind: "llm",
+              charCount: (data.outputContent ?? "").length,
+            });
+          }
           if (data.outputContent) prompts.push(data.outputContent);
         }
       }
@@ -70,16 +101,6 @@ export function useNodeConnectionStatus(nodeId: string) {
             emptyImages.push({
               id: sourceNode.id,
               label: (data.label as string) || "图片生成",
-            });
-          } else {
-            imageCount++;
-          }
-        } else if (sourceNode.type === "videoGeneratorNode") {
-          const data = sourceNode.data as { outputVideo?: string; videoData?: string; label?: string };
-          if (!data.outputVideo && !data.videoData) {
-            emptyImages.push({
-              id: sourceNode.id,
-              label: (data.label as string) || "视频生成",
             });
           } else {
             imageCount++;
@@ -108,6 +129,7 @@ export function useNodeConnectionStatus(nodeId: string) {
     return {
       isPromptConnected: hasPromptConnection,
       promptText,
+      promptSources,
       hasEmptyImageInputs: emptyImages.length > 0,
       emptyImageLabels: emptyImages.map((i) => i.label),
       hasImageInputs: imageCount > 0,

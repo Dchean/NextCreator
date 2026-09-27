@@ -5,11 +5,25 @@ import { useFlowStore } from "@/stores/flowStore";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { ImagePreviewModal } from "@/components/ui/ImagePreviewModal";
 import { MaskEditorModal } from "@/components/ui/MaskEditorModal";
-import { getImageUrl, saveImage } from "@/services/fileStorageService";
+import {
+  getImageUrl,
+  saveImage,
+  readImage,
+  ensureAssetPathsAllowed,
+  getFilePathForDroppedFile,
+} from "@/services/fileStorageService";
 import type { ImageInputNodeData } from "@/types";
 
 // 定义节点类型
 type ImageInputNode = Node<ImageInputNodeData>;
+
+// 图片选择对话框支持的扩展名
+const IMAGE_EXTENSIONS = ["png", "jpg", "jpeg", "webp", "gif", "bmp", "avif"];
+
+// 从路径中提取文件名
+function fileNameFromPath(path: string): string {
+  return path.split(/[\\/]/).pop() || path;
+}
 
 // 图片输入节点
 export const ImageInputNode = memo(({ id, data, selected }: NodeProps<ImageInputNode>) => {
@@ -19,50 +33,81 @@ export const ImageInputNode = memo(({ id, data, selected }: NodeProps<ImageInput
   const [showMaskEditor, setShowMaskEditor] = useState(false);
   const isOverlay = data.__renderOverlay === true;
 
+  // 路径优先导入：引用原始本地文件（零拷贝，不写入应用存储目录）。
+  // base64 仅在内存中读取一份用于即时显示 / 蒙版绘制；持久化时 partialize 会剥离。
+  const applyImageFromPath = useCallback(
+    async (path: string, fileName?: string) => {
+      try {
+        await ensureAssetPathsAllowed([path]);
+      } catch (err) {
+        console.warn("扩展 asset 授权失败，图片可能无法预览:", err);
+      }
+      updateNodeData<ImageInputNodeData>(id, {
+        imagePath: path,
+        fileName: fileName || fileNameFromPath(path),
+        imageData: undefined,
+      });
+      // 内存中的显示副本：读取失败不影响显示（显示走 asset 协议）
+      try {
+        const base64 = await readImage(path);
+        // 防竞态：若用户已换图（imagePath 变化），丢弃过期数据
+        const current = useFlowStore
+          .getState()
+          .nodes.find((n) => n.id === id)?.data as ImageInputNodeData | undefined;
+        if (current?.imagePath === path) {
+          updateNodeData<ImageInputNodeData>(id, { imageData: base64 });
+        }
+      } catch (err) {
+        console.warn("读取图片显示副本失败:", err);
+      }
+    },
+    [id, updateNodeData]
+  );
+
+  // 系统文件对话框选择：返回原图绝对路径，走零拷贝引用
+  const handleOpenPicker = useCallback(async () => {
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const selected = await open({
+        multiple: false,
+        filters: [{ name: "图片", extensions: IMAGE_EXTENSIONS }],
+      });
+      if (selected === null) return; // 用户取消
+      if (typeof selected === "string" && selected) {
+        await applyImageFromPath(selected);
+        return;
+      }
+    } catch (err) {
+      console.warn("打开系统文件对话框失败，回退到网页选择器:", err);
+    }
+    fileInputRef.current?.click();
+  }, [applyImageFromPath]);
+
+  // 网页选择器回退：WebView 通常拿不到绝对路径，
+  // 此时保持零拷贝 —— base64 仅存内存，不再写入应用存储目录
   const handleFileSelect = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
 
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const base64 = (reader.result as string).split(",")[1];
-        const { activeCanvasId } = useCanvasStore.getState();
+      const realPath = getFilePathForDroppedFile(file);
+      if (realPath) {
+        await applyImageFromPath(realPath, file.name);
+        return;
+      }
 
-        if (activeCanvasId) {
-          try {
-            const imageInfo = await saveImage(
-              base64,
-              activeCanvasId,
-              id,
-              undefined,
-              undefined,
-              "input"
-            );
-            updateNodeData<ImageInputNodeData>(id, {
-              imageData: undefined,
-              fileName: file.name,
-              imagePath: imageInfo.path,
-            });
-          } catch (err) {
-            console.warn("保存图片到文件系统失败，回退到内存存储:", err);
-            updateNodeData<ImageInputNodeData>(id, {
-              imageData: base64,
-              fileName: file.name,
-              imagePath: undefined,
-            });
-          }
-        } else {
-          updateNodeData<ImageInputNodeData>(id, {
-            imageData: base64,
-            fileName: file.name,
-            imagePath: undefined,
-          });
-        }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = (reader.result as string).split(",")[1];
+        updateNodeData<ImageInputNodeData>(id, {
+          imageData: base64,
+          fileName: file.name,
+          imagePath: undefined,
+        });
       };
       reader.readAsDataURL(file);
     },
-    [id, updateNodeData]
+    [id, updateNodeData, applyImageFromPath]
   );
 
   const handleClearImage = useCallback(() => {
@@ -128,7 +173,7 @@ export const ImageInputNode = memo(({ id, data, selected }: NodeProps<ImageInput
         <span className="nc-node-header-icon">
           <ImagePlus className="w-4 h-4" />
         </span>
-        <span className="text-sm font-semibold truncate">{data.label}</span>
+        <span className="nc-node-title truncate">{data.label}</span>
       </div>
 
       {/* 节点内容 */}
@@ -178,13 +223,13 @@ export const ImageInputNode = memo(({ id, data, selected }: NodeProps<ImageInput
             {/* 操作栏 */}
             <div className="flex items-center mt-1.5 gap-1">
               {data.fileName && (
-                <p className="text-xs text-base-content/60 truncate flex-1">
+                <p className="text-[11px] text-base-content/60 truncate flex-1">
                   {data.fileName}
                 </p>
               )}
               <div className="flex items-center gap-0.5 ml-auto flex-shrink-0">
                 <button
-                  className={`btn btn-circle btn-xs ${data.hasMask ? "btn-error" : "btn-ghost"}`}
+                  className={data.hasMask ? "btn btn-circle btn-xs btn-error" : "nc-icon-btn nc-icon-btn-xs"}
                   onClick={(e) => {
                     e.stopPropagation();
                     setShowMaskEditor(true);
@@ -195,7 +240,7 @@ export const ImageInputNode = memo(({ id, data, selected }: NodeProps<ImageInput
                   <Paintbrush className="w-3 h-3" />
                 </button>
                 <button
-                  className="btn btn-circle btn-xs btn-ghost hover:btn-error"
+                  className="nc-icon-btn nc-icon-btn-xs nc-icon-btn-danger"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleClearImage();
@@ -210,12 +255,12 @@ export const ImageInputNode = memo(({ id, data, selected }: NodeProps<ImageInput
           </div>
         ) : (
           <button
-            className="btn btn-ghost w-full h-[120px] border border-dashed border-base-300 hover:border-primary flex-col gap-1"
-            onClick={() => fileInputRef.current?.click()}
+            className="btn btn-ghost w-full h-[120px] rounded-[var(--nc-radius-md)] border border-dashed border-base-300 hover:border-primary flex-col gap-1"
+            onClick={handleOpenPicker}
             onPointerDown={(e) => e.stopPropagation()}
           >
             <Upload className="w-6 h-6 text-base-content/40" />
-            <span className="text-xs text-base-content/60">点击上传图片</span>
+            <span className="text-[11px] text-base-content/60">点击上传图片</span>
           </button>
         )}
       </div>

@@ -6,17 +6,17 @@ import {
   Pencil,
   Trash2,
   Server,
-  AlertTriangle,
   Image,
-  Video,
   MessageSquare,
   ChevronDown,
   ChevronRight,
   Zap,
 } from "lucide-react";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { useModelListStore } from "@/services/modelListService";
 import { Select } from "@/components/ui/Select";
 import { Input } from "@/components/ui/Input";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useModal, getModalAnimationClasses } from "@/hooks/useModal";
 import { NODE_ALLOWED_PROTOCOLS } from "@/types";
 import type { Provider, NodeProviderMapping, ProviderProtocol } from "@/types";
@@ -39,20 +39,9 @@ const protocolLabels: Record<ProviderProtocol, string> = {
 
 // 节点类型配置
 const nodeTypeConfig: { key: keyof NodeProviderMapping; label: string; description: string }[] = [
-  { key: "imageGeneratorPro", label: "Gemini Pro 图片协议", description: "兼容 Gemini generateContent 的专业图片配置" },
-  { key: "imageGeneratorFast", label: "Gemini Fast 图片协议", description: "兼容 Gemini generateContent 的快速图片配置" },
-  { key: "imageGeneratorNB2", label: "Gemini 图片协议", description: "统一绘图节点的 Gemini generateContent 供应商" },
-  { key: "dalleGenerator", label: "DALL-E 绘图", description: "旧版 DALL-E Images API 配置" },
-  { key: "fluxGenerator", label: "Flux 绘图", description: "Flux 图片生成节点" },
-  { key: "gptImageGenerator", label: "OpenAI Images API", description: "统一绘图节点的 /images/generations 与 /images/edits 供应商" },
-  { key: "doubaoGenerator", label: "豆包绘图", description: "字节跳动豆包图片生成节点" },
-  { key: "zImageGenerator", label: "Z-Image 绘图", description: "Gitee AI Z-Image 图片生成节点" },
-  { key: "videoGenerator", label: "OpenAI Videos API", description: "统一视频节点的 /v1/videos 供应商" },
-  { key: "newApiVideoGenerator", label: "new-api 通用视频", description: "统一视频节点的 /v1/video/generations 供应商" },
-  { key: "veoGenerator", label: "Veo 视频生成", description: "Gemini Veo 视频生成节点" },
-  { key: "klingGenerator", label: "Kling 视频生成", description: "Kling 视频生成节点" },
+  { key: "imageGeneratorNB2", label: "Gemini 图片协议", description: "绘图节点的 Gemini generateContent 供应商" },
+  { key: "gptImageGenerator", label: "OpenAI Images API", description: "绘图节点的 /images/generations 与 /images/edits 供应商" },
   { key: "llmContent", label: "LLM 内容生成", description: "大语言模型内容生成节点" },
-  { key: "llm", label: "PPT 大纲生成", description: "PPT 内容节点的大纲生成部分" },
 ];
 
 // 节点分组配置
@@ -70,29 +59,17 @@ const nodeGroups: NodeGroup[] = [
     id: "image",
     label: "图片生成",
     icon: Image,
-    colorClass: "text-blue-500",
-    bgClass: "bg-blue-500/10",
-    nodeKeys: [
-      "imageGeneratorPro", "imageGeneratorFast", "imageGeneratorNB2",
-      "dalleGenerator", "fluxGenerator", "gptImageGenerator",
-      "doubaoGenerator", "zImageGenerator",
-    ],
-  },
-  {
-    id: "video",
-    label: "视频生成",
-    icon: Video,
-    colorClass: "text-purple-500",
-    bgClass: "bg-purple-500/10",
-    nodeKeys: ["videoGenerator", "newApiVideoGenerator"],
+    colorClass: "text-[var(--nc-blue)]",
+    bgClass: "bg-[var(--nc-blue-soft)]",
+    nodeKeys: ["imageGeneratorNB2", "gptImageGenerator"],
   },
   {
     id: "llm",
     label: "文本 / LLM",
     icon: MessageSquare,
-    colorClass: "text-green-500",
-    bgClass: "bg-green-500/10",
-    nodeKeys: ["llmContent", "llm"],
+    colorClass: "text-[var(--nc-success)]",
+    bgClass: "bg-[color-mix(in_srgb,var(--nc-success)_10%,transparent)]",
+    nodeKeys: ["llmContent"],
   },
 ];
 
@@ -117,6 +94,32 @@ export function ProviderPanel() {
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
   // 分组折叠状态（默认全部展开）
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  // 供应商连接测试状态
+  const [testStates, setTestStates] = useState<
+    Record<string, { status: "loading" | "ok" | "error"; modelCount?: number; error?: string }>
+  >({});
+
+  // 测试连接：拉取模型列表并显示结果
+  const handleTestProvider = async (provider: Provider) => {
+    setTestStates((prev) => ({ ...prev, [provider.id]: { status: "loading" } }));
+    try {
+      await useModelListStore.getState().fetchModels(provider, true);
+      const entry = useModelListStore.getState().entries[provider.id];
+      if (entry?.error) {
+        setTestStates((prev) => ({ ...prev, [provider.id]: { status: "error", error: entry.error } }));
+      } else {
+        setTestStates((prev) => ({
+          ...prev,
+          [provider.id]: { status: "ok", modelCount: entry?.models.length ?? 0 },
+        }));
+      }
+    } catch (e) {
+      setTestStates((prev) => ({
+        ...prev,
+        [provider.id]: { status: "error", error: e instanceof Error ? e.message : String(e) },
+      }));
+    }
+  };
 
   // 使用统一的 modal hook
   const { isVisible, isClosing, handleClose, handleBackdropClick } = useModal({
@@ -125,7 +128,7 @@ export function ProviderPanel() {
   });
 
   // 获取动画类名
-  const { backdropClasses, contentClasses } = getModalAnimationClasses(isVisible, isClosing);
+  const { contentClasses } = getModalAnimationClasses(isVisible, isClosing);
 
   if (!isProviderPanelOpen) return null;
 
@@ -196,75 +199,87 @@ export function ProviderPanel() {
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* 背景遮罩 */}
-      <div
-        className={`
-          absolute inset-0
-          transition-all duration-200 ease-out
-          ${backdropClasses}
-        `}
-        onClick={handleBackdropClick}
-      />
+    <div
+      className={`nc-modal-backdrop ${isVisible && !isClosing ? "nc-modal-backdrop-open" : ""}`}
+      onClick={handleBackdropClick}
+    >
       {/* Modal 内容 */}
       <div
         className={`
-          relative bg-base-100 rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden max-h-[90vh] flex flex-col
+          nc-modal nc-modal-lg mx-4 max-h-[90vh] flex flex-col
           transition-all duration-200 ease-out
           ${contentClasses}
         `}
       >
         {/* 头部 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-base-300">
+        <div className="nc-modal-header">
           <div className="flex items-center gap-3">
             <Server className="w-5 h-5 text-primary" />
-            <h2 className="text-lg font-semibold">供应商管理</h2>
+            <h2 className="nc-modal-title">供应商管理</h2>
             {/* 配置进度 */}
             {providers.length > 0 && (
-              <span className={`text-xs px-2 py-0.5 rounded-full ${
-                configuredNodes === totalNodes
-                  ? "bg-success/15 text-success"
-                  : "bg-warning/15 text-warning"
-              }`}>
+              <span className={`nc-chip ${configuredNodes === totalNodes ? "nc-chip-success" : "nc-chip-warning"}`}>
                 {configuredNodes}/{totalNodes}
               </span>
             )}
           </div>
           <button
-            className="btn btn-ghost btn-sm btn-circle"
+            className="nc-icon-btn"
             onClick={handleClose}
+            aria-label="关闭"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* 内容 - 可滚动 */}
-        <div className="p-5 space-y-5 overflow-y-auto flex-1">
+        <div className="nc-modal-body space-y-5">
           {/* 供应商列表区域 */}
           <div className="space-y-2">
-            <h3 className="text-xs font-semibold text-base-content/50 uppercase tracking-wider">
+            <h3 className="nc-section-title">
               供应商列表
             </h3>
 
             {/* 供应商卡片列表 */}
             {providers.length === 0 ? (
-              <div className="text-center py-6 text-base-content/50">
-                <Server className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                <p className="text-sm">暂无供应商，点击下方按钮添加</p>
+              <div className="nc-empty-state">
+                <Server className="h-8 w-8 opacity-40" />
+                <p className="nc-empty-state-title">暂无供应商</p>
+                <p className="nc-empty-state-hint">点击下方按钮添加</p>
               </div>
             ) : (
               <div className="space-y-1.5">
-                {providers.map((provider) => (
+                {providers.map((provider) => {
+                  const testState = testStates[provider.id];
+                  return (
                   <div
                     key={provider.id}
-                    className="flex items-center justify-between p-2.5 bg-base-200 rounded-lg"
+                    className="nc-soft-panel flex items-center justify-between p-2.5!"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium truncate">{provider.name}</span>
-                        <span className="px-1.5 py-0.5 text-[10px] rounded bg-base-300 text-base-content/60 shrink-0">
+                        <span className="nc-chip nc-chip-neutral shrink-0">
                           {protocolLabels[provider.protocol] || "Google"}
                         </span>
+                        {testState?.status === "loading" && (
+                          <span className="nc-chip nc-chip-info shrink-0">
+                            测试中...
+                          </span>
+                        )}
+                        {testState?.status === "ok" && (
+                          <span className="nc-chip nc-chip-success shrink-0">
+                            连接正常 · {testState.modelCount} 个模型
+                          </span>
+                        )}
+                        {testState?.status === "error" && (
+                          <span
+                            className="nc-chip nc-chip-error shrink-0 truncate max-w-[160px]"
+                            title={testState.error}
+                          >
+                            {testState.error}
+                          </span>
+                        )}
                       </div>
                       <div className="text-xs text-base-content/40 truncate">
                         {provider.baseUrl}
@@ -272,20 +287,29 @@ export function ProviderPanel() {
                     </div>
                     <div className="flex items-center gap-0.5 ml-2">
                       <button
-                        className="btn btn-ghost btn-xs btn-square"
+                        className="nc-icon-btn nc-icon-btn-xs"
+                        title="测试连接（获取模型列表）"
+                        disabled={testState?.status === "loading"}
+                        onClick={() => void handleTestProvider(provider)}
+                      >
+                        <Zap className={`w-3.5 h-3.5 ${testState?.status === "loading" ? "animate-pulse" : ""}`} />
+                      </button>
+                      <button
+                        className="nc-icon-btn nc-icon-btn-xs"
                         onClick={() => setEditingProvider(provider)}
                       >
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
                       <button
-                        className="btn btn-ghost btn-xs btn-square text-error"
+                        className="nc-icon-btn nc-icon-btn-xs nc-icon-btn-danger"
                         onClick={() => handleDeleteProvider(provider)}
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
@@ -300,17 +324,17 @@ export function ProviderPanel() {
           </div>
 
           {/* 分隔线 */}
-          <div className="divider my-1"></div>
+          <hr className="nc-divider nc-divider-compact" />
 
           {/* 节点配置区域 - 分组显示 */}
           <div className="space-y-3">
-            <h3 className="text-xs font-semibold text-base-content/50 uppercase tracking-wider">
+            <h3 className="nc-section-title">
               节点配置
             </h3>
 
             {providers.length === 0 ? (
-              <div className="text-center py-4 text-base-content/50 text-sm">
-                请先添加供应商
+              <div className="nc-empty-state">
+                <p className="nc-empty-state-title">请先添加供应商</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -324,7 +348,7 @@ export function ProviderPanel() {
                   ).length;
 
                   return (
-                    <div key={group.id} className="rounded-xl border border-base-300 overflow-hidden">
+                    <div key={group.id} className="rounded-[var(--nc-radius-lg)] border border-[var(--nc-border)] overflow-hidden">
                       {/* 分组标题栏 */}
                       <div
                         className="flex items-center gap-2 px-3 py-2.5 bg-base-200/50 cursor-pointer select-none"
@@ -342,7 +366,7 @@ export function ProviderPanel() {
                         </div>
                         {/* 分组名称 + 进度 */}
                         <span className="text-sm font-medium flex-1">{group.label}</span>
-                        <span className="text-[10px] text-base-content/40">
+                        <span className="text-[11px] text-base-content/40">
                           {groupConfigured}/{group.nodeKeys.length}
                         </span>
                         {/* 批量分配按钮 */}
@@ -421,8 +445,8 @@ export function ProviderPanel() {
         </div>
 
         {/* 底部 - 简化为关闭按钮 */}
-        <div className="flex items-center justify-between px-6 py-3 border-t border-base-300 bg-base-200/50">
-          <div className="flex items-center gap-1.5 text-xs text-base-content/40">
+        <div className="nc-modal-footer">
+          <div className="nc-modal-footer-hint flex items-center gap-1.5">
             <Zap className="w-3 h-3" />
             <span>更改即时生效</span>
           </div>
@@ -454,8 +478,11 @@ export function ProviderPanel() {
 
       {/* 删除确认弹窗 */}
       {deleteConfirm && (
-        <DeleteConfirmModal
-          name={deleteConfirm.name}
+        <ConfirmDialog
+          tone="error"
+          title="确认删除"
+          message={`确定要删除供应商「${deleteConfirm.name}」吗？相关节点配置也会被清除，此操作不可撤销。`}
+          confirmText="确认删除"
           onConfirm={executeDelete}
           onClose={() => setDeleteConfirm(null)}
         />
@@ -485,7 +512,7 @@ function ProviderEditModal({ provider, onSave, onClose }: ProviderEditModalProps
   });
 
   // 获取动画类名
-  const { backdropClasses, contentClasses } = getModalAnimationClasses(isVisible, isClosing);
+  const { contentClasses } = getModalAnimationClasses(isVisible, isClosing);
 
   const isEditing = !!provider;
   const canSave = name.trim() && apiKey.trim() && baseUrl.trim();
@@ -501,32 +528,27 @@ function ProviderEditModal({ provider, onSave, onClose }: ProviderEditModalProps
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center">
-      {/* 背景遮罩 */}
-      <div
-        className={`
-          absolute inset-0
-          transition-all duration-200 ease-out
-          ${backdropClasses}
-        `}
-        onClick={handleBackdropClick}
-      />
+    <div
+      className={`nc-modal-backdrop nc-modal-backdrop-nested ${isVisible && !isClosing ? "nc-modal-backdrop-open" : ""}`}
+      onClick={handleBackdropClick}
+    >
       {/* Modal 内容 */}
       <div
         className={`
-          relative bg-base-100 rounded-xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden
+          nc-modal nc-modal-sm mx-4
           transition-all duration-200 ease-out
           ${contentClasses}
         `}
       >
         {/* 头部 */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-base-300">
-          <h3 className="font-semibold">
+        <div className="nc-modal-header">
+          <h3 className="nc-modal-title">
             {isEditing ? "编辑供应商" : "添加供应商"}
           </h3>
           <button
-            className="btn btn-ghost btn-sm btn-circle"
+            className="nc-icon-btn"
             onClick={handleClose}
+            aria-label="关闭"
           >
             <X className="w-4 h-4" />
           </button>
@@ -534,12 +556,12 @@ function ProviderEditModal({ provider, onSave, onClose }: ProviderEditModalProps
 
         {/* 协议类型选择 Tab */}
         <div className="px-5 pt-4">
-          <div className="flex bg-base-200 rounded-lg p-1">
+          <div className="flex bg-base-200 rounded-[var(--nc-radius-md)] p-1">
             {protocolConfig.map(({ key, label }) => (
               <button
                 key={key}
                 className={`
-                  flex-1 py-1.5 px-3 text-sm font-medium rounded-md transition-colors
+                  flex-1 py-1.5 px-3 text-sm font-medium rounded-[var(--nc-radius-sm)] transition-colors
                   ${protocol === key
                     ? "bg-base-100 text-base-content shadow-sm"
                     : "text-base-content/60 hover:text-base-content"
@@ -557,9 +579,7 @@ function ProviderEditModal({ provider, onSave, onClose }: ProviderEditModalProps
         <div className="p-5 space-y-4">
           {/* 名称 */}
           <div className="form-control">
-            <label className="label py-1">
-              <span className="label-text font-medium">名称</span>
-            </label>
+            <label className="nc-field-label">名称</label>
             <Input
               placeholder="例如：我的 API 服务"
               value={name}
@@ -569,9 +589,7 @@ function ProviderEditModal({ provider, onSave, onClose }: ProviderEditModalProps
 
           {/* API Key */}
           <div className="form-control">
-            <label className="label py-1">
-              <span className="label-text font-medium">API Key</span>
-            </label>
+            <label className="nc-field-label">API Key</label>
             <Input
               isPassword
               placeholder="输入 API Key"
@@ -582,24 +600,20 @@ function ProviderEditModal({ provider, onSave, onClose }: ProviderEditModalProps
 
           {/* Base URL */}
           <div className="form-control">
-            <label className="label py-1">
-              <span className="label-text font-medium">Base URL</span>
-            </label>
+            <label className="nc-field-label">Base URL（必填）</label>
             <Input
               placeholder="例如：https://api.example.com"
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
             />
-            <label className="label py-0.5">
-              <span className="label-text-alt text-base-content/50">
-                无需填写版本路径（如 /v1beta）
-              </span>
-            </label>
+            <p className="mt-1 text-xs nc-subtle">
+              无需填写版本路径（如 /v1beta）
+            </p>
           </div>
         </div>
 
         {/* 底部 */}
-        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-base-300 bg-base-200/50">
+        <div className="nc-modal-footer">
           <button className="btn btn-ghost btn-sm" onClick={handleClose}>
             取消
           </button>
@@ -609,70 +623,6 @@ function ProviderEditModal({ provider, onSave, onClose }: ProviderEditModalProps
             disabled={!canSave}
           >
             {isEditing ? "保存" : "添加"}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// 删除确认弹窗组件
-interface DeleteConfirmModalProps {
-  name: string;
-  onConfirm: () => void;
-  onClose: () => void;
-}
-
-function DeleteConfirmModal({ name, onConfirm, onClose }: DeleteConfirmModalProps) {
-  // 使用统一的 modal hook
-  const { isVisible, isClosing, handleClose, handleBackdropClick } = useModal({
-    isOpen: true,
-    onClose,
-  });
-
-  // 获取动画类名
-  const { backdropClasses, contentClasses } = getModalAnimationClasses(isVisible, isClosing);
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center">
-      {/* 背景遮罩 */}
-      <div
-        className={`
-          absolute inset-0
-          transition-all duration-200 ease-out
-          ${backdropClasses}
-        `}
-        onClick={handleBackdropClick}
-      />
-      {/* Modal 内容 */}
-      <div
-        className={`
-          relative bg-base-100 rounded-xl shadow-2xl w-full max-w-sm mx-4 p-5
-          transition-all duration-200 ease-out
-          ${contentClasses}
-        `}
-      >
-        <div className="flex items-center gap-3 mb-4">
-          <div className="p-2 bg-error/10 rounded-lg">
-            <AlertTriangle className="w-5 h-5 text-error" />
-          </div>
-          <h3 className="font-semibold">确认删除</h3>
-        </div>
-        <p className="text-sm text-base-content/70 mb-5">
-          确定要删除供应商「{name}」吗？相关节点配置也会被清除，此操作不可撤销。
-        </p>
-        <div className="flex gap-2 justify-end">
-          <button
-            className="btn btn-ghost btn-sm"
-            onClick={handleClose}
-          >
-            取消
-          </button>
-          <button
-            className="btn btn-error btn-sm"
-            onClick={onConfirm}
-          >
-            确认删除
           </button>
         </div>
       </div>

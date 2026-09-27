@@ -49,11 +49,11 @@ export const PromptNode = memo(({ id, data, selected }: NodeProps<PromptNode>) =
             <span className="nc-node-header-icon">
               <MessageSquare className="w-4 h-4" />
             </span>
-            <span className="text-sm font-semibold truncate">{data.label}</span>
+            <span className="nc-node-title truncate">{data.label}</span>
           </div>
           {/* 编辑按钮 */}
           <button
-            className="btn btn-circle btn-ghost btn-xs nodrag"
+            className="nc-icon-btn nc-icon-btn-xs nodrag"
             onClick={handleOpenModal}
             title="编辑提示词"
           >
@@ -68,7 +68,7 @@ export const PromptNode = memo(({ id, data, selected }: NodeProps<PromptNode>) =
         >
           <div
             className={`
-              min-h-[60px] max-h-[100px] overflow-hidden rounded-lg p-2.5
+              min-h-[60px] max-h-[100px] overflow-hidden rounded-[var(--nc-radius-md)] p-2.5
               nc-soft-surface
               group-hover:border-primary/50 group-hover:bg-base-200
               transition-colors text-sm
@@ -82,7 +82,7 @@ export const PromptNode = memo(({ id, data, selected }: NodeProps<PromptNode>) =
               <p className="text-base-content/40 italic">点击编辑提示词...</p>
             )}
           </div>
-          <p className="text-xs text-base-content/40 mt-1.5 text-center">
+          <p className="text-[11px] text-base-content/40 mt-1.5 text-center">
             点击编辑
           </p>
         </div>

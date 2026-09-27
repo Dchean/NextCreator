@@ -2546,7 +2546,6 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "image",
- "lazy_static",
  "reqwest",
  "serde",
  "serde_json",
@@ -2556,7 +2555,6 @@ dependencies = [
  "tauri-plugin-fs",
  "tauri-plugin-opener",
  "tauri-plugin-store",
- "tokio",
  "uuid",
 ]
 
@@ -4871,7 +4869,6 @@ dependencies = [
  "bytes",
  "libc",
  "mio",
- "parking_lot",
  "pin-project-lite",
  "signal-hook-registry",
  "socket2",

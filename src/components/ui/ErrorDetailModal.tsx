@@ -1,7 +1,8 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { X, Copy, AlertCircle, Check, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "@/stores/toastStore";
+import { useModal, getModalAnimationClasses } from "@/hooks/useModal";
 import type { ErrorDetails } from "@/types";
 
 interface ErrorDetailModalProps {
@@ -68,28 +69,17 @@ function formatTimestamp(isoString: string): string {
  * 用于显示节点执行过程中的完整错误信息
  */
 export function ErrorDetailModal({ error, errorDetails, title = "错误详情", onClose }: ErrorDetailModalProps) {
-  const [isVisible, setIsVisible] = useState(false);
-  const [isClosing, setIsClosing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [expandedFields, setExpandedFields] = useState<Set<string>>(new Set(["message", "cause"]));
 
-  // 进入动画
-  useEffect(() => {
-    requestAnimationFrame(() => setIsVisible(true));
-  }, []);
+  // 使用统一的 modal hook（ESC 关闭、背景点击、过渡动画）
+  const { isVisible, isClosing, handleClose, handleBackdropClick } = useModal({
+    isOpen: true,
+    onClose,
+  });
 
-  // 关闭时先播放退出动画
-  const handleClose = useCallback(() => {
-    setIsClosing(true);
-    setIsVisible(false);
-    setTimeout(onClose, 200);
-  }, [onClose]);
-
-  // 处理背景点击
-  const handleBackgroundClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    handleClose();
-  }, [handleClose]);
+  // 获取动画类名
+  const { contentClasses } = getModalAnimationClasses(isVisible, isClosing);
 
   // 智能解析错误字符串，尝试提取结构化信息
   const parseErrorString = useCallback((errorString: string): Partial<ErrorDetails> => {
@@ -202,17 +192,6 @@ export function ErrorDetailModal({ error, errorDetails, title = "错误详情", 
     }
   }, [getFullErrorText]);
 
-  // ESC 键关闭
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        handleClose();
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [handleClose]);
-
   // 切换字段展开状态
   const toggleField = (field: string) => {
     setExpandedFields(prev => {
@@ -294,34 +273,27 @@ export function ErrorDetailModal({ error, errorDetails, title = "错误详情", 
 
   return createPortal(
     <div
-      className={`
-        fixed inset-0 z-[9999] flex items-center justify-center p-4
-        transition-all duration-200 ease-out
-        ${isVisible && !isClosing ? "bg-black/50" : "bg-black/0"}
-      `}
-      onClick={handleBackgroundClick}
+      className={`nc-modal-backdrop p-4 ${isVisible && !isClosing ? "nc-modal-backdrop-open" : ""}`}
+      onClick={handleBackdropClick}
     >
       <div
         className={`
-          bg-base-100 rounded-xl shadow-2xl w-full max-w-[700px] max-h-[85vh] flex flex-col
+          nc-modal nc-modal-xl max-h-[85vh] flex flex-col
           transition-all duration-200 ease-out
-          ${isVisible && !isClosing
-            ? "opacity-100 scale-100 translate-y-0"
-            : "opacity-0 scale-95 translate-y-4"
-          }
+          ${contentClasses}
         `}
         onClick={(e) => e.stopPropagation()}
       >
         {/* 标题栏 */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-base-300 flex-shrink-0">
+        <div className="nc-modal-header">
           <div className="flex items-center gap-2 text-error">
             <AlertCircle className="w-5 h-5" />
-            <span className="font-medium">{title}</span>
+            <span className="nc-modal-title">{title}</span>
             {parsedError.statusCode && (
-              <span className={`text-xs px-2 py-0.5 rounded ${
-                parsedError.statusCode >= 500 ? "bg-error/20 text-error" :
-                parsedError.statusCode >= 400 ? "bg-warning/20 text-warning" :
-                "bg-success/20 text-success"
+              <span className={`nc-chip ${
+                parsedError.statusCode >= 500 ? "nc-chip-error" :
+                parsedError.statusCode >= 400 ? "nc-chip-warning" :
+                "nc-chip-success"
               }`}>
                 {parsedError.statusCode}
               </span>
@@ -345,8 +317,10 @@ export function ErrorDetailModal({ error, errorDetails, title = "错误详情", 
               )}
             </button>
             <button
-              className="btn btn-sm btn-circle btn-ghost"
+              type="button"
+              className="nc-icon-btn"
               onClick={handleClose}
+              aria-label="关闭"
             >
               <X className="w-4 h-4" />
             </button>
@@ -354,13 +328,15 @@ export function ErrorDetailModal({ error, errorDetails, title = "错误详情", 
         </div>
 
         {/* 错误内容 */}
-        <div className="flex-1 overflow-auto p-4 space-y-3">
+        <div className="nc-modal-body-sm space-y-3">
           {fieldOrder.map(field => renderField(field, parsedError[field as keyof ErrorDetails]))}
         </div>
 
         {/* 底部提示 */}
-        <div className="px-4 py-3 border-t border-base-300 text-xs text-base-content/50 text-center flex-shrink-0">
-          点击背景或按 ESC 关闭 · 点击字段名可展开/折叠 · 复制按钮可复制完整错误信息
+        <div className="nc-modal-footer nc-modal-footer-center">
+          <span className="text-xs text-base-content/50">
+            点击背景或按 ESC 关闭 · 点击字段名可展开/折叠 · 复制按钮可复制完整错误信息
+          </span>
         </div>
       </div>
     </div>,

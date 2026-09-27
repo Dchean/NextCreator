@@ -1,16 +1,12 @@
-import { Position, type Node, type NodeProps } from "@xyflow/react";
+import { Position, type Edge, type Node, type NodeProps } from "@xyflow/react";
 import type { ComponentType, CSSProperties } from "react";
 
 import { PromptNode } from "@/components/nodes/PromptNode";
 import { ImageGeneratorNode } from "@/components/nodes/ImageGeneratorNode";
 import { ImageInputNode } from "@/components/nodes/ImageInputNode";
-import { VideoGeneratorNode } from "@/components/nodes/VideoGeneratorNode";
-import { VeoGeneratorNode } from "@/components/nodes/VeoGeneratorNode";
-import { KlingGeneratorNode } from "@/components/nodes/KlingGeneratorNode";
-import { PPTContentNode } from "@/components/nodes/PPTContentNode";
-import { PPTAssemblerNode } from "@/components/nodes/PPTAssemblerNode";
 import { LLMContentNode } from "@/components/nodes/LLMContentNode";
 import { FileUploadNode } from "@/components/nodes/FileUploadNode";
+import { computeGeneratorHandleSpecs } from "@/utils/generatorHandles";
 
 export interface OverlayNodeHandleSpec {
   id?: string;
@@ -73,58 +69,7 @@ function nodeRenderer(Component: OverlayCompatibleNodeComponent): ComponentType<
   };
 }
 
-const promptHandle: OverlayNodeHandleSpec = {
-  id: "input-prompt",
-  type: "target",
-  position: Position.Left,
-  top: "42%",
-  className: "!w-3 !h-3 !bg-blue-500 !border-2 !border-white",
-  label: "提示词",
-  labelClassName: "-left-9",
-};
-
-const imageHandle: OverlayNodeHandleSpec = {
-  id: "input-image",
-  type: "target",
-  position: Position.Left,
-  top: "64%",
-  className: "!w-3 !h-3 !bg-green-500 !border-2 !border-white",
-  label: "参考图",
-  labelClassName: "-left-9",
-};
-
-const imageGeneratorInputTop = 116;
-const videoGeneratorInputTop = 116;
 const llmContentInputTop = 116;
-
-const imageGeneratorUnifiedInputHandle: OverlayNodeHandleSpec = {
-  id: "input",
-  type: "target",
-  position: Position.Left,
-  top: imageGeneratorInputTop,
-  className: "canvas-node-minimal-handle canvas-node-minimal-handle-input",
-  title: "输入",
-};
-
-const imageGeneratorLegacyPromptHandle: OverlayNodeHandleSpec = {
-  id: "input-prompt",
-  type: "target",
-  position: Position.Left,
-  top: imageGeneratorInputTop,
-  className: "canvas-node-legacy-handle",
-  isConnectable: false,
-  showMarker: false,
-};
-
-const imageGeneratorLegacyImageHandle: OverlayNodeHandleSpec = {
-  id: "input-image",
-  type: "target",
-  position: Position.Left,
-  top: imageGeneratorInputTop,
-  className: "canvas-node-legacy-handle",
-  isConnectable: false,
-  showMarker: false,
-};
 
 function sourceHandle(id: string, className: string, title?: string): OverlayNodeHandleSpec {
   return {
@@ -137,77 +82,10 @@ function sourceHandle(id: string, className: string, title?: string): OverlayNod
   };
 }
 
+// imageGeneratorNode 的 handle 列表由 computeGeneratorHandleSpecs 动态计算（依赖节点连线），
+// 此处仅提供静态默认值（提示词 + 一个空闲参考图槽位 + 输出），供描述符类型与非动态场景使用。
 function imageGeneratorHandles(): OverlayNodeHandleSpec[] {
-  return [
-    imageGeneratorUnifiedInputHandle,
-    imageGeneratorLegacyPromptHandle,
-    imageGeneratorLegacyImageHandle,
-    {
-      id: "output-image",
-      type: "source",
-      position: Position.Right,
-      top: imageGeneratorInputTop,
-      className: "canvas-node-minimal-handle canvas-node-minimal-handle-output",
-      title: "输出图片",
-    },
-  ];
-}
-
-function videoGeneratorHandles(outputClassName: string, imageLabel = "图片"): OverlayNodeHandleSpec[] {
-  return [
-    promptHandle,
-    {
-      ...imageHandle,
-      label: imageLabel,
-      labelClassName: imageLabel.length > 2 ? "-left-9" : "-left-6",
-    },
-    sourceHandle("output-video", outputClassName),
-  ];
-}
-
-const videoGeneratorUnifiedInputHandle: OverlayNodeHandleSpec = {
-  id: "input",
-  type: "target",
-  position: Position.Left,
-  top: videoGeneratorInputTop,
-  className: "canvas-node-minimal-handle canvas-node-minimal-handle-input",
-  title: "输入",
-};
-
-const videoGeneratorLegacyPromptHandle: OverlayNodeHandleSpec = {
-  id: "input-prompt",
-  type: "target",
-  position: Position.Left,
-  top: videoGeneratorInputTop,
-  className: "canvas-node-legacy-handle",
-  isConnectable: false,
-  showMarker: false,
-};
-
-const videoGeneratorLegacyImageHandle: OverlayNodeHandleSpec = {
-  id: "input-image",
-  type: "target",
-  position: Position.Left,
-  top: videoGeneratorInputTop,
-  className: "canvas-node-legacy-handle",
-  isConnectable: false,
-  showMarker: false,
-};
-
-function unifiedVideoGeneratorHandles(): OverlayNodeHandleSpec[] {
-  return [
-    videoGeneratorUnifiedInputHandle,
-    videoGeneratorLegacyPromptHandle,
-    videoGeneratorLegacyImageHandle,
-    {
-      id: "output-video",
-      type: "source",
-      position: Position.Right,
-      top: videoGeneratorInputTop,
-      className: "canvas-node-minimal-handle canvas-node-minimal-handle-output",
-      title: "输出视频",
-    },
-  ];
+  return computeGeneratorHandleSpecs("__default__", [], []);
 }
 
 const llmContentUnifiedInputHandle: OverlayNodeHandleSpec = {
@@ -276,7 +154,20 @@ export const overlayNodeDescriptors: Record<string, OverlayNodeDescriptor> = {
   imageInputNode: {
     type: "imageInputNode",
     size: { width: 200, height: 176 },
-    handles: [sourceHandle("output-image", "!bg-green-500")],
+    handles: [
+      {
+        // 目标连接点：允许 生图节点输出图 / 其他图片来源 连入图片输入节点
+        // （右键"输出图转为图片输入"、"以此图继续生成"、画廊/输出图拖拽的自动连线都指向它）
+        id: "input-image",
+        type: "target",
+        position: Position.Left,
+        top: "50%",
+        className: "!w-3 !h-3 !bg-green-500 !border-2 !border-white",
+        label: "图片",
+        labelClassName: "-left-6",
+      },
+      sourceHandle("output-image", "!bg-green-500"),
+    ],
     render: nodeRenderer(ImageInputNode),
   },
   fileUploadNode: {
@@ -287,27 +178,10 @@ export const overlayNodeDescriptors: Record<string, OverlayNodeDescriptor> = {
   },
   imageGeneratorNode: {
     type: "imageGeneratorNode",
-    size: { width: 360, height: 430 },
+    // 高度含两行内联控制行（模型选择器 + 协议参数行，参数行可能换行）
+    size: { width: 360, height: 680 },
     handles: imageGeneratorHandles(),
     render: nodeRenderer(ImageGeneratorNode),
-  },
-  videoGeneratorNode: {
-    type: "videoGeneratorNode",
-    size: { width: 360, height: 430 },
-    handles: unifiedVideoGeneratorHandles(),
-    render: nodeRenderer(VideoGeneratorNode),
-  },
-  veoGeneratorNode: {
-    type: "veoGeneratorNode",
-    size: { width: 220, height: 228 },
-    handles: videoGeneratorHandles("!bg-purple-500"),
-    render: nodeRenderer(VeoGeneratorNode),
-  },
-  klingGeneratorNode: {
-    type: "klingGeneratorNode",
-    size: { width: 220, height: 228 },
-    handles: videoGeneratorHandles("!bg-cyan-500"),
-    render: nodeRenderer(KlingGeneratorNode),
   },
   llmContentNode: {
     type: "llmContentNode",
@@ -315,53 +189,28 @@ export const overlayNodeDescriptors: Record<string, OverlayNodeDescriptor> = {
     handles: unifiedLLMContentHandles(),
     render: nodeRenderer(LLMContentNode),
   },
-  pptContentNode: {
-    type: "pptContentNode",
-    size: { width: 360, height: 430 },
-    handles: [
-      {
-        ...promptHandle,
-        top: "15%",
-        label: "主题",
-        labelClassName: "-left-6",
-      },
-      {
-        ...imageHandle,
-        top: "40%",
-        label: "模板图",
-      },
-      {
-        id: "input-file",
-        type: "target",
-        position: Position.Left,
-        top: "65%",
-        className: "!w-3 !h-3 !bg-orange-500 !border-2 !border-white",
-        label: "参考文件",
-        labelClassName: "-left-12",
-      },
-      sourceHandle("output-results", "!bg-indigo-500"),
-    ],
-    render: nodeRenderer(PPTContentNode),
-  },
-  pptAssemblerNode: {
-    type: "pptAssemblerNode",
-    size: { width: 280, height: 260 },
-    handles: [
-      {
-        id: "input-results",
-        type: "target",
-        position: Position.Left,
-        top: "50%",
-        className: "!w-3 !h-3 !bg-purple-500 !border-2 !border-white",
-        title: "PPT 页面数据",
-      },
-    ],
-    render: nodeRenderer(PPTAssemblerNode),
-  },
 };
 
 export const overlayNodeTypes = Object.keys(overlayNodeDescriptors);
 
 export function getOverlayNodeDescriptor(type?: string | null) {
   return type ? overlayNodeDescriptors[type] : undefined;
+}
+
+/**
+ * 获取节点应渲染的 handle 列表。
+ * imageGeneratorNode 的参考图槽位是动态的（每条参考图连线独占一个槽位 id，
+ * 且始终额外渲染一个空闲槽位），依赖该节点的连线与来源节点类型；
+ * 其他节点类型保持静态描述符。
+ */
+export function getNodeOverlayHandles(
+  nodeId: string,
+  type: string | undefined,
+  edges: Edge[],
+  nodes: Node[]
+): OverlayNodeHandleSpec[] {
+  if (type === "imageGeneratorNode") {
+    return computeGeneratorHandleSpecs(nodeId, edges, nodes);
+  }
+  return getOverlayNodeDescriptor(type)?.handles ?? [];
 }

@@ -15,7 +15,7 @@ export interface CanvasData {
 }
 
 // 侧边栏视图类型
-export type SidebarView = "canvases" | "nodes" | "prompts";
+export type SidebarView = "canvases" | "nodes" | "prompts" | "gallery";
 
 interface CanvasStore {
   // 画布列表

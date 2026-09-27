@@ -20,6 +20,7 @@ import { useLoadingDots } from "@/hooks/useLoadingDots";
 import { useLLMContentExecution } from "@/hooks/useLLMContentExecution";
 import { useNodeConnectionStatus } from "@/hooks/useNodeConnectionStatus";
 import { useFlowStore } from "@/stores/flowStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 import {
   filterPromptMentionSources,
   getActivePromptMentionQuery,
@@ -73,6 +74,7 @@ export function LLMContentInspector({ nodeId, data }: LLMContentInspectorProps) 
 
   const apiProtocol = getLLMApiProtocol(data);
   const config = getLLMApiProtocolConfig(apiProtocol);
+  const provider = useSettingsStore((s) => s.getNodeProvider(config.providerKey));
   const { handleGenerate, model, validationError } = useLLMContentExecution(nodeId, data);
   const dots = useLoadingDots(data.status === "loading");
   const {
@@ -159,7 +161,7 @@ export function LLMContentInspector({ nodeId, data }: LLMContentInspectorProps) 
       <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-5">
         <section className="space-y-3">
           <div>
-            <label className="text-xs text-base-content/60 mb-1 block">节点提示词</label>
+            <label className="nc-field-label">节点提示词</label>
             <div className="relative">
               <textarea
                 ref={promptTextareaRef}
@@ -220,7 +222,7 @@ export function LLMContentInspector({ nodeId, data }: LLMContentInspectorProps) 
           </div>
 
           <div>
-            <label className="text-xs text-base-content/60 mb-1 block">接口规范</label>
+            <label className="nc-field-label">接口规范</label>
             <Select
               value={apiProtocol}
               options={llmApiProtocolOptions}
@@ -237,10 +239,11 @@ export function LLMContentInspector({ nodeId, data }: LLMContentInspectorProps) 
             allowCustom={true}
             modelCategory="llmContent"
             mode="inline"
+            provider={provider}
           />
 
           <div>
-            <label className="text-xs text-base-content/60 mb-1 block">系统提示词</label>
+            <label className="nc-field-label">系统提示词</label>
             <textarea
               className="textarea textarea-bordered textarea-sm w-full min-h-20 resize-none"
               value={data.systemPrompt || ""}
@@ -251,7 +254,7 @@ export function LLMContentInspector({ nodeId, data }: LLMContentInspectorProps) 
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="text-xs text-base-content/60 mb-1 block">温度</label>
+              <label className="nc-field-label">温度</label>
               <input
                 type="number"
                 min="0"
@@ -263,7 +266,7 @@ export function LLMContentInspector({ nodeId, data }: LLMContentInspectorProps) 
               />
             </div>
             <div>
-              <label className="text-xs text-base-content/60 mb-1 block">最大输出</label>
+              <label className="nc-field-label">最大输出</label>
               <input
                 type="number"
                 min="1"
@@ -276,7 +279,7 @@ export function LLMContentInspector({ nodeId, data }: LLMContentInspectorProps) 
           </div>
 
           <div>
-            <label className="text-xs text-base-content/60 mb-1 block">返回格式</label>
+            <label className="nc-field-label">返回格式</label>
             <Select
               value={data.responseFormat || "text"}
               options={
@@ -291,7 +294,7 @@ export function LLMContentInspector({ nodeId, data }: LLMContentInspectorProps) 
 
           {data.responseFormat === "json_schema" && config.supportsJsonSchema && (
             <div>
-              <label className="text-xs text-base-content/60 mb-1 block">JSON Schema</label>
+              <label className="nc-field-label">JSON Schema</label>
               <textarea
                 className="textarea textarea-bordered textarea-sm w-full min-h-28 resize-none font-mono text-[11px]"
                 value={data.responseJsonSchemaText || ""}
@@ -312,13 +315,13 @@ export function LLMContentInspector({ nodeId, data }: LLMContentInspectorProps) 
 
         <section className="space-y-2">
           {!hasResolvedPrompt && !isPromptConnected && (
-            <div className="flex items-start gap-2 text-warning text-xs bg-warning/10 p-2 rounded-lg">
+            <div className="nc-warning-surface flex items-start gap-2 rounded-[var(--nc-radius-md)] p-2 text-xs text-warning">
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
               <span>请填写节点提示词，或连接提示词节点</span>
             </div>
           )}
           {(hasEmptyImageInputs || hasEmptyFileInputs) && (
-            <div className="flex items-start gap-2 text-warning text-xs bg-warning/10 p-2 rounded-lg">
+            <div className="nc-warning-surface flex items-start gap-2 rounded-[var(--nc-radius-md)] p-2 text-xs text-warning">
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
               <span>
                 输入为空: {[...emptyImageLabels, ...emptyFileLabels].join(", ")}
@@ -326,7 +329,7 @@ export function LLMContentInspector({ nodeId, data }: LLMContentInspectorProps) 
             </div>
           )}
           {validationError && (
-            <div className="flex items-start gap-2 text-warning text-xs bg-warning/10 p-2 rounded-lg">
+            <div className="nc-warning-surface flex items-start gap-2 rounded-[var(--nc-radius-md)] p-2 text-xs text-warning">
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
               <span>{validationError}</span>
             </div>
@@ -334,7 +337,7 @@ export function LLMContentInspector({ nodeId, data }: LLMContentInspectorProps) 
           {data.status === "error" && data.error && (
             <button
               type="button"
-              className="flex w-full items-start gap-2 text-left text-error text-xs bg-error/10 p-2 rounded-lg hover:bg-error/20"
+              className="nc-danger-surface flex w-full items-start gap-2 rounded-[var(--nc-radius-md)] p-2 text-left text-xs text-error"
               onClick={() => setShowErrorDetail(true)}
             >
               <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
@@ -342,7 +345,7 @@ export function LLMContentInspector({ nodeId, data }: LLMContentInspectorProps) 
             </button>
           )}
           {data.outputContent && (
-            <div className="overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-[var(--nc-shadow-card)]">
+            <div className="overflow-hidden rounded-[var(--nc-radius-lg)] border border-base-300 bg-base-100 shadow-[var(--nc-shadow-card)]">
               <div className="flex items-center gap-2 border-b border-base-300/70 px-3 py-2">
                 <Sparkles className="h-3.5 w-3.5 text-primary" />
                 <span className="min-w-0 flex-1 truncate text-xs font-semibold">最新输出</span>
@@ -389,7 +392,7 @@ export function LLMContentInspector({ nodeId, data }: LLMContentInspectorProps) 
               ))}
             </div>
           ) : (
-            <div className="rounded-lg border border-dashed border-base-300 bg-base-200/35 px-3 py-6 text-center text-xs text-base-content/45">
+            <div className="nc-empty-state py-4! text-xs">
               运行后会在这里看到输入、输出和调用记录
             </div>
           )}
@@ -398,7 +401,7 @@ export function LLMContentInspector({ nodeId, data }: LLMContentInspectorProps) 
 
       {hasPromptValue && (
         <div className="px-4 pb-4">
-          <div className="flex flex-wrap gap-1.5 rounded-xl border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/70">
+          <div className="flex flex-wrap gap-1.5 rounded-[var(--nc-radius-lg)] border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/70">
             {promptTokens.map((token, index) =>
               token.type === "mention" ? (
                 <span
@@ -471,7 +474,7 @@ function getRunStatusIcon(status: LLMContentRunRecord["status"]) {
 
 function JsonBlock({ value }: { value: unknown }) {
   return (
-    <pre className="nc-scrollbar-none max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-base-200/80 p-3 text-[11px] leading-5 text-base-content/70">
+    <pre className="nc-scrollbar-none max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-[var(--nc-radius-md)] bg-base-200/80 p-3 text-[11px] leading-5 text-base-content/70">
       {JSON.stringify(value, null, 2)}
     </pre>
   );
@@ -487,7 +490,7 @@ function RunRecordCard({
   onToggle: () => void;
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-[var(--nc-shadow-card)]">
+    <div className="overflow-hidden rounded-[var(--nc-radius-lg)] border border-base-300 bg-base-100 shadow-[var(--nc-shadow-card)]">
       <button
         type="button"
         className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-base-200/45"
@@ -514,7 +517,7 @@ function RunRecordCard({
       </button>
 
       {record.error && (
-        <div className="mx-3 mb-2 rounded-lg bg-error/10 px-3 py-2 text-xs leading-5 text-error">
+        <div className="nc-danger-surface mx-3 mb-2 rounded-[var(--nc-radius-md)] px-3 py-2 text-xs leading-5 text-error">
           {record.error}
         </div>
       )}

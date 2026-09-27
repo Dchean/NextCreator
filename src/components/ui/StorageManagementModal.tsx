@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   X,
@@ -10,11 +10,14 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronRight,
+  Eraser,
 } from "lucide-react";
+import { useModal, getModalAnimationClasses } from "@/hooks/useModal";
 import { useStorageManagementStore } from "@/stores/storageManagementStore";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { formatFileSize, getImageUrl, type ImageInfoWithMetadata } from "@/services/fileStorageService";
 import { LoadingIndicator } from "@/components/ui/LoadingIndicator";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ImageDetailModal } from "@/components/ui/ImageDetailModal";
 
 export function StorageManagementModal() {
@@ -23,6 +26,7 @@ export function StorageManagementModal() {
     isLoading,
     fileStats,
     storagePath,
+    storageConfig,
     expandedFileCanvases,
     canvasImages,
     error,
@@ -32,19 +36,24 @@ export function StorageManagementModal() {
     handleClearAllImages,
     handleClearCanvasImages,
     handleDeleteImage,
+    handleCleanupUnreferenced,
     toggleFileCanvasExpanded,
     loadCanvasImages,
   } = useStorageManagementStore();
 
   const { canvases } = useCanvasStore();
 
-  // 动画状态
-  const [isVisible, setIsVisible] = useState(false);
-  const [isClosing, setIsClosing] = useState(false);
+  // 统一 Modal 交互（ESC 关闭、背景点击、过渡动画）
+  const { isVisible, isClosing, handleClose, handleBackdropClick } = useModal({
+    isOpen,
+    onClose: closeModal,
+  });
+
+  const { contentClasses } = getModalAnimationClasses(isVisible, isClosing);
 
   // 删除确认状态
   const [deleteConfirm, setDeleteConfirm] = useState<{
-    type: "image" | "canvas" | "allImages";
+    type: "image" | "canvas" | "allImages" | "unreferenced";
     path?: string;
     filename?: string;
     canvasId?: string;
@@ -56,35 +65,6 @@ export function StorageManagementModal() {
 
   // 搜索状态
   const [searchQuery, setSearchQuery] = useState("");
-
-  // 进入动画
-  useEffect(() => {
-    if (isOpen) {
-      setIsClosing(false);
-      requestAnimationFrame(() => setIsVisible(true));
-    }
-  }, [isOpen]);
-
-  // 关闭时先播放退出动画
-  const handleClose = useCallback(() => {
-    setIsClosing(true);
-    setIsVisible(false);
-    setTimeout(() => {
-      closeModal();
-      setIsClosing(false);
-    }, 200);
-  }, [closeModal]);
-
-  // ESC 键关闭
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) {
-        handleClose();
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, handleClose]);
 
   // 当用户输入搜索关键词时，自动加载所有画布的图片数据
   useEffect(() => {
@@ -129,12 +109,20 @@ export function StorageManagementModal() {
       case "allImages":
         await handleClearAllImages();
         break;
+      case "unreferenced":
+        await handleCleanupUnreferenced();
+        break;
     }
   };
 
   // 确认清理所有图片
   const confirmClearAllImages = () => {
     setDeleteConfirm({ type: "allImages" });
+  };
+
+  // 确认清理未引用图片
+  const confirmCleanupUnreferenced = () => {
+    setDeleteConfirm({ type: "unreferenced" });
   };
 
   // 确认清理画布图片
@@ -158,6 +146,8 @@ export function StorageManagementModal() {
         return `确定要删除画布「${deleteConfirm.canvasName}」的所有图片吗？此操作不可撤销。`;
       case "allImages":
         return "确定要删除所有存储的图片吗？此操作不可撤销，已保存在画布中的图片引用将失效。";
+      case "unreferenced":
+        return "将清理画布中已不再引用的历史副本/未引用图片，画布中正在使用的图片不受影响。此操作不可撤销。";
     }
   };
 
@@ -184,8 +174,9 @@ export function StorageManagementModal() {
           />
           {searchQuery && (
             <button
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center rounded-full hover:bg-base-300 text-base-content/50 hover:text-base-content transition-colors"
+              className="nc-icon-btn nc-icon-btn-xs absolute right-2 top-1/2 -translate-y-1/2"
               onClick={() => setSearchQuery("")}
+              aria-label="清空搜索"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -194,41 +185,48 @@ export function StorageManagementModal() {
 
         {/* 总览卡片 */}
         <div className="grid grid-cols-3 gap-3">
-          <div className="bg-base-200 rounded-xl p-3">
-            <div className="flex items-center gap-2 text-base-content/60 mb-1">
+          <div className="nc-stat">
+            <div className="nc-stat-label">
               <Image className="w-3.5 h-3.5" />
-              <span className="text-xs">图片数量</span>
+              <span>图片数量</span>
             </div>
-            <p className="text-xl font-bold">{fileStats.image_count}</p>
+            <p className="nc-stat-value">{fileStats.image_count}</p>
           </div>
-          <div className="bg-base-200 rounded-xl p-3">
-            <div className="flex items-center gap-2 text-base-content/60 mb-1">
+          <div className="nc-stat">
+            <div className="nc-stat-label">
               <HardDrive className="w-3.5 h-3.5" />
-              <span className="text-xs">图片大小</span>
+              <span>图片大小</span>
             </div>
-            <p className="text-xl font-bold">{formatFileSize(fileStats.total_size)}</p>
+            <p className="nc-stat-value">{formatFileSize(fileStats.total_size)}</p>
           </div>
-          <div className="bg-base-200 rounded-xl p-3">
-            <div className="flex items-center gap-2 text-base-content/60 mb-1">
+          <div className="nc-stat">
+            <div className="nc-stat-label">
               <FolderOpen className="w-3.5 h-3.5" />
-              <span className="text-xs">缓存大小</span>
+              <span>缓存大小</span>
             </div>
-            <p className="text-xl font-bold">{formatFileSize(fileStats.cache_size)}</p>
+            <p className="nc-stat-value">{formatFileSize(fileStats.cache_size)}</p>
           </div>
         </div>
 
-        {/* 存储路径 */}
-        {storagePath && (
-          <div className="bg-base-200 rounded-lg p-3">
-            <p className="text-xs text-base-content/60 mb-1">存储位置</p>
-            <p className="text-sm font-mono break-all">{storagePath}</p>
+        {/* 存储路径：展示当前生效的图片目录，应用数据目录作为辅助信息 */}
+        {(storageConfig || storagePath) && (
+          <div className="nc-soft-panel">
+            <p className="nc-field-label">存储位置</p>
+            <p className="text-sm font-mono break-all">
+              {storageConfig?.images_dir || "读取中..."}
+            </p>
+            {storagePath && (
+              <p className="mt-1 text-xs text-base-content/40 font-mono break-all">
+                应用数据目录：{storagePath}
+              </p>
+            )}
           </div>
         )}
 
         {/* 按画布分组的存储 */}
         {fileStats.images_by_canvas.length > 0 && (
           <div>
-            <h3 className="text-sm font-medium mb-2">按画布分组</h3>
+            <h3 className="nc-section-title mb-2">按画布分组</h3>
             <div className="space-y-2">
               {fileStats.images_by_canvas.map((canvasStats) => {
                 const canvasName = getCanvasName(canvasStats.canvas_id);
@@ -320,10 +318,10 @@ export function StorageManagementModal() {
                                 {/* 类型标签 */}
                                 {image.image_type && (
                                   <div
-                                    className={`absolute bottom-0 right-0 px-1 text-[9px] leading-tight text-white ${
+                                    className={`nc-chip absolute bottom-1 right-1 leading-none ${
                                       image.image_type === "input"
-                                        ? "bg-green-500"
-                                        : "bg-purple-500"
+                                        ? "nc-chip-success-solid"
+                                        : "nc-chip-solid"
                                     }`}
                                     title={image.image_type === "input" ? "上传的图片" : "生成的图片"}
                                   >
@@ -367,16 +365,16 @@ export function StorageManagementModal() {
 
         {/* 空状态 */}
         {fileStats.image_count === 0 && fileStats.cache_size === 0 && (
-          <div className="text-center py-8 text-base-content/60">
-            <Image className="w-12 h-12 mx-auto mb-3 opacity-30" />
-            <p>暂无存储的图片或缓存</p>
+          <div className="nc-empty-state">
+            <Image className="w-12 h-12 opacity-30" />
+            <p className="nc-empty-state-hint">暂无存储的图片或缓存</p>
           </div>
         )}
 
         {/* 操作按钮 */}
-        <div className="flex gap-2 pt-3 border-t border-base-300">
+        <div className="flex flex-wrap gap-2 pt-3 border-t border-base-300">
           <button
-            className="btn btn-ghost btn-sm flex-1"
+            className="btn btn-ghost btn-sm flex-1 whitespace-nowrap"
             onClick={refreshStats}
             disabled={isLoading}
           >
@@ -384,7 +382,7 @@ export function StorageManagementModal() {
             刷新
           </button>
           <button
-            className="btn btn-ghost btn-sm flex-1"
+            className="btn btn-ghost btn-sm flex-1 whitespace-nowrap"
             onClick={handleClearCache}
             disabled={isLoading || fileStats.cache_size === 0}
           >
@@ -392,7 +390,16 @@ export function StorageManagementModal() {
             清理缓存
           </button>
           <button
-            className="btn btn-error btn-sm flex-1"
+            className="btn btn-warning btn-sm flex-1 whitespace-nowrap"
+            onClick={confirmCleanupUnreferenced}
+            disabled={isLoading || fileStats.image_count === 0}
+            title="删除存储目录中画布已不再引用的历史副本/未引用图片"
+          >
+            <Eraser className="w-4 h-4" />
+            清理未引用图片
+          </button>
+          <button
+            className="btn btn-error btn-sm flex-1 whitespace-nowrap"
             onClick={confirmClearAllImages}
             disabled={isLoading || fileStats.image_count === 0}
           >
@@ -405,48 +412,33 @@ export function StorageManagementModal() {
   };
 
   const modalContent = createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center">
-      {/* 背景遮罩 */}
-      <div
-        className={`
-          absolute inset-0
-          transition-all duration-200 ease-out
-          ${isVisible && !isClosing ? "bg-black/50" : "bg-black/0"}
-        `}
-        onClick={handleClose}
-      />
-
+    <div
+      className={`nc-modal-backdrop ${isVisible && !isClosing ? "nc-modal-backdrop-open" : ""}`}
+      onClick={handleBackdropClick}
+    >
       {/* Modal 内容 */}
       <div
         className={`
-          relative bg-base-100 rounded-2xl shadow-2xl w-[650px] max-h-[85vh] overflow-hidden flex flex-col
+          nc-modal nc-modal-lg max-h-[85vh] flex flex-col
           transition-all duration-200 ease-out
-          ${isVisible && !isClosing
-            ? "opacity-100 scale-100 translate-y-0"
-            : "opacity-0 scale-95 translate-y-4"
-          }
+          ${contentClasses}
         `}
       >
         {/* 头部 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-base-300">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <HardDrive className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold">存储管理</h2>
-              <p className="text-xs text-base-content/60">
-                管理应用的图片存储
-              </p>
-            </div>
+        <div className="nc-modal-header">
+          <div>
+            <h2 className="nc-modal-title">存储管理</h2>
+            <p className="nc-modal-subtitle">
+              管理应用的图片存储
+            </p>
           </div>
-          <button className="btn btn-ghost btn-sm btn-circle" onClick={handleClose}>
-            <X className="w-5 h-5" />
+          <button type="button" className="nc-icon-btn" onClick={handleClose} aria-label="关闭">
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* 内容区域 */}
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="nc-modal-body">
           {/* 加载状态 */}
           {isLoading && (
             <div className="flex items-center justify-center py-12">
@@ -468,33 +460,14 @@ export function StorageManagementModal() {
 
         {/* 删除确认对话框 */}
         {deleteConfirm && (
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10">
-            <div className="bg-base-100 rounded-xl p-5 mx-4 max-w-sm shadow-xl">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-error/10 rounded-lg">
-                  <AlertTriangle className="w-5 h-5 text-error" />
-                </div>
-                <h3 className="font-semibold">确认删除</h3>
-              </div>
-              <p className="text-sm text-base-content/70 mb-5">
-                {getDeleteConfirmMessage()}
-              </p>
-              <div className="flex gap-2 justify-end">
-                <button
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => setDeleteConfirm(null)}
-                >
-                  取消
-                </button>
-                <button
-                  className="btn btn-error btn-sm"
-                  onClick={executeDelete}
-                >
-                  确认删除
-                </button>
-              </div>
-            </div>
-          </div>
+          <ConfirmDialog
+            tone={deleteConfirm.type === "unreferenced" ? "warning" : "error"}
+            title={deleteConfirm.type === "unreferenced" ? "确认清理未引用图片" : "确认删除"}
+            message={getDeleteConfirmMessage()}
+            confirmText={deleteConfirm.type === "unreferenced" ? "开始清理" : "确认删除"}
+            onConfirm={() => void executeDelete()}
+            onClose={() => setDeleteConfirm(null)}
+          />
         )}
       </div>
     </div>,

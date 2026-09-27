@@ -1,7 +1,10 @@
-import { useState, useCallback, useEffect, useRef, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
+import { useState, useEffect, useRef, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, X, Check, Trash2, Search, Plus } from "lucide-react";
+import { ChevronDown, X, Check, Trash2, Search, Plus, RefreshCw, CloudDownload, CircleAlert } from "lucide-react";
+import { useModal, getModalAnimationClasses } from "@/hooks/useModal";
 import { useCustomModelStore, type ModelCategory } from "@/stores/customModelStore";
+import { useModelListStore, getRemoteModelLabel } from "@/services/modelListService";
+import type { Provider } from "@/types";
 
 export interface ModelOption {
   value: string;
@@ -25,6 +28,8 @@ interface ModelSelectorProps {
   modelCategory?: ModelCategory;
   /** 展示方式：modal 适合画布节点，inline 适合右侧 Inspector */
   mode?: "modal" | "inline";
+  /** 关联的供应商：提供时自动拉取该供应商的实时模型列表 */
+  provider?: Provider | null;
 }
 
 /**
@@ -42,14 +47,35 @@ export function ModelSelector({
   className = "",
   modelCategory,
   mode = "modal",
+  provider,
 }: ModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const customModels = useCustomModelStore((state) =>
     modelCategory ? state.getCustomModels(modelCategory) : []
   );
+  const remoteEntry = useModelListStore((state) =>
+    provider ? state.entries[provider.id] : undefined
+  );
+  const fetchModels = useModelListStore((state) => state.fetchModels);
 
-  const selectedPreset = options.find((opt) => opt.value === value);
+  // 打开时自动拉取实时模型列表（store 内部带 TTL 去重）
+  useEffect(() => {
+    if (isOpen && provider?.apiKey && provider?.baseUrl) {
+      void fetchModels(provider);
+    }
+  }, [isOpen, provider, fetchModels]);
+
+  // 实时模型：排除已在预设与自定义列表中的项
+  const remoteOptions: ModelOption[] = provider
+    ? (remoteEntry?.models || [])
+        .filter((m) => !options.some((opt) => opt.value === m.id) && !customModels.includes(m.id))
+        .map((m) => ({ value: m.id, label: getRemoteModelLabel(m) }))
+    : [];
+
+  const selectedPreset =
+    options.find((opt) => opt.value === value) ||
+    remoteOptions.find((opt) => opt.value === value);
   // 检查是否是自定义模型（不在预设列表中）
   const isCustomModel = Boolean(value) && !selectedPreset;
   const compactDisplayName = selectedPreset
@@ -100,16 +126,18 @@ export function ModelSelector({
       onPointerDown={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <label className="mb-1 block text-xs text-base-content/60">模型</label>
+      <label className="nc-field-label">模型</label>
       <button
         type="button"
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
         className={`
-          nc-model-selector-trigger w-full rounded-lg border text-left
+          nc-model-selector-trigger w-full border text-left
           ${mode === "inline"
             ? "flex min-h-[56px] items-center justify-between gap-3 bg-base-100 px-3 py-2.5 hover:bg-base-200/35"
             : "flex items-center justify-between gap-2 bg-base-200/70 px-2 py-1.5 text-xs hover:bg-base-200"
           }
-          ${isOpen ? `nc-model-selector-trigger-open bg-base-100 ${getOpenStateClass(variant)}` : "border-base-300/70"}
+          ${isOpen ? `nc-model-selector-trigger-open nc-select-open bg-base-100` : "border-base-300/70"}
         `}
         onClick={() => setIsOpen((open) => !open)}
         onPointerDown={(e) => e.stopPropagation()}
@@ -124,7 +152,7 @@ export function ModelSelector({
             </span>
           )}
         </span>
-        <span className={`nc-model-selector-chevron-shell flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md border border-base-300/70 bg-base-200/40 ${isOpen ? `${accentTextClass} shadow-[0_1px_8px_rgba(15,23,42,0.08)]` : "text-base-content/45"}`}>
+        <span className={`nc-model-selector-chevron-shell flex h-7 w-7 flex-shrink-0 items-center justify-center border border-base-300/70 bg-base-200/40 ${isOpen ? accentTextClass : "text-base-content/45"}`}>
           <ChevronDown className={`nc-model-selector-chevron h-3.5 w-3.5 ${isOpen ? "rotate-180" : ""}`} />
         </span>
       </button>
@@ -141,6 +169,9 @@ export function ModelSelector({
           title={title}
           modelCategory={modelCategory}
           customModels={customModels}
+          remoteOptions={remoteOptions}
+          remoteEntry={provider ? remoteEntry : undefined}
+          onRefreshRemote={() => provider && void fetchModels(provider, true)}
         />
       )}
       {isOpen && mode === "inline" && (
@@ -153,6 +184,9 @@ export function ModelSelector({
           variant={variant}
           modelCategory={modelCategory}
           customModels={customModels}
+          remoteOptions={remoteOptions}
+          remoteEntry={provider ? remoteEntry : undefined}
+          onRefreshRemote={() => provider && void fetchModels(provider, true)}
         />
       )}
     </div>
@@ -168,6 +202,14 @@ interface ModelSelectorDropdownProps {
   variant: "primary" | "warning" | "info";
   modelCategory?: ModelCategory;
   customModels: string[];
+  remoteOptions?: ModelOption[];
+  remoteEntry?: { models: unknown[]; fetchedAt: number; loading: boolean; error?: string };
+  onRefreshRemote?: () => void;
+}
+
+interface RemoteEntryState {
+  loading: boolean;
+  error?: string;
 }
 
 function getSelectedBgClass(variant: "primary" | "warning" | "info") {
@@ -178,17 +220,6 @@ function getSelectedBgClass(variant: "primary" | "warning" | "info") {
       return "bg-info/10 text-info border-info/25";
     default:
       return "bg-primary/10 text-primary border-primary/25";
-  }
-}
-
-function getOpenStateClass(variant: "primary" | "warning" | "info") {
-  switch (variant) {
-    case "warning":
-      return "border-warning/45 shadow-[0_0_0_3px_hsl(var(--wa)/0.12)]";
-    case "info":
-      return "border-info/45 shadow-[0_0_0_3px_hsl(var(--in)/0.12)]";
-    default:
-      return "border-primary/45 shadow-[0_0_0_3px_hsl(var(--p)/0.12)]";
   }
 }
 
@@ -224,6 +255,57 @@ function getOptionAnimationStyle(index: number): CSSProperties {
   return { "--nc-model-option-delay": `${Math.min(Math.max(index, 0) * 28, 168)}ms` } as CSSProperties;
 }
 
+// 实时模型区块标题（含刷新按钮与错误提示）
+function RemoteSectionHeader({
+  remoteEntry,
+  onRefreshRemote,
+}: {
+  remoteEntry?: RemoteEntryState;
+  onRefreshRemote?: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between px-1.5 pb-1">
+      <div className="nc-section-title-sm flex items-center gap-1.5">
+        <CloudDownload className="h-3 w-3" />
+        {remoteEntry?.loading ? "正在获取模型..." : "可用模型（实时）"}
+      </div>
+      <button
+        type="button"
+        className="nc-icon-btn nc-icon-btn-xs"
+        onClick={() => onRefreshRemote?.()}
+        title="刷新模型列表"
+        aria-label="刷新模型列表"
+      >
+        <RefreshCw className={`h-3 w-3 ${remoteEntry?.loading ? "animate-spin" : ""}`} />
+      </button>
+    </div>
+  );
+}
+
+function RemoteErrorRow({
+  error,
+  onRefreshRemote,
+}: {
+  error: string;
+  onRefreshRemote?: () => void;
+}) {
+  return (
+    <div className="mx-1.5 flex items-center gap-2 rounded-lg bg-warning/10 px-2.5 py-2 text-xs text-warning">
+      <CircleAlert className="h-3.5 w-3.5 flex-shrink-0" />
+      <span className="min-w-0 flex-1 truncate" title={error}>
+        获取失败：{error}
+      </span>
+      <button
+        type="button"
+        className="flex-shrink-0 rounded px-1.5 py-0.5 hover:bg-warning/20"
+        onClick={() => onRefreshRemote?.()}
+      >
+        重试
+      </button>
+    </div>
+  );
+}
+
 function ModelSelectorDropdown({
   value,
   options,
@@ -233,19 +315,24 @@ function ModelSelectorDropdown({
   variant,
   modelCategory,
   customModels,
+  remoteOptions,
+  remoteEntry,
+  onRefreshRemote,
 }: ModelSelectorDropdownProps) {
   const [query, setQuery] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
   const { addCustomModel, removeCustomModel } = useCustomModelStore();
   const isCustomModel = !options.some((opt) => opt.value === value) && !customModels.includes(value);
   const trimmedQuery = query.trim();
+  const allKnownOptions = [...options, ...(remoteOptions || [])];
   const filteredOptions = options.filter((opt) => modelMatchesQuery(opt.label, opt.value, query));
+  const filteredRemoteOptions = (remoteOptions || []).filter((opt) => modelMatchesQuery(opt.label, opt.value, query));
   const filteredCustomModels = customModels.filter((model) => modelMatchesQuery(model, model, query));
-  const exactMatchExists = [...options.map((opt) => opt.value), ...customModels].some(
+  const exactMatchExists = [...allKnownOptions.map((opt) => opt.value), ...customModels].some(
     (model) => model.toLowerCase() === trimmedQuery.toLowerCase()
   );
   const canAddQuery = allowCustom && trimmedQuery.length > 0 && !exactMatchExists;
-  const hasResults = filteredOptions.length > 0 || filteredCustomModels.length > 0 || canAddQuery;
+  const hasResults = filteredOptions.length > 0 || filteredRemoteOptions.length > 0 || filteredCustomModels.length > 0 || canAddQuery;
   const selectedClassName = getSelectedBgClass(variant);
   const addOptionClassName = getAccentSoftClass(variant);
 
@@ -286,12 +373,14 @@ function ModelSelectorDropdown({
       <button
         key={opt.value}
         type="button"
+        role="option"
+        aria-selected={selected}
         style={getOptionAnimationStyle(optionIndex)}
         className={`
-          nc-model-selector-option flex w-full items-start justify-between gap-3 rounded-lg border px-3 py-2.5 text-left text-sm
+          nc-model-selector-option flex w-full items-start justify-between gap-3 border px-3 py-2.5 text-left text-sm
           ${selected
-            ? `nc-model-selector-option-selected ${selectedClassName} shadow-[0_1px_10px_rgba(15,23,42,0.06)]`
-            : "border-transparent bg-transparent text-base-content hover:border-base-300/45 hover:bg-base-200/55 hover:shadow-[0_1px_8px_rgba(15,23,42,0.04)]"
+            ? `nc-model-selector-option-selected ${selectedClassName}`
+            : "border-transparent bg-transparent text-base-content hover:border-base-300/45 hover:bg-base-200/55"
           }
         `}
         onClick={() => onChange(opt.value)}
@@ -318,10 +407,10 @@ function ModelSelectorDropdown({
         key={model}
         style={getOptionAnimationStyle(optionIndex)}
         className={`
-          nc-model-selector-option group flex w-full items-center rounded-lg border text-sm
+          nc-model-selector-option group flex w-full items-center border text-sm
           ${selected
-            ? `nc-model-selector-option-selected ${selectedClassName} shadow-[0_1px_10px_rgba(15,23,42,0.06)]`
-            : "border-transparent bg-transparent text-base-content hover:border-base-300/45 hover:bg-base-200/55 hover:shadow-[0_1px_8px_rgba(15,23,42,0.04)]"
+            ? `nc-model-selector-option-selected ${selectedClassName}`
+            : "border-transparent bg-transparent text-base-content hover:border-base-300/45 hover:bg-base-200/55"
           }
         `}
       >
@@ -341,9 +430,10 @@ function ModelSelectorDropdown({
         <span className="flex flex-shrink-0 items-center pr-1.5">
           <button
             type="button"
+            aria-label={`删除模型 ${model}`}
             className="
-              rounded p-1 text-base-content/40 opacity-0 transition-[background-color,color,opacity] duration-150 ease-out
-              hover:bg-error/15 hover:text-error group-hover:opacity-100 focus:opacity-100
+              nc-icon-btn nc-icon-btn-xs nc-icon-btn-danger
+              opacity-0 group-hover:opacity-100 focus:opacity-100
             "
             onClick={(event) => handleRemoveCustomModel(model, event)}
             title="删除此模型"
@@ -357,12 +447,13 @@ function ModelSelectorDropdown({
 
   return (
     <div
-      className="nc-model-selector-dropdown absolute left-0 right-0 top-full z-[80] mt-2 overflow-hidden rounded-lg border border-base-300/80 bg-base-100 shadow-[0_18px_44px_rgba(15,23,42,0.16)]"
+      role="listbox"
+      className="nc-model-selector-dropdown absolute left-0 right-0 top-full mt-2 overflow-hidden border border-base-300/80 bg-base-100"
       onPointerDown={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
     >
       <div className="border-b border-base-300/70 bg-base-200/20 p-2.5">
-        <div className="nc-model-selector-search group/search flex items-center gap-2 rounded-lg border border-base-300/70 bg-base-100 px-2.5 py-2 focus-within:border-primary/35 focus-within:shadow-[0_0_0_3px_hsl(var(--p)/0.08)]">
+        <div className="nc-model-selector-search group/search flex items-center gap-2 rounded-[var(--nc-radius-md)] border border-base-300/70 bg-base-100 px-2.5 py-2 focus-within:border-[color-mix(in_srgb,var(--nc-focus)_35%,var(--nc-border))]">
           <Search className="nc-model-selector-search-icon h-3.5 w-3.5 flex-shrink-0 text-base-content/35 group-focus-within/search:text-primary/55" />
           <input
             ref={searchInputRef}
@@ -389,8 +480,10 @@ function ModelSelectorDropdown({
         {isCustomModel && value && (
           <button
             type="button"
+            role="option"
+            aria-selected={true}
             style={getOptionAnimationStyle(0)}
-            className={`nc-model-selector-option nc-model-selector-option-selected mb-1.5 flex w-full items-center justify-between gap-2 rounded-lg border px-3 py-2.5 text-left text-sm ${selectedClassName}`}
+            className={`nc-model-selector-option nc-model-selector-option-selected mb-1.5 flex w-full items-center justify-between gap-2 border px-3 py-2.5 text-left text-sm ${selectedClassName}`}
             onClick={() => onChange(value)}
           >
             <span className="min-w-0 flex-1">
@@ -405,14 +498,24 @@ function ModelSelectorDropdown({
 
         {filteredOptions.length > 0 && (
           <div className="space-y-1">
-            <div className="px-1.5 pb-1 pt-0.5 text-[11px] font-medium text-base-content/45">推荐模型</div>
+            <div className="nc-section-title-sm px-1.5 pb-1 pt-0.5">推荐模型</div>
             {filteredOptions.map(renderPresetOption)}
+          </div>
+        )}
+
+        {(filteredRemoteOptions.length > 0 || remoteEntry?.error) && (
+          <div className="mt-2 border-t border-base-300/70 pt-2">
+            <RemoteSectionHeader remoteEntry={remoteEntry} onRefreshRemote={onRefreshRemote} />
+            {remoteEntry?.error && filteredRemoteOptions.length === 0 && (
+              <RemoteErrorRow error={remoteEntry.error} onRefreshRemote={onRefreshRemote} />
+            )}
+            {filteredRemoteOptions.map(renderPresetOption)}
           </div>
         )}
 
         {allowCustom && filteredCustomModels.length > 0 && (
           <div className="mt-2 border-t border-base-300/70 pt-2">
-            <div className="px-1.5 pb-1 text-[11px] font-medium text-base-content/45">我的模型</div>
+            <div className="nc-section-title-sm px-1.5 pb-1">我的模型</div>
             {filteredCustomModels.map(renderCustomOption)}
           </div>
         )}
@@ -422,7 +525,7 @@ function ModelSelectorDropdown({
             <button
               type="button"
               style={getOptionAnimationStyle(filteredOptions.length + filteredCustomModels.length)}
-              className={`nc-model-selector-option flex w-full items-center gap-2 rounded-lg border px-3 py-2.5 text-left text-sm hover:shadow-[0_1px_8px_rgba(15,23,42,0.04)] ${addOptionClassName}`}
+              className={`nc-model-selector-option flex w-full items-center gap-2 border px-3 py-2.5 text-left text-sm ${addOptionClassName}`}
               onClick={() => handleCustomModelSubmit(trimmedQuery)}
             >
               <Plus className="h-4 w-4 flex-shrink-0" />
@@ -461,6 +564,9 @@ interface ModelSelectorModalProps {
   title: string;
   modelCategory?: ModelCategory;
   customModels: string[];
+  remoteOptions?: ModelOption[];
+  remoteEntry?: { models: unknown[]; fetchedAt: number; loading: boolean; error?: string };
+  onRefreshRemote?: () => void;
 }
 
 function ModelSelectorModal({
@@ -474,38 +580,27 @@ function ModelSelectorModal({
   title,
   modelCategory,
   customModels,
+  remoteOptions,
+  remoteEntry,
+  onRefreshRemote,
 }: ModelSelectorModalProps) {
-  const [isVisible, setIsVisible] = useState(false);
-  const [isClosing, setIsClosing] = useState(false);
   const [customModel, setCustomModel] = useState("");
+
+  // 统一 Modal 交互（ESC 关闭、背景点击、过渡动画）
+  const { isVisible, isClosing, handleClose, handleBackdropClick } = useModal({
+    isOpen: true,
+    onClose,
+  });
+
+  const { contentClasses } = getModalAnimationClasses(isVisible, isClosing);
 
   const { addCustomModel, removeCustomModel } = useCustomModelStore();
 
-  // 检查是否是自定义模型（不在预设列表中，也不在用户自定义列表中）
-  const isCustomModel = !options.some((opt) => opt.value === value) && !customModels.includes(value);
-
-  // 进入动画
-  useEffect(() => {
-    requestAnimationFrame(() => setIsVisible(true));
-  }, []);
-
-  // 关闭时先播放退出动画
-  const handleClose = useCallback(() => {
-    setIsClosing(true);
-    setIsVisible(false);
-    setTimeout(onClose, 200);
-  }, [onClose]);
-
-  // ESC 键关闭
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        handleClose();
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [handleClose]);
+  // 检查是否是自定义模型（不在预设/实时列表中，也不在用户自定义列表中）
+  const isCustomModel =
+    !options.some((opt) => opt.value === value) &&
+    !(remoteOptions || []).some((opt) => opt.value === value) &&
+    !customModels.includes(value);
 
   // 选择预设模型
   const handleSelectPreset = (modelValue: string) => {
@@ -537,11 +632,11 @@ function ModelSelectorModal({
   const getSelectedBg = () => {
     switch (variant) {
       case "warning":
-        return "bg-warning/20 text-warning border border-warning/30";
+        return "bg-warning/10 text-warning border border-warning/30";
       case "info":
-        return "bg-info/20 text-info border border-info/30";
+        return "bg-info/10 text-info border border-info/30";
       default:
-        return "bg-primary/20 text-primary border border-primary/30";
+        return "bg-primary/10 text-primary border border-primary/30";
     }
   };
 
@@ -568,54 +663,51 @@ function ModelSelectorModal({
     }
   };
 
+  // 与内联下拉一致的选项外观（未选中态）
+  const optionIdleClass =
+    "nc-model-selector-option flex w-full items-start justify-between gap-3 border px-3 py-2 text-left text-sm border-transparent bg-transparent text-base-content hover:border-base-300/45 hover:bg-base-200/55";
+
   return createPortal(
     <div
-      className={`
-        fixed inset-0 z-[9999] flex items-center justify-center p-4
-        transition-all duration-200 ease-out
-        ${isVisible && !isClosing ? "bg-black/60" : "bg-black/0"}
-      `}
-      onClick={handleClose}
+      className={`nc-modal-backdrop p-4 ${isVisible && !isClosing ? "nc-modal-backdrop-open" : ""}`}
+      onClick={handleBackdropClick}
     >
       <div
         className={`
-          nc-panel w-full max-w-xs rounded-2xl overflow-hidden
+          nc-modal nc-modal-sm overflow-hidden
           transition-all duration-200 ease-out
-          ${isVisible && !isClosing
-            ? "opacity-100 scale-100 translate-y-0"
-            : "opacity-0 scale-95 translate-y-4"
-          }
+          ${contentClasses}
         `}
+        style={{ maxWidth: 320 }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
-        <div className={`nc-node-header nc-node-header-accent px-4 py-3 ${getHeaderAccent()}`}>
-          <span className="text-sm font-semibold">{title}</span>
+        <div className={`nc-modal-header nc-node-header-accent ${getHeaderAccent()}`}>
+          <span className="nc-modal-title">{title}</span>
           <button
-            className="btn btn-circle btn-ghost btn-sm"
+            type="button"
+            className="nc-icon-btn"
             onClick={handleClose}
+            aria-label="关闭"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* 内容区域 */}
-        <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto">
+        <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto" role="listbox">
           {/* 预设模型列表 */}
           <div className="space-y-1">
-            <label className="text-xs text-base-content/60 mb-1.5 block">预设模型</label>
+            <div className="nc-section-title-sm mb-1.5">预设模型</div>
             {options.map((opt) => (
               <button
                 key={opt.value}
                 type="button"
+                role="option"
+                aria-selected={value === opt.value}
                 className={`
-                  w-full px-3 py-2 text-left text-sm rounded-lg
-                  flex items-center justify-between
-                  transition-colors
-                  ${value === opt.value
-                    ? getSelectedBg()
-                    : "bg-base-200 hover:bg-base-300"
-                  }
+                  ${optionIdleClass}
+                  ${value === opt.value ? `nc-model-selector-option-selected ${getSelectedBg()}` : ""}
                 `}
                 onClick={() => handleSelectPreset(opt.value)}
               >
@@ -630,21 +722,50 @@ function ModelSelectorModal({
             ))}
           </div>
 
+          {/* 实时获取的模型列表 */}
+          {(remoteOptions?.length || remoteEntry?.error) && (
+            <div className="border-t border-base-300 pt-3 space-y-1">
+              <RemoteSectionHeader remoteEntry={remoteEntry} onRefreshRemote={onRefreshRemote} />
+              {remoteEntry?.error && !remoteOptions?.length && (
+                <RemoteErrorRow error={remoteEntry.error} onRefreshRemote={onRefreshRemote} />
+              )}
+              {(remoteOptions || []).map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  role="option"
+                  aria-selected={value === opt.value}
+                  className={`
+                    ${optionIdleClass}
+                    ${value === opt.value ? `nc-model-selector-option-selected ${getSelectedBg()}` : ""}
+                  `}
+                  onClick={() => handleSelectPreset(opt.value)}
+                >
+                  <span className="flex flex-col items-start">
+                    <span className="break-all">{opt.label}</span>
+                    {opt.label !== opt.value && (
+                      <span className="text-xs text-base-content/50">{opt.value}</span>
+                    )}
+                  </span>
+                  {value === opt.value && <Check className="w-4 h-4" />}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* 用户自定义模型列表 */}
           {allowCustom && customModels.length > 0 && (
             <div className="border-t border-base-300 pt-3 space-y-1">
-              <label className="text-xs text-base-content/60 mb-1.5 block">我的模型</label>
+              <div className="nc-section-title-sm mb-1.5">我的模型</div>
               {customModels.map((model) => (
                 <div
                   key={model}
+                  role="option"
+                  aria-selected={value === model}
                   className={`
-                    w-full px-3 py-2 text-left text-sm rounded-lg
-                    flex items-center justify-between group
-                    transition-colors cursor-pointer
-                    ${value === model
-                      ? getSelectedBg()
-                      : "bg-base-200 hover:bg-base-300"
-                    }
+                    nc-model-selector-option group w-full py-2 pl-3 pr-1.5 text-left text-sm
+                    flex items-center justify-between cursor-pointer
+                    ${value === model ? `nc-model-selector-option-selected ${getSelectedBg()}` : "border-transparent bg-transparent text-base-content hover:border-base-300/45 hover:bg-base-200/55"}
                   `}
                   onClick={() => handleSelectPreset(model)}
                 >
@@ -653,7 +774,8 @@ function ModelSelectorModal({
                     {value === model && <Check className="w-4 h-4" />}
                     <button
                       type="button"
-                      className="p-1 rounded hover:bg-error/20 hover:text-error opacity-0 group-hover:opacity-100 transition-opacity"
+                      aria-label={`删除模型 ${model}`}
+                      className="nc-icon-btn nc-icon-btn-xs nc-icon-btn-danger opacity-0 group-hover:opacity-100 focus:opacity-100"
                       onClick={(e) => handleRemoveCustomModel(model, e)}
                       title="删除此模型"
                     >
@@ -669,7 +791,7 @@ function ModelSelectorModal({
           {allowCustom && (
             <>
               <div className="border-t border-base-300 pt-3">
-                <label className="text-xs text-base-content/60 mb-1.5 block">添加自定义模型</label>
+                <label className="nc-field-label mb-1.5">添加自定义模型</label>
                 {/* 当前自定义模型显示（如果是临时输入的，不在列表中） */}
                 {isCustomModel && value && (
                   <div className="mb-2 px-2 py-1.5 bg-primary/10 rounded-lg text-xs text-primary">
@@ -704,8 +826,8 @@ function ModelSelectorModal({
         </div>
 
         {/* 底部 */}
-        <div className="flex items-center justify-end px-4 py-3 bg-base-200/50 border-t border-base-300">
-          <span className="text-xs text-base-content/50 mr-auto">
+        <div className="nc-modal-footer">
+          <span className="nc-modal-footer-hint">
             按 ESC 关闭
           </span>
           <button className="btn btn-ghost btn-sm" onClick={handleClose}>

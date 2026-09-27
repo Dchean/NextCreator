@@ -3,6 +3,4 @@
  */
 
 export { geminiImageProvider, GeminiImageProvider } from "./gemini";
-export { dalleImageProvider, DalleImageProvider } from "./dalle";
-export { fluxImageProvider, FluxImageProvider } from "./flux";
 export { gptImageProvider, GptImageProvider } from "./gptImage";

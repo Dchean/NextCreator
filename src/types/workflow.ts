@@ -45,8 +45,6 @@ export type WorkflowStatusCallback = (context: WorkflowExecutionContext) => void
 export const EXECUTABLE_NODE_TYPES = [
   "imageGeneratorNode",
   "llmContentNode",
-  "videoGeneratorNode",
-  "pptContentNode",
 ] as const;
 
 // 输入节点类型（无需执行，只提供数据）
@@ -61,7 +59,6 @@ export const SKIP_EXECUTION_NODE_TYPES = [
   "promptNode",
   "imageInputNode",
   "fileUploadNode",
-  "pptAssemblerNode",  // PPT 组装节点无自动执行逻辑
 ] as const;
 
 // 判断节点是否需要执行

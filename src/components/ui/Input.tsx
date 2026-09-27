@@ -34,11 +34,13 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           ref={ref}
           type={inputType}
           className={`
-            w-full h-8 px-3 text-sm rounded
+            w-full h-8 px-3 text-sm rounded-[var(--nc-radius-xs)]
             bg-base-100 border border-base-300
             placeholder:text-base-content/30
             hover:bg-base-100 hover:border-base-content/20
-            focus:bg-base-100 focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20
+            focus:bg-base-100 focus:outline-none
+            focus:border-[color-mix(in_srgb,var(--nc-focus)_50%,var(--nc-border))]
+            focus:shadow-[var(--nc-focus-ring)]
             transition-all duration-200
             ${LeftIconComponent ? "pl-9" : ""}
             ${isPassword ? "pr-10" : ""}
@@ -51,8 +53,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         {isPassword && (
           <button
             type="button"
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-base-content/40 hover:text-base-content/60 transition-colors"
+            className="nc-icon-btn nc-icon-btn-xs absolute right-2 top-1/2 -translate-y-1/2"
             onClick={() => setShowPassword(!showPassword)}
+            aria-label={showPassword ? "隐藏密码" : "显示密码"}
             tabIndex={-1}
           >
             {showPassword ? (

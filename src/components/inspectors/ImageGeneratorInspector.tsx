@@ -9,6 +9,7 @@ import { useImageGeneratorExecution } from "@/hooks/useImageGeneratorExecution";
 import { useNodeConnectionStatus } from "@/hooks/useNodeConnectionStatus";
 import { getImageUrl } from "@/services/fileStorageService";
 import { useFlowStore } from "@/stores/flowStore";
+import { useSettingsStore } from "@/stores/settingsStore";
 import {
   filterPromptMentionSources,
   getActivePromptMentionQuery,
@@ -52,6 +53,7 @@ interface ImageGeneratorInspectorProps {
 interface RunRecordImage {
   id: string;
   imagePath?: string;
+  thumbPath?: string;
   imageData?: string;
   fileName?: string;
 }
@@ -62,6 +64,13 @@ function getButtonClass(accent: string) {
   if (accent === "secondary") return "btn-secondary";
   if (accent === "error") return "btn-error";
   return "btn-primary";
+}
+
+/** 分段控件激活态按 accent 着色（primary 走默认纸面高亮） */
+function getSegActiveClass(accent: string) {
+  if (accent === "info") return "nc-seg-btn-info";
+  if (accent === "warning") return "nc-seg-btn-warning";
+  return "";
 }
 
 function getModelSelectorVariant(accent: string) {
@@ -83,11 +92,13 @@ export function ImageGeneratorInspector({ nodeId, data }: ImageGeneratorInspecto
 
   const apiProtocol = getImageApiProtocol(data);
   const config = getImageApiProtocolConfig(apiProtocol);
+  const provider = useSettingsStore((s) => s.getNodeProvider(config.providerKey));
   const { handleGenerate, model, resolvedSize, sizeValidationError } = useImageGeneratorExecution(nodeId, data);
   const dots = useLoadingDots(data.status === "loading");
   const {
     isPromptConnected,
     promptText,
+    promptSources,
     hasEmptyImageInputs,
     emptyImageLabels,
   } = useNodeConnectionStatus(nodeId);
@@ -126,6 +137,12 @@ export function ImageGeneratorInspector({ nodeId, data }: ImageGeneratorInspecto
   );
   const promptValue = data.prompt || "";
   const hasPromptValue = promptValue.trim().length > 0;
+  const hasConnectedPromptContent = promptSources.some((source) => source.charCount > 0);
+  const effectivePromptSource: "inline" | "connected" | "none" = hasPromptValue
+    ? "inline"
+    : hasConnectedPromptContent
+      ? "connected"
+      : "none";
   const hasResolvedPrompt = hasPromptValue || Boolean(promptText?.trim());
   const resolvedSizeLabel = getImageGeneratorSizeLabel({ ...data, apiProtocol, model });
   const runRecords = data.runRecords || [];
@@ -193,7 +210,31 @@ export function ImageGeneratorInspector({ nodeId, data }: ImageGeneratorInspecto
       <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-5">
         <section className="space-y-3">
           <div>
-            <label className="text-xs text-base-content/60 mb-1 block">节点提示词</label>
+            <label className="nc-field-label">节点提示词</label>
+            <div className="mb-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+              <span className="text-base-content/45">当前生效：</span>
+              {effectivePromptSource === "inline" && (
+                <span className="nc-image-prompt-source-chip nc-image-prompt-source-chip-accent">
+                  节点内提示词
+                </span>
+              )}
+              {effectivePromptSource === "connected" && (
+                <span className="nc-image-prompt-source-chip">
+                  {`来自连接（${promptSources.length} 个提示词源）`}
+                </span>
+              )}
+              {effectivePromptSource === "none" && (
+                <span className="nc-image-prompt-source-chip nc-image-prompt-source-chip-empty">
+                  未设置
+                </span>
+              )}
+            </div>
+            {hasPromptValue && hasConnectedPromptContent && (
+              <div className="mb-1.5 flex items-start gap-1.5 text-[11px] text-warning">
+                <AlertTriangle className="mt-0.5 h-3 w-3 flex-shrink-0" />
+                <span>同时存在节点内提示词与连接的提示词，生成时仅使用节点内提示词</span>
+              </div>
+            )}
             <div className="relative">
               <textarea
                 ref={promptTextareaRef}
@@ -249,12 +290,12 @@ export function ImageGeneratorInspector({ nodeId, data }: ImageGeneratorInspecto
               )}
             </div>
             <p className="mt-1 text-[11px] text-base-content/40">
-              留空时将直接使用外部连接的提示词。
+              填写后将优先使用此处内容；留空时使用连接的提示词节点。输入 @ 可引用已连接提示词。
             </p>
           </div>
 
           <div>
-            <label className="text-xs text-base-content/60 mb-1 block">接口规范</label>
+            <label className="nc-field-label">接口规范</label>
             <Select
               value={apiProtocol}
               options={imageApiProtocolOptions}
@@ -271,11 +312,12 @@ export function ImageGeneratorInspector({ nodeId, data }: ImageGeneratorInspecto
             allowCustom={true}
             modelCategory="imageGenerator"
             mode="inline"
+            provider={provider}
           />
 
           {geminiAspectRatioOptions && (
             <div>
-              <label className="text-xs text-base-content/60 mb-1 block">画幅比例</label>
+              <label className="nc-field-label">画幅比例</label>
               <Select
                 value={currentGeminiAspectRatio}
                 options={geminiAspectRatioOptions}
@@ -287,14 +329,32 @@ export function ImageGeneratorInspector({ nodeId, data }: ImageGeneratorInspecto
 
           {config.hasGeminiImageControls && geminiImageSizeOptions && (
             <div>
-              <label className="text-xs text-base-content/60 mb-1 block">输出尺寸</label>
-              <div className="grid grid-cols-4 gap-1.5">
+              <label className="nc-field-label">输出尺寸</label>
+              <div className="nc-seg grid! grid-cols-4">
                 {geminiImageSizeOptions.map((opt) => (
                   <button
                     key={opt.value}
                     type="button"
-                    className={`btn btn-sm px-0 ${currentGeminiImageSize === opt.value ? getButtonClass(config.accent) : "btn-ghost bg-base-200"}`}
+                    className={`nc-seg-btn ${currentGeminiImageSize === opt.value ? `nc-seg-btn-active ${getSegActiveClass(config.accent)}` : ""}`}
                     onClick={() => updateData({ imageSize: opt.value })}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {config.hasGeminiImageControls && (
+            <div>
+              <label className="nc-field-label">生成数量（并发任务）</label>
+              <div className="nc-seg grid! grid-cols-4">
+                {openAIImageCountOptions.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    className={`nc-seg-btn ${String(data.n || 1) === opt.value ? `nc-seg-btn-active ${getSegActiveClass(config.accent)}` : ""}`}
+                    onClick={() => updateData({ n: Number(opt.value) })}
                   >
                     {opt.label}
                   </button>
@@ -306,7 +366,7 @@ export function ImageGeneratorInspector({ nodeId, data }: ImageGeneratorInspecto
           {config.hasOpenAIImageControls && (
             <>
               <div>
-                <label className="text-xs text-base-content/60 mb-1 block">尺寸/比例</label>
+                <label className="nc-field-label">尺寸/比例</label>
                 <Select
                   value={sizeSelectValue}
                   options={openAIImageSizeOptions}
@@ -357,7 +417,7 @@ export function ImageGeneratorInspector({ nodeId, data }: ImageGeneratorInspecto
                   </div>
                 )}
                 {sizeValidationError && (
-                  <div className="flex items-start gap-2 text-warning text-xs bg-warning/10 p-2 rounded-lg mt-2">
+                  <div className="nc-warning-surface flex items-start gap-2 rounded-[var(--nc-radius-md)] p-2 text-xs text-warning mt-2">
                     <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                     <span>{sizeValidationError}</span>
                   </div>
@@ -365,13 +425,13 @@ export function ImageGeneratorInspector({ nodeId, data }: ImageGeneratorInspecto
               </div>
 
               <div>
-                <label className="text-xs text-base-content/60 mb-1 block">质量</label>
-                <div className="grid grid-cols-4 gap-1.5">
+                <label className="nc-field-label">质量</label>
+                <div className="nc-seg grid! grid-cols-4">
                   {gptImageQualityOptions.map((opt) => (
                     <button
                       key={opt.value}
                       type="button"
-                      className={`btn btn-sm px-0 ${(data.quality || "auto") === opt.value ? getButtonClass(config.accent) : "btn-ghost bg-base-200"}`}
+                      className={`nc-seg-btn ${(data.quality || "auto") === opt.value ? `nc-seg-btn-active ${getSegActiveClass(config.accent)}` : ""}`}
                       onClick={() => updateData({ quality: opt.value })}
                     >
                       {opt.label}
@@ -381,13 +441,13 @@ export function ImageGeneratorInspector({ nodeId, data }: ImageGeneratorInspecto
               </div>
 
               <div>
-                <label className="text-xs text-base-content/60 mb-1 block">生成数量</label>
-                <div className="grid grid-cols-4 gap-1.5">
+                <label className="nc-field-label">生成数量</label>
+                <div className="nc-seg grid! grid-cols-4">
                   {openAIImageCountOptions.map((opt) => (
                     <button
                       key={opt.value}
                       type="button"
-                      className={`btn btn-sm px-0 ${String(data.n || 1) === opt.value ? getButtonClass(config.accent) : "btn-ghost bg-base-200"}`}
+                      className={`nc-seg-btn ${String(data.n || 1) === opt.value ? `nc-seg-btn-active ${getSegActiveClass(config.accent)}` : ""}`}
                       onClick={() => updateData({ n: Number(opt.value) })}
                     >
                       {opt.label}
@@ -397,13 +457,13 @@ export function ImageGeneratorInspector({ nodeId, data }: ImageGeneratorInspecto
               </div>
 
               <div>
-                <label className="text-xs text-base-content/60 mb-1 block">背景</label>
-                <div className="grid grid-cols-3 gap-1.5">
+                <label className="nc-field-label">背景</label>
+                <div className="nc-seg grid! grid-cols-3">
                   {getGptImageBackgroundOptions(model).map((opt) => (
                     <button
                       key={opt.value}
                       type="button"
-                      className={`btn btn-sm ${(data.background || "auto") === opt.value ? getButtonClass(config.accent) : "btn-ghost bg-base-200"}`}
+                      className={`nc-seg-btn ${(data.background || "auto") === opt.value ? `nc-seg-btn-active ${getSegActiveClass(config.accent)}` : ""}`}
                       onClick={() => updateData({ background: opt.value })}
                     >
                       {opt.label}
@@ -414,7 +474,7 @@ export function ImageGeneratorInspector({ nodeId, data }: ImageGeneratorInspecto
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-xs text-base-content/60 mb-1 block">格式</label>
+                  <label className="nc-field-label">格式</label>
                   <Select
                     value={data.outputFormat || "png"}
                     options={gptImageOutputFormatOptions}
@@ -425,7 +485,7 @@ export function ImageGeneratorInspector({ nodeId, data }: ImageGeneratorInspecto
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-base-content/60 mb-1 block">审核</label>
+                  <label className="nc-field-label">审核</label>
                   <Select
                     value={data.moderation || "auto"}
                     options={gptImageModerationOptions}
@@ -439,13 +499,13 @@ export function ImageGeneratorInspector({ nodeId, data }: ImageGeneratorInspecto
 
               {model !== "gpt-image-2" && (
                 <div>
-                  <label className="text-xs text-base-content/60 mb-1 block">参考图保真度</label>
-                  <div className="grid grid-cols-3 gap-1.5">
+                  <label className="nc-field-label">参考图保真度</label>
+                  <div className="nc-seg grid! grid-cols-3">
                     {gptImageInputFidelityOptions.map((opt) => (
                       <button
                         key={opt.value}
                         type="button"
-                        className={`btn btn-sm ${(data.inputFidelity || "auto") === opt.value ? getButtonClass(config.accent) : "btn-ghost bg-base-200"}`}
+                        className={`nc-seg-btn ${(data.inputFidelity || "auto") === opt.value ? `nc-seg-btn-active ${getSegActiveClass(config.accent)}` : ""}`}
                         onClick={() => updateData({
                           inputFidelity: opt.value as ImageGeneratorNodeData["inputFidelity"],
                         })}
@@ -459,7 +519,7 @@ export function ImageGeneratorInspector({ nodeId, data }: ImageGeneratorInspecto
 
               {(data.outputFormat === "jpeg" || data.outputFormat === "webp") && (
                 <div>
-                  <label className="text-xs text-base-content/60 mb-1 block">
+                  <label className="nc-field-label">
                     压缩: {data.outputCompression ?? 100}
                   </label>
                   <input
@@ -479,13 +539,13 @@ export function ImageGeneratorInspector({ nodeId, data }: ImageGeneratorInspecto
 
         <section className="space-y-2">
           {!hasResolvedPrompt && (
-            <div className="flex items-start gap-2 text-warning text-xs bg-warning/10 p-2 rounded-lg">
+            <div className="nc-warning-surface flex items-start gap-2 rounded-[var(--nc-radius-md)] p-2 text-xs text-warning">
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
               <span>请填写节点提示词，或连接提示词节点</span>
             </div>
           )}
           {isPromptConnected && hasEmptyImageInputs && (
-            <div className="flex items-start gap-2 text-warning text-xs bg-warning/10 p-2 rounded-lg">
+            <div className="nc-warning-surface flex items-start gap-2 rounded-[var(--nc-radius-md)] p-2 text-xs text-warning">
               <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
               <span>图片输入为空: {emptyImageLabels.join(", ")}</span>
             </div>
@@ -493,7 +553,7 @@ export function ImageGeneratorInspector({ nodeId, data }: ImageGeneratorInspecto
           {data.status === "error" && data.error && (
             <button
               type="button"
-              className="flex w-full items-start gap-2 text-left text-error text-xs bg-error/10 p-2 rounded-lg hover:bg-error/20"
+              className="nc-danger-surface flex w-full items-start gap-2 rounded-[var(--nc-radius-md)] p-2 text-left text-xs text-error"
               onClick={() => setShowErrorDetail(true)}
             >
               <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
@@ -507,8 +567,16 @@ export function ImageGeneratorInspector({ nodeId, data }: ImageGeneratorInspecto
               onClick={() => setShowPreview(true)}
             >
               <img
-                src={data.outputImagePath ? getImageUrl(data.outputImagePath) : `data:image/png;base64,${data.outputImage}`}
+                src={
+                  data.outputThumbPath
+                    ? getImageUrl(data.outputThumbPath)
+                    : data.outputImagePath
+                      ? getImageUrl(data.outputImagePath)
+                      : `data:image/png;base64,${data.outputImage}`
+                }
                 alt="Generated"
+                loading="lazy"
+                decoding="async"
                 className="w-full aspect-video object-cover"
               />
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -546,7 +614,7 @@ export function ImageGeneratorInspector({ nodeId, data }: ImageGeneratorInspecto
               ))}
             </div>
           ) : (
-            <div className="rounded-lg border border-dashed border-base-300 bg-base-200/35 px-3 py-6 text-center text-xs text-base-content/45">
+            <div className="nc-empty-state py-4! text-xs">
               运行后会在这里看到图片、输入和输出
             </div>
           )}
@@ -555,7 +623,7 @@ export function ImageGeneratorInspector({ nodeId, data }: ImageGeneratorInspecto
 
       {hasPromptValue && (
         <div className="px-4 pb-4">
-          <div className="flex flex-wrap gap-1.5 rounded-xl border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/70">
+          <div className="flex flex-wrap gap-1.5 rounded-[var(--nc-radius-lg)] border border-base-300 bg-base-100 px-3 py-2 text-xs text-base-content/70">
             {promptTokens.map((token, index) =>
               token.type === "mention" ? (
                 <span
@@ -575,12 +643,12 @@ export function ImageGeneratorInspector({ nodeId, data }: ImageGeneratorInspecto
       <div className="flex-shrink-0 border-t border-base-300 bg-base-100 p-4">
         <button
           type="button"
-          className={`btn w-full gap-2 ${data.status === "loading" || !hasResolvedPrompt || sizeValidationError ? "btn-disabled" : getButtonClass(config.accent)}`}
+          className={`btn w-full gap-2 ${data.status === "loading" || data.queued || !hasResolvedPrompt || sizeValidationError ? "btn-disabled" : getButtonClass(config.accent)}`}
           onClick={handleGenerate}
-          disabled={data.status === "loading" || !hasResolvedPrompt || !!sizeValidationError}
+          disabled={data.status === "loading" || data.queued || !hasResolvedPrompt || !!sizeValidationError}
         >
           <Play className="w-4 h-4" />
-          {data.status === "loading" ? `生成中${dots}` : "生成图片"}
+          {data.queued ? "排队中..." : data.status === "loading" ? `生成中${dots}` : "生成图片"}
         </button>
         <div className="mt-2 text-[11px] text-base-content/45 truncate">
           {config.label} · {config.hasOpenAIImageControls ? resolvedSize : resolvedSizeLabel}
@@ -639,6 +707,7 @@ function getRunImages(record: ImageGeneratorRunRecord): RunRecordImage[] {
   const pathImages = record.output?.imagePaths?.map((imagePath, index) => ({
     id: `${record.id}-path-${index}`,
     imagePath,
+    thumbPath: record.output?.thumbPaths?.[index],
     fileName: `output-${index + 1}.png`,
   })) || [];
   const inlineImages = record.output?.imageDataList?.map((imageData, index) => ({
@@ -658,7 +727,7 @@ function getRunStatusIcon(status: ImageGeneratorRunRecord["status"]) {
 
 function JsonBlock({ value }: { value: unknown }) {
   return (
-    <pre className="nc-scrollbar-none max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-base-200/80 p-3 text-[11px] leading-5 text-base-content/70">
+    <pre className="nc-scrollbar-none max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-[var(--nc-radius-md)] bg-base-200/80 p-3 text-[11px] leading-5 text-base-content/70">
       {JSON.stringify(value, null, 2)}
     </pre>
   );
@@ -675,7 +744,7 @@ function RunRecordCard({ record, expanded, onToggle, onPreviewImage }: RunRecord
   const images = getRunImages(record);
 
   return (
-    <div className="overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-[var(--nc-shadow-card)]">
+    <div className="overflow-hidden rounded-[var(--nc-radius-lg)] border border-base-300 bg-base-100 shadow-[var(--nc-shadow-card)]">
       <button
         type="button"
         className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-base-200/45"
@@ -702,7 +771,7 @@ function RunRecordCard({ record, expanded, onToggle, onPreviewImage }: RunRecord
       </button>
 
       {record.error && (
-        <div className="mx-3 mb-2 rounded-lg bg-error/10 px-3 py-2 text-xs leading-5 text-error">
+        <div className="nc-danger-surface mx-3 mb-2 rounded-[var(--nc-radius-md)] px-3 py-2 text-xs leading-5 text-error">
           {record.error}
         </div>
       )}
@@ -710,7 +779,11 @@ function RunRecordCard({ record, expanded, onToggle, onPreviewImage }: RunRecord
       {images.length > 0 && (
         <div className="space-y-2 border-t border-base-300/70 px-3 py-3">
           {images.map((image, index) => {
-            const imageSrc = image.imagePath ? getImageUrl(image.imagePath) : `data:image/png;base64,${image.imageData}`;
+            const imageSrc = image.thumbPath
+              ? getImageUrl(image.thumbPath)
+              : image.imagePath
+                ? getImageUrl(image.imagePath)
+                : `data:image/png;base64,${image.imageData}`;
             return (
               <button
                 key={image.id}
@@ -728,6 +801,8 @@ function RunRecordCard({ record, expanded, onToggle, onPreviewImage }: RunRecord
                 <img
                   src={imageSrc}
                   alt={image.fileName || `Generated ${index + 1}`}
+                  loading="lazy"
+                  decoding="async"
                   className="aspect-video w-full object-cover"
                 />
               </button>

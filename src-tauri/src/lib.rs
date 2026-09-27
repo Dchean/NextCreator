@@ -1,16 +1,14 @@
 mod dalle;
 mod gemini;
 mod llm;
+mod models;
 mod storage;
-mod text_removal;
-mod video;
 
 use dalle::*;
 use gemini::*;
 use llm::*;
+use models::*;
 use storage::*;
-use text_removal::*;
-use video::*;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -19,6 +17,11 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .setup(|app| {
+            // 启动时为自定义图片存储目录扩展 asset protocol 授权
+            storage::ensure_custom_dir_asset_scope(app.handle());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             save_image,
             read_image,
@@ -29,37 +32,23 @@ pub fn run() {
             clear_cache,
             clear_all_images,
             get_storage_path,
+            get_storage_config,
+            set_storage_config,
+            migrate_images_storage,
             list_canvas_images,
+            list_all_images,
+            ensure_thumbnail,
+            ensure_asset_paths_allowed,
+            cleanup_unreferenced_images,
+            list_models,
             gemini_generate_content,
             gemini_generate_text,
             // LLM 代理命令
             openai_chat_completion,
             openai_responses,
             claude_chat_completion,
-            // 视频服务代理命令
-            video_create_task,
-            video_get_status,
-            video_get_content,
-            newapi_video_create_task,
-            newapi_video_get_status,
-            // Veo 视频服务命令
-            veo_create_task,
-            veo_get_status,
-            veo_get_content,
-            // Kling 视频服务命令
-            kling_create_task,
-            kling_get_status,
-            kling_get_content,
-            kling_download_video,
             // DALL-E 图片生成命令
-            dalle_generate_image,
-            // 文字去除功能（本地化）
-            remove_text_from_image,
-            detect_text_regions,
-            inpaint_background,
-            // 批量处理命令
-            process_pages_batch,
-            stop_batch_processing
+            dalle_generate_image
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

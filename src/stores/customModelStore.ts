@@ -5,10 +5,7 @@ import { tauriStorage } from "@/utils/tauriStorage";
 // 节点类型分类
 export type ModelCategory =
   | "imageGenerator"
-  | "videoGenerator"
-  | "llmContent"
-  | "pptOutline"
-  | "pptImage";
+  | "llmContent";
 
 interface CustomModelState {
   // 按节点类型分类存储用户自定义模型
@@ -26,10 +23,7 @@ interface CustomModelState {
 
 const defaultCustomModels: Record<ModelCategory, string[]> = {
   imageGenerator: [],
-  videoGenerator: [],
   llmContent: [],
-  pptOutline: [],
-  pptImage: [],
 };
 
 export const useCustomModelStore = create<CustomModelState>()(

@@ -78,17 +78,19 @@ export function ContextMenu({ x, y, items, onClose }: ContextMenuProps) {
   return createPortal(
     <div
       ref={menuRef}
-      className="nc-panel fixed z-[9999] min-w-[180px] py-1 rounded-lg"
-      style={{ left: x, top: y }}
+      className="nc-panel fixed min-w-[180px] py-1"
+      role="menu"
+      style={{ left: x, top: y, zIndex: "var(--nc-z-context)", borderRadius: "var(--nc-radius-md)" }}
     >
       {items.map((item, index) => {
         if (item.divider) {
-          return <div key={`divider-${index}`} className="my-1 border-t border-base-300" />;
+          return <div key={`divider-${index}`} role="separator" className="my-1 border-t border-base-300" />;
         }
 
         return (
           <button
             key={item.id}
+            role="menuitem"
             className={`
               w-full px-3 py-1.5 flex items-center gap-2 text-sm text-left
               transition-colors

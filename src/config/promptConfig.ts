@@ -113,10 +113,10 @@ export const promptIconMap: Record<string, React.ComponentType<{ className?: str
 export const promptIconColors: Record<string, string> = {
   Camera: "bg-rose-500/10 text-rose-500",
   Sparkles: "bg-purple-500/10 text-purple-500",
-  GraduationCap: "bg-blue-500/10 text-blue-500",
+  GraduationCap: "bg-[var(--nc-blue-soft)] text-[var(--nc-blue)]",
   ShoppingBag: "bg-amber-500/10 text-amber-500",
   Briefcase: "bg-slate-500/10 text-slate-500",
-  ImagePlus: "bg-green-500/10 text-green-500",
+  ImagePlus: "bg-[color-mix(in_srgb,var(--nc-success)_10%,transparent)] text-[var(--nc-success)]",
   Home: "bg-orange-500/10 text-orange-500",
   Megaphone: "bg-pink-500/10 text-pink-500",
   Globe: "bg-cyan-500/10 text-cyan-500",

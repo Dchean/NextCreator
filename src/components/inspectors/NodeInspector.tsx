@@ -1,10 +1,9 @@
 import { X, Settings2, CircleAlert } from "lucide-react";
 import { ImageGeneratorInspector } from "@/components/inspectors/ImageGeneratorInspector";
 import { LLMContentInspector } from "@/components/inspectors/LLMContentInspector";
-import { VideoGeneratorInspector } from "@/components/inspectors/VideoGeneratorInspector";
 import { nodeCategories, nodeIconMap, nodeIconColors } from "@/config/nodeConfig";
 import { useFlowStore } from "@/stores/flowStore";
-import type { CustomNode, CustomNodeData, ImageGeneratorNodeData, LLMContentNodeData, VideoGeneratorNodeData } from "@/types";
+import type { CustomNode, CustomNodeData, ImageGeneratorNodeData, LLMContentNodeData } from "@/types";
 
 function findNodeDefinition(type?: string) {
   if (!type) return undefined;
@@ -33,7 +32,7 @@ function GenericInspector({ node }: { node: CustomNode }) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-4">
       <div>
-        <label className="text-xs text-base-content/60 mb-1 block">名称</label>
+        <label className="nc-field-label">名称</label>
         <input
           className="input input-bordered input-sm w-full"
           value={String(node.data.label || "")}
@@ -43,13 +42,13 @@ function GenericInspector({ node }: { node: CustomNode }) {
 
       {status && (
         <div>
-          <label className="text-xs text-base-content/60 mb-1 block">状态</label>
-          <div className="rounded-lg bg-base-200 px-3 py-2 text-sm">{status}</div>
+          <label className="nc-field-label">状态</label>
+          <div className="nc-soft-panel text-sm py-2!">{status}</div>
         </div>
       )}
 
       {error && (
-        <div className="flex items-start gap-2 rounded-lg bg-error/10 p-3 text-sm text-error">
+        <div className="nc-danger-surface flex items-start gap-2 rounded-[var(--nc-radius-md)] p-3 text-sm text-error">
           <CircleAlert className="w-4 h-4 flex-shrink-0 mt-0.5" />
           <span className="break-all">{error}</span>
         </div>
@@ -102,11 +101,6 @@ export function NodeInspector() {
           <ImageGeneratorInspector
             nodeId={selectedNode.id}
             data={selectedNode.data as ImageGeneratorNodeData}
-          />
-        ) : selectedNode.type === "videoGeneratorNode" ? (
-          <VideoGeneratorInspector
-            nodeId={selectedNode.id}
-            data={selectedNode.data as VideoGeneratorNodeData}
           />
         ) : selectedNode.type === "llmContentNode" ? (
           <LLMContentInspector

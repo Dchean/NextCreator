@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { X, Sparkles, Zap, Flame, ImagePlus, ChevronDown, Check, Upload, Trash2, Tag, Eye } from "lucide-react";
+import { useModal, getModalAnimationClasses } from "@/hooks/useModal";
 import type { PromptNodeTemplate } from "@/config/promptConfig";
 import type { UserPrompt, CreatePromptInput } from "@/stores/userPromptStore";
 import { ImagePreviewModal } from "@/components/ui/ImagePreviewModal";
@@ -50,11 +51,16 @@ export function PromptEditModal({
   onSave,
   editingPrompt,
 }: PromptEditModalProps) {
-  const [isVisible, setIsVisible] = useState(false);
-  const [isClosing, setIsClosing] = useState(false);
-  const [isAnimatingIn, setIsAnimatingIn] = useState(true);
   const [isImagePreviewOpen, setIsImagePreviewOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 统一 Modal 交互（ESC 关闭、背景点击、过渡动画）
+  const { isVisible, isClosing, handleClose, handleBackdropClick } = useModal({
+    isOpen,
+    onClose,
+  });
+
+  const { contentClasses } = getModalAnimationClasses(isVisible, isClosing);
 
   // 表单状态
   const [title, setTitle] = useState("");
@@ -70,17 +76,7 @@ export function PromptEditModal({
   // 初始化/重置表单
   useEffect(() => {
     if (isOpen) {
-      setIsVisible(true);
-      setIsClosing(false);
-      setIsAnimatingIn(true);
       setIsImagePreviewOpen(false); // 重置图片预览状态
-
-      // 触发入场动画
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          setIsAnimatingIn(false);
-        });
-      });
 
       if (editingPrompt) {
         setTitle(editingPrompt.title);
@@ -106,25 +102,6 @@ export function PromptEditModal({
       }
     }
   }, [isOpen, editingPrompt]);
-
-  // ESC 关闭
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") handleClose();
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen]);
-
-  const handleClose = useCallback(() => {
-    setIsClosing(true);
-    setTimeout(() => {
-      setIsVisible(false);
-      setIsClosing(false);
-      onClose();
-    }, 200);
-  }, [onClose]);
 
   // 根据生成器类型选择宽高比选项
   const aspectRatioOptions = generatorType === "nb2"
@@ -218,47 +195,34 @@ export function PromptEditModal({
 
   const isValid = title.trim() && prompt.trim();
 
-  if (!isVisible) return null;
+  if (!isOpen) return null;
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
-      onClick={handleClose}
+      className={`nc-modal-backdrop p-4 ${isVisible && !isClosing ? "nc-modal-backdrop-open" : ""}`}
+      onClick={handleBackdropClick}
     >
-      {/* 背景遮罩 - 与整体动画同步 */}
-      <div
-        className={`absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-200 ${
-          isAnimatingIn || isClosing ? "opacity-0" : "opacity-100"
-        }`}
-      />
-
       {/* Modal 内容 */}
       <div
-        className={`relative w-full max-w-lg max-h-[90vh] bg-base-100 rounded-2xl shadow-2xl overflow-hidden flex flex-col transition-all duration-200 ease-out ${
-          isAnimatingIn
-            ? "scale-95 opacity-0 translate-y-4"
-            : isClosing
-              ? "scale-95 opacity-0"
-              : "scale-100 opacity-100 translate-y-0"
-        }`}
+        className={`nc-modal nc-modal-md max-h-[90vh] flex flex-col transition-all duration-200 ease-out ${contentClasses}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
-        <div className="flex items-center justify-between p-4 border-b border-base-200">
-          <h2 className="text-lg font-bold">
+        <div className="nc-modal-header">
+          <h2 className="nc-modal-title">
             {editingPrompt ? "编辑提示词" : "新建提示词"}
           </h2>
-          <button className="btn btn-ghost btn-sm btn-circle" onClick={handleClose}>
-            <X className="w-5 h-5" />
+          <button type="button" className="nc-icon-btn" onClick={handleClose} aria-label="关闭">
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* 表单内容 */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 space-y-4">
+        <form onSubmit={handleSubmit} className="nc-modal-body-sm space-y-4">
           {/* 标题 */}
           <div className="form-control">
             <label className="label py-1">
-              <span className="label-text font-medium">
+              <span className="nc-field-label">
                 标题 <span className="text-error">*</span>
               </span>
             </label>
@@ -275,7 +239,7 @@ export function PromptEditModal({
           {/* 描述 */}
           <div className="form-control">
             <label className="label py-1">
-              <span className="label-text font-medium">描述</span>
+              <span className="nc-field-label">描述</span>
             </label>
             <input
               type="text"
@@ -289,21 +253,19 @@ export function PromptEditModal({
           {/* 标签 */}
           <div className="form-control">
             <label className="label py-1">
-              <span className="label-text font-medium">标签</span>
+              <span className="nc-field-label">标签</span>
               <span className="label-text-alt text-base-content/50">最多 5 个</span>
             </label>
-            <div className="flex flex-wrap items-center gap-1.5 p-2 min-h-[2.5rem] bg-base-100 border border-base-300 rounded-lg focus-within:border-primary focus-within:outline focus-within:outline-2 focus-within:outline-primary/20">
+            <div className="flex flex-wrap items-center gap-1.5 p-2 min-h-[2.5rem] bg-base-100 border border-base-300 rounded-[var(--nc-radius-md)] focus-within:border-primary focus-within:outline focus-within:outline-2 focus-within:outline-primary/20">
               {tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-primary/10 text-primary rounded-full"
-                >
+                <span key={tag} className="nc-chip nc-chip-accent">
                   <Tag className="w-3 h-3" />
                   {tag}
                   <button
                     type="button"
                     className="hover:text-error transition-colors"
                     onClick={() => removeTag(tag)}
+                    aria-label={`删除标签 ${tag}`}
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -325,7 +287,7 @@ export function PromptEditModal({
           {/* 提示词内容 */}
           <div className="form-control">
             <label className="label py-1">
-              <span className="label-text font-medium">
+              <span className="nc-field-label">
                 提示词内容 <span className="text-error">*</span>
               </span>
             </label>
@@ -341,7 +303,7 @@ export function PromptEditModal({
           {/* 效果预览图 */}
           <div className="form-control">
             <label className="label py-1">
-              <span className="label-text font-medium">效果预览图</span>
+              <span className="nc-field-label">效果预览图</span>
               <span className="label-text-alt text-base-content/50">可选</span>
             </label>
             {previewImage ? (
@@ -349,9 +311,9 @@ export function PromptEditModal({
                 <img
                   src={previewImage}
                   alt="预览图"
-                  className="w-full h-32 object-cover rounded-lg border border-base-300"
+                  className="w-full h-32 object-cover rounded-[var(--nc-radius-md)] border border-base-300"
                 />
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center gap-2">
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-[var(--nc-radius-md)] flex items-center justify-center gap-2">
                   <button
                     type="button"
                     className="btn btn-sm btn-ghost text-white"
@@ -458,7 +420,7 @@ export function PromptEditModal({
             {/* 宽高比 */}
             <div className="form-control">
               <label className="label py-1">
-                <span className="label-text text-sm">默认宽高比</span>
+                <span className="nc-field-label">默认宽高比</span>
               </label>
               <div className="dropdown dropdown-top dropdown-end w-full">
                 <div
@@ -471,7 +433,7 @@ export function PromptEditModal({
                 </div>
                 <ul
                   tabIndex={0}
-                  className="dropdown-content z-10 menu p-1 shadow-lg bg-base-100 rounded-lg border border-base-300 w-full"
+                  className="dropdown-content menu p-1 nc-select-dropdown bg-base-100 border border-base-300 w-full"
                 >
                   {aspectRatioOptions.map((opt) => (
                     <li key={opt.value}>
@@ -496,7 +458,7 @@ export function PromptEditModal({
         </form>
 
         {/* 底部操作 */}
-        <div className="p-4 border-t border-base-200 flex justify-end gap-2">
+        <div className="nc-modal-footer">
           <button type="button" className="btn btn-ghost btn-sm" onClick={handleClose}>
             取消
           </button>

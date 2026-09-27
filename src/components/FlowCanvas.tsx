@@ -8,7 +8,10 @@ import {
   type ReactFlowInstance,
   type Node,
   type Edge,
+  type Connection,
+  type FinalConnectionState,
   type NodeTypes,
+  type OnReconnect,
   type Viewport,
   SelectionMode,
   ControlButton,
@@ -24,15 +27,25 @@ import {
   AlignEndVertical,
   AlignStartHorizontal,
   AlignEndHorizontal,
-  Scissors,
   LayoutGrid,
   Play,
+  ImagePlus,
+  Sparkles,
 } from "lucide-react";
 
 import { useFlowStore } from "@/stores/flowStore";
 import { nodeTypes } from "@/components/nodes";
 import { OverlayNodeLayer } from "@/components/canvas/OverlayNodeLayer";
 import { ContextMenu, type ContextMenuItem } from "@/components/ui/ContextMenu";
+import {
+  ensureAssetPathsAllowed,
+  getFilePathForDroppedFile,
+} from "@/services/fileStorageService";
+import {
+  getDefaultImageGeneratorData,
+  getImageApiProtocol,
+  type ImageGeneratorNodeData,
+} from "@/components/nodes/imageGeneratorConfig";
 import type { CustomNodeData } from "@/types";
 
 // 定义自定义节点类型
@@ -97,13 +110,16 @@ export function FlowCanvas() {
   const selectAll = useFlowStore((s) => s.selectAll);
   const clearSelection = useFlowStore((s) => s.clearSelection);
   const isValidConnection = useFlowStore((s) => s.isValidConnection);
+  const reconnectEdge = useFlowStore((s) => s.reconnectEdge);
+  const isReconnectionValid = useFlowStore((s) => s.isReconnectionValid);
   const executeFromNode = useFlowStore((s) => s.executeFromNode);
   const updateNodeData = useFlowStore((s) => s.updateNodeData);
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
-  // 裁剪模式状态
-  const [trimMode, setTrimMode] = useState(false);
+
+  // 拖拽改接连线：记录正在被改接的边，用于拖拽预览时排除该边参与循环/占用校验
+  const reconnectingEdgeRef = useRef<Edge | null>(null);
 
   // 键盘快捷键
   useEffect(() => {
@@ -174,14 +190,10 @@ export function FlowCanvas() {
         if (canRedo()) redo();
       }
 
-      // Escape - 取消选择或退出裁剪模式
+      // Escape - 取消选择
       if (e.key === "Escape") {
-        if (trimMode) {
-          setTrimMode(false);
-        } else {
-          clearSelection();
-          setContextMenu(null);
-        }
+        clearSelection();
+        setContextMenu(null);
       }
     };
 
@@ -202,13 +214,20 @@ export function FlowCanvas() {
     canUndo,
     canRedo,
     clearSelection,
-    trimMode,
   ]);
 
   // 拖放处理
+  // dropEffect 必须与拖拽源声明的 effectAllowed 匹配，否则浏览器会将当前拖拽操作判定为
+  // "none" 并取消 drop：图片引用（GalleryView / ImageGeneratorNode）与系统文件为 copy，
+  // 节点面板与提示词模板为 move
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
+    const types = event.dataTransfer.types;
+    if (types.includes("application/x-nc-image-ref") || types.includes("Files")) {
+      event.dataTransfer.dropEffect = "copy";
+    } else {
+      event.dataTransfer.dropEffect = "move";
+    }
   }, []);
 
   const onDrop = useCallback(
@@ -243,7 +262,22 @@ export function FlowCanvas() {
               y: position.y,
             };
 
-            // 创建节点
+            // 优先解析拖入文件的真实本地路径，零拷贝引用原图（不复制进应用存储目录）
+            const realPath = getFilePathForDroppedFile(file);
+            if (realPath) {
+              addNode("imageInputNode", nodePosition, {
+                label: "图片输入",
+                imagePath: realPath,
+                fileName: file.name,
+              } as CustomNodeData);
+              // 授权 asset 协议访问原图（失败不阻塞导入，仅影响预览）
+              ensureAssetPathsAllowed([realPath]).catch((err) =>
+                console.warn("扩展 asset 授权失败:", err)
+              );
+              continue;
+            }
+
+            // 回退：拿不到真实路径时保持原有行为，读取 base64 存入内存
             const nodeId = addNode("imageInputNode", nodePosition, {
               label: "图片输入",
             } as CustomNodeData);
@@ -275,6 +309,32 @@ export function FlowCanvas() {
         return;
       }
 
+      // 检查是否是从节点拖出的输出图片（复用为输入）
+      const imageRefStr = event.dataTransfer.getData("application/x-nc-image-ref");
+      if (imageRefStr) {
+        try {
+          const ref = JSON.parse(imageRefStr) as { imagePath?: string; fileName?: string; sourceId?: string };
+          if (!ref.imagePath) return;
+          const inputNodeId = addNode("imageInputNode", position, {
+            label: "图片输入",
+            imagePath: ref.imagePath,
+            fileName: ref.fileName || "生成图片",
+          } as CustomNodeData);
+          // 自动连接：源节点输出 → 新输入节点（imageInputNode 的目标 handle 固定为 input-image）
+          if (ref.sourceId && ref.sourceId !== inputNodeId) {
+            onConnect({
+              source: ref.sourceId,
+              target: inputNodeId,
+              sourceHandle: "output-image",
+              targetHandle: "input-image",
+            });
+          }
+        } catch (err) {
+          console.error("解析图片引用数据失败:", err);
+        }
+        return;
+      }
+
       // 普通节点拖放
       const nodeType = event.dataTransfer.getData("application/reactflow/type");
       const nodeDataStr = event.dataTransfer.getData("application/reactflow/data");
@@ -286,7 +346,79 @@ export function FlowCanvas() {
       const defaultData = nodeDataStr ? JSON.parse(nodeDataStr) : {};
       addNode(nodeType, position, defaultData as CustomNodeData);
     },
-    [addNode, addPromptTemplate, updateNodeData]
+    [addNode, addPromptTemplate, updateNodeData, onConnect]
+  );
+
+  // 将生图节点的输出图片创建为图片输入节点（自动连线）
+  const createImageInputFromOutput = useCallback(
+    (sourceNodeId: string) => {
+      const source = nodes.find((n) => n.id === sourceNodeId);
+      if (!source) return;
+      const data = source.data as ImageGeneratorNodeData;
+      if (!data.outputImagePath) return;
+
+      const inputNodeId = addNode(
+        "imageInputNode",
+        { x: source.position.x + 420, y: source.position.y },
+        {
+          label: "图片输入",
+          imagePath: data.outputImagePath,
+          fileName: "生成图片",
+        } as CustomNodeData
+      );
+      onConnect({
+        source: sourceNodeId,
+        target: inputNodeId,
+        sourceHandle: "output-image",
+        targetHandle: "input-image",
+      });
+    },
+    [nodes, addNode, onConnect]
+  );
+
+  // 以生图节点的输出为输入，新建一个生图节点（变体工作流）
+  const createVariantFromOutput = useCallback(
+    (sourceNodeId: string) => {
+      const source = nodes.find((n) => n.id === sourceNodeId);
+      if (!source) return;
+      const data = source.data as ImageGeneratorNodeData;
+      if (!data.outputImagePath) return;
+
+      const inputNodeId = addNode(
+        "imageInputNode",
+        { x: source.position.x + 430, y: source.position.y },
+        {
+          label: "图片输入",
+          imagePath: data.outputImagePath,
+          fileName: "生成图片",
+        } as CustomNodeData
+      );
+
+      const defaults = getDefaultImageGeneratorData(getImageApiProtocol(data));
+      const variantNodeId = addNode(
+        "imageGeneratorNode",
+        { x: source.position.x + 430, y: source.position.y + 300 },
+        {
+          ...defaults,
+          prompt: data.prompt || "",
+        } as CustomNodeData
+      );
+
+      onConnect({
+        source: sourceNodeId,
+        target: inputNodeId,
+        sourceHandle: "output-image",
+        targetHandle: "input-image",
+      });
+      // 新建生图节点没有旧连线，第一个空闲参考图槽位固定为 input-image-0
+      onConnect({
+        source: inputNodeId,
+        target: variantNodeId,
+        sourceHandle: "output-image",
+        targetHandle: "input-image-0",
+      });
+    },
+    [nodes, addNode, onConnect]
   );
 
   const onInit = useCallback((instance: ReactFlowInstance<CustomNode>) => {
@@ -302,12 +434,6 @@ export function FlowCanvas() {
 
   const onNodeClick = useCallback(
     (event: React.MouseEvent, node: { id: string }) => {
-      // 裁剪模式下直接删除节点
-      if (trimMode) {
-        removeNode(node.id);
-        return;
-      }
-
       const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
       const cmdOrCtrl = isMac ? event.metaKey : event.ctrlKey;
 
@@ -322,7 +448,7 @@ export function FlowCanvas() {
         setSelectedNode(node.id);
       }
     },
-    [setSelectedNode, setSelectedNodes, selectedNodeIds, trimMode, removeNode]
+    [setSelectedNode, setSelectedNodes, selectedNodeIds]
   );
 
   const onNodeMouseEnter = useCallback((_event: React.MouseEvent, node: { id: string }) => {
@@ -336,7 +462,6 @@ export function FlowCanvas() {
   const onPaneClick = useCallback(() => {
     clearSelection();
     setContextMenu(null);
-    // 不在这里退出裁剪模式，让用户可以继续裁剪
   }, [clearSelection]);
 
   // 节点右键菜单
@@ -385,12 +510,6 @@ export function FlowCanvas() {
   // 边点击
   const onEdgeClick = useCallback(
     (event: React.MouseEvent, edge: Edge) => {
-      // 裁剪模式下直接删除边
-      if (trimMode) {
-        removeEdge(edge.id);
-        return;
-      }
-
       const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
       const cmdOrCtrl = isMac ? event.metaKey : event.ctrlKey;
 
@@ -404,7 +523,49 @@ export function FlowCanvas() {
         setSelectedEdges([edge.id]);
       }
     },
-    [setSelectedEdges, selectedEdgeIds, trimMode, removeEdge]
+    [setSelectedEdges, selectedEdgeIds]
+  );
+
+  // 拖拽改接连线：抓住连线端点拖到新的连接点
+  const onReconnectStart = useCallback((_event: React.MouseEvent, edge: Edge) => {
+    reconnectingEdgeRef.current = edge;
+  }, []);
+
+  const onReconnect = useCallback<OnReconnect<Edge>>(
+    (oldEdge: Edge, newConnection: Connection) => {
+      reconnectingEdgeRef.current = null;
+      // 校验失败时由 store 弹 toast 说明原因，并保持原连线不变
+      reconnectEdge(oldEdge, newConnection);
+    },
+    [reconnectEdge]
+  );
+
+  const onReconnectEnd = useCallback(
+    (
+      _event: MouseEvent | TouchEvent,
+      edge: Edge,
+      _handleType: "source" | "target",
+      connectionState: FinalConnectionState
+    ) => {
+      reconnectingEdgeRef.current = null;
+      // 拖到空白处（未落在任何连接点上）：断开并删除该连线
+      if (!connectionState.toHandle) {
+        removeEdge(edge.id);
+      }
+    },
+    [removeEdge]
+  );
+
+  // 连接校验：改接拖拽期间排除被改接的边，避免循环/槽位占用误判
+  const handleIsValidConnection = useCallback(
+    (edgeOrConnection: Edge | Connection) => {
+      const reconnectingEdge = reconnectingEdgeRef.current;
+      if (reconnectingEdge) {
+        return isReconnectionValid(reconnectingEdge, edgeOrConnection);
+      }
+      return isValidConnection(edgeOrConnection);
+    },
+    [isReconnectionValid, isValidConnection]
   );
 
   // 框选处理
@@ -468,6 +629,26 @@ export function FlowCanvas() {
           },
         },
       ];
+
+      // 生图节点且有输出时，提供输出复用入口
+      const targetNodeData = targetNode?.data as ImageGeneratorNodeData | undefined;
+      if (targetNode?.type === "imageGeneratorNode" && targetNodeData?.outputImagePath) {
+        items.push(
+          { id: "divider-output", label: "", divider: true },
+          {
+            id: "output-to-input",
+            label: "输出图转为图片输入",
+            icon: <ImagePlus className="w-4 h-4" />,
+            onClick: () => createImageInputFromOutput(targetNode.id),
+          },
+          {
+            id: "output-to-variant",
+            label: "以此图继续生成（变体）",
+            icon: <Sparkles className="w-4 h-4" />,
+            onClick: () => createVariantFromOutput(targetNode.id),
+          }
+        );
+      }
 
       // 多选时显示对齐选项
       if (hasMultipleSelected) {
@@ -618,20 +799,25 @@ export function FlowCanvas() {
     canRedo,
     undo,
     redo,
+    createImageInputFromOutput,
+    createVariantFromOutput,
   ]);
 
   const isMac = typeof navigator !== "undefined" && navigator.platform.toUpperCase().indexOf("MAC") >= 0;
   const cmdKey = isMac ? "⌘" : "Ctrl";
 
   return (
-    <div ref={reactFlowWrapper} className={`relative flex-1 h-full ${trimMode ? "cursor-crosshair" : ""}`}>
+    <div ref={reactFlowWrapper} className="relative flex-1 h-full">
       <ReactFlow<CustomNode>
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
-        isValidConnection={isValidConnection}
+        isValidConnection={handleIsValidConnection}
+        onReconnect={onReconnect}
+        onReconnectStart={onReconnectStart}
+        onReconnectEnd={onReconnectEnd}
         onInit={onInit}
         onDrop={onDrop}
         onDragOver={onDragOver}
@@ -648,8 +834,8 @@ export function FlowCanvas() {
         onMoveEnd={onMoveEnd}
         nodeTypes={nodeTypes as NodeTypes}
         selectionMode={SelectionMode.Partial}
-        selectionOnDrag={!trimMode}
-        panOnDrag={trimMode ? false : [1, 2]}
+        selectionOnDrag
+        panOnDrag={[1, 2]}
         selectNodesOnDrag={false}
         elevateNodesOnSelect={false}
         elevateEdgesOnSelect={false}
@@ -668,7 +854,6 @@ export function FlowCanvas() {
         proOptions={{ hideAttribution: true }}
       >
         <Controls
-          className="!bg-base-100 !border-base-300"
           showZoom
           showFitView
           showInteractive={false}
@@ -680,17 +865,8 @@ export function FlowCanvas() {
           >
             <LayoutGrid className="w-4 h-4" />
           </ControlButton>
-          {/* 裁剪模式按钮 */}
-          <ControlButton
-            onClick={() => setTrimMode(!trimMode)}
-            title={trimMode ? "退出裁剪模式 (Esc)" : "裁剪模式"}
-            className={trimMode ? "!bg-error !text-error-content" : ""}
-          >
-            <Scissors className="w-4 h-4" />
-          </ControlButton>
         </Controls>
         <MiniMap
-          className="!bg-base-100 !border-base-300"
           nodeStrokeWidth={3}
           zoomable
           pannable
@@ -699,32 +875,20 @@ export function FlowCanvas() {
           variant={BackgroundVariant.Dots}
           gap={20}
           size={1}
+          // 点阵颜色沿用固定低透明度灰值（≈ --nc-muted 的浅色值）：
+          // 0.28 透明度在明暗两种主题下均可接受；若需严格主题化，
+          // 可按 data-theme 用 getComputedStyle 读取 --nc-muted 派生（暂不引入主题订阅）
           color="rgba(97,93,89,0.28)"
         />
       </ReactFlow>
 
       <OverlayNodeLayer
         nodes={nodes}
+        edges={edges}
         selectedNodeIds={selectedNodeIds}
         hoveredNodeId={hoveredNodeId}
         viewport={viewport}
       />
-
-      {/* 裁剪模式提示 */}
-      {trimMode && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50">
-          <div className="flex items-center gap-2 px-4 py-2 bg-error text-error-content rounded-lg shadow-[var(--nc-shadow-card)]">
-            <Scissors className="w-4 h-4" />
-            <span className="text-sm font-medium">裁剪模式：点击节点或连线可删除</span>
-            <button
-              className="ml-2 px-2 py-0.5 text-xs bg-error-content/20 rounded hover:bg-error-content/30"
-              onClick={() => setTrimMode(false)}
-            >
-              退出 (Esc)
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* 右键上下文菜单 */}
       {contextMenu && (

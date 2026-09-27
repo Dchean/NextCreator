@@ -5,8 +5,6 @@
 import { imageGenerationRegistry } from "./registry";
 import {
   geminiImageProvider,
-  dalleImageProvider,
-  fluxImageProvider,
   gptImageProvider,
 } from "./providers";
 import { useSettingsStore } from "@/stores/settingsStore";
@@ -24,12 +22,6 @@ import type { ImageApiProtocol } from "@/components/nodes/imageGeneratorConfig";
 export function initializeImageGenerationProviders(): void {
   // 注册 Gemini 提供商
   imageGenerationRegistry.register(geminiImageProvider);
-
-  // 注册 DALL-E 提供商（OpenAI Images API 格式）
-  imageGenerationRegistry.register(dalleImageProvider);
-
-  // 注册 Flux 提供商（OpenAI Images API 格式）
-  imageGenerationRegistry.register(fluxImageProvider);
 
   // 注册 GPT Image 提供商（OpenAI Images API generation/edit 格式）
   imageGenerationRegistry.register(gptImageProvider);
@@ -88,17 +80,13 @@ function getProviderConfigForRequest(
 }
 
 /**
- * 根据节点类型选择具体实现。同一个 openai 协议下存在 DALL-E、Flux、GPT Image
- * 等多种 Images API 兼容形态，不能只按协议取第一个 provider。
+ * 根据节点类型选择具体实现。openai 协议对应 GPT Image 的 Images API
+ * generation/edit 格式，按节点类型精确匹配，避免只按协议取第一个 provider。
  */
 function getProviderForNodeType(nodeType: ImageNodeType, config: ProviderConfig) {
   if (config.protocol === "openai") {
     const providerIdByNodeType: Partial<Record<ImageNodeType, string>> = {
-      dalleGenerator: "dalle",
-      fluxGenerator: "flux",
       gptImageGenerator: "gptImage",
-      doubaoGenerator: "dalle",
-      zImageGenerator: "dalle",
     };
 
     const providerId = providerIdByNodeType[nodeType];

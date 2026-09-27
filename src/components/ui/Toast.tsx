@@ -36,15 +36,15 @@ export function ToastContainer() {
   if (toasts.length === 0) return null;
 
   return createPortal(
-    <div className="toast toast-top toast-center z-[99999] pt-4">
+    <div className="toast toast-top toast-center pt-4">
       {toasts.map((toast) => {
         const config = toastConfig[toast.type];
         return (
           <div
             key={toast.id}
+            role="status"
             className={`
-              alert ${config.alertClass} shadow-lg
-              animate-in slide-in-from-top-2 fade-in duration-200
+              alert ${config.alertClass} nc-toast nc-toast-enter
               min-w-[280px] max-w-[400px]
             `}
           >
@@ -53,6 +53,7 @@ export function ToastContainer() {
             <button
               className="btn btn-ghost btn-xs btn-circle"
               onClick={() => removeToast(toast.id)}
+              aria-label="关闭通知"
             >
               <X className="w-3.5 h-3.5" />
             </button>

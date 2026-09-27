@@ -95,7 +95,7 @@ export function useModal({
  */
 export function getModalAnimationClasses(isVisible: boolean, isClosing: boolean) {
   const backdropClasses = isVisible && !isClosing
-    ? "bg-black/50"
+    ? "bg-black/60"
     : "bg-black/0";
 
   const contentClasses = isVisible && !isClosing

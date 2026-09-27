@@ -1,5 +1,4 @@
-import { useState, useCallback, useEffect, useRef, useMemo, memo } from "react";
-import { createPortal } from "react-dom";
+import { useState, useCallback, useMemo, memo, useRef } from "react";
 import {
   LayoutGrid,
   Blocks,
@@ -17,6 +16,7 @@ import {
   User,
   Heart,
   SlidersHorizontal,
+  Images,
 } from "lucide-react";
 import { useCanvasStore, type SidebarView } from "@/stores/canvasStore";
 import { useUserPromptStore, type UserPrompt, type CreatePromptInput } from "@/stores/userPromptStore";
@@ -26,12 +26,15 @@ import { promptCategories, promptIconMap, promptIconColors, type PromptItem } fr
 import { Input } from "@/components/ui/Input";
 import { PromptPreviewModal } from "@/components/ui/PromptPreviewModal";
 import { PromptEditModal } from "@/components/ui/PromptEditModal";
+import { ContextMenu } from "@/components/ui/ContextMenu";
+import { GalleryView } from "@/components/panels/GalleryView";
 
 // 导航项定义
 const navItems: { id: SidebarView; icon: React.ComponentType<{ className?: string }>; label: string }[] = [
   { id: "canvases", icon: LayoutGrid, label: "画布" },
   { id: "nodes", icon: Blocks, label: "节点" },
   { id: "prompts", icon: BookText, label: "提示词" },
+  { id: "gallery", icon: Images, label: "画廊" },
 ];
 
 interface SidebarProps {
@@ -100,43 +103,14 @@ export const Sidebar = memo(function Sidebar({ onDragStart }: SidebarProps) {
     return allPrompts.filter((p) => favoriteIds.has(p.id));
   }, [favoriteIds]);
 
-  // 点击外部关闭菜单
-  useEffect(() => {
-    if (!menuOpenId) return;
-
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      // 如果点击的不是菜单内容，关闭菜单
-      if (!target.closest(".canvas-context-menu")) {
-        setMenuOpenId(null);
-        setMenuPosition(null);
-      }
-    };
-
-    // ESC 键关闭菜单
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setMenuOpenId(null);
-        setMenuPosition(null);
-      }
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [menuOpenId]);
-
-  // 打开菜单
+  // 打开菜单（共享 ContextMenu 组件自带点击外部 / ESC / 滚动关闭）
   const openMenu = useCallback((canvasId: string) => {
     const button = menuButtonRefs.current.get(canvasId);
     if (button) {
       const rect = button.getBoundingClientRect();
       setMenuPosition({
         top: rect.bottom + 4,
-        left: rect.right - 128, // 菜单宽度 128px，右对齐
+        left: rect.right - 180, // 菜单最小宽度 180px，右对齐（ContextMenu 会自行做视口边界修正）
       });
       setMenuOpenId(canvasId);
     }
@@ -300,9 +274,9 @@ export const Sidebar = memo(function Sidebar({ onDragStart }: SidebarProps) {
             {/* 画布列表 */}
             <div className="flex-1 overflow-y-auto p-2">
               {canvases.length === 0 ? (
-                <div className="text-center py-8 text-base-content/50">
-                  <LayoutGrid className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-xs">暂无画布</p>
+                <div className="nc-empty-state">
+                  <LayoutGrid className="w-8 h-8 opacity-50" />
+                  <p className="nc-empty-state-hint">暂无画布</p>
                   <button
                     className="btn btn-primary btn-xs mt-3"
                     onClick={handleCreateCanvas}
@@ -338,7 +312,7 @@ export const Sidebar = memo(function Sidebar({ onDragStart }: SidebarProps) {
                             className="flex-1 min-w-0"
                           />
                           <button
-                            className="btn btn-ghost btn-xs btn-circle"
+                            className="nc-icon-btn nc-icon-btn-xs"
                             onClick={(e) => {
                               e.stopPropagation();
                               saveEdit();
@@ -347,7 +321,7 @@ export const Sidebar = memo(function Sidebar({ onDragStart }: SidebarProps) {
                             <Check className="w-3 h-3" />
                           </button>
                           <button
-                            className="btn btn-ghost btn-xs btn-circle"
+                            className="nc-icon-btn nc-icon-btn-xs"
                             onClick={(e) => {
                               e.stopPropagation();
                               cancelEdit();
@@ -372,7 +346,7 @@ export const Sidebar = memo(function Sidebar({ onDragStart }: SidebarProps) {
                               if (el) menuButtonRefs.current.set(canvas.id, el);
                             }}
                             className={`
-                              btn btn-ghost btn-xs btn-circle
+                              nc-icon-btn nc-icon-btn-xs
                               ${menuOpenId === canvas.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"}
                             `}
                             onClick={(e) => {
@@ -446,12 +420,12 @@ export const Sidebar = memo(function Sidebar({ onDragStart }: SidebarProps) {
                           return (
                             <div
                               key={node.type}
-                              className="draggable-node nc-list-item flex items-center gap-2 px-2 py-2 bg-base-100 hover:bg-base-200 transition-colors group cursor-grab"
+                              className="draggable-node nc-list-item flex items-center gap-2 px-2 py-2 group cursor-grab"
                               draggable
                               onDragStart={(e) => onDragStart(e, node.type, node.defaultData)}
                             >
                               <GripVertical className="w-3 h-3 text-base-content/30 group-hover:text-base-content/50 flex-shrink-0" />
-                              <div className={`p-1.5 rounded-lg flex-shrink-0 ${iconColorClass}`}>
+                              <div className={`p-1.5 rounded-[var(--nc-radius-md)] flex-shrink-0 ${iconColorClass}`}>
                                 {IconComponent && <IconComponent className="w-4 h-4" />}
                               </div>
                               <div className="flex-1 min-w-0">
@@ -529,10 +503,10 @@ export const Sidebar = memo(function Sidebar({ onDragStart }: SidebarProps) {
                   ]).map(({ key, label }) => (
                     <button
                       key={key}
-                      className={`px-2 py-0.5 text-xs rounded-full border transition-colors ${
+                      className={`nc-chip transition-colors ${
                         searchScopes[key]
-                          ? "bg-primary/15 border-primary/30 text-primary"
-                          : "bg-base-200/50 border-base-300/60 text-base-content/40 hover:text-base-content/60"
+                          ? "nc-chip-accent"
+                          : "nc-chip-neutral"
                       }`}
                       onClick={() => setSearchScopes((prev) => ({ ...prev, [key]: !prev[key] }))}
                     >
@@ -557,7 +531,7 @@ export const Sidebar = memo(function Sidebar({ onDragStart }: SidebarProps) {
                         isUserPromptsExpanded ? "rotate-90" : ""
                       }`}
                     />
-                    <div className="p-1 rounded bg-primary/10 text-primary">
+                    <div className="p-1 rounded-[var(--nc-radius-md)] bg-primary/10 text-primary">
                       <User className="w-3 h-3" />
                     </div>
                     <span className="truncate">我的提示词</span>
@@ -583,7 +557,7 @@ export const Sidebar = memo(function Sidebar({ onDragStart }: SidebarProps) {
                           .map((userPrompt) => (
                             <div
                               key={userPrompt.id}
-                              className="draggable-prompt nc-list-item relative flex items-start gap-2 px-2 py-2 bg-base-100 hover:bg-base-200 transition-colors group cursor-grab"
+                              className="draggable-prompt nc-list-item relative flex items-start gap-2 px-2 py-2 group cursor-grab"
                               draggable
                               onDragStart={(e) => {
                                 e.dataTransfer.setData(
@@ -606,7 +580,7 @@ export const Sidebar = memo(function Sidebar({ onDragStart }: SidebarProps) {
                               {/* 操作按钮 */}
                               <div className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button
-                                  className="btn btn-ghost btn-xs btn-circle"
+                                  className="nc-icon-btn nc-icon-btn-xs"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     // 转换为 PromptItem 格式用于预览
@@ -627,7 +601,7 @@ export const Sidebar = memo(function Sidebar({ onDragStart }: SidebarProps) {
                                   <Eye className="w-3 h-3" />
                                 </button>
                                 <button
-                                  className="btn btn-ghost btn-xs btn-circle"
+                                  className="nc-icon-btn nc-icon-btn-xs"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setEditingUserPrompt(userPrompt);
@@ -638,7 +612,7 @@ export const Sidebar = memo(function Sidebar({ onDragStart }: SidebarProps) {
                                   <Edit3 className="w-3 h-3" />
                                 </button>
                                 <button
-                                  className="btn btn-ghost btn-xs btn-circle text-error"
+                                  className="nc-icon-btn nc-icon-btn-xs nc-icon-btn-danger"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     if (confirm("确定删除这个提示词吗？")) {
@@ -670,7 +644,7 @@ export const Sidebar = memo(function Sidebar({ onDragStart }: SidebarProps) {
                         isFavoritesExpanded ? "rotate-90" : ""
                       }`}
                     />
-                    <div className="p-1 rounded bg-error/10 text-error">
+                    <div className="p-1 rounded-[var(--nc-radius-md)] bg-error/10 text-error">
                       <Heart className="w-3 h-3" />
                     </div>
                     <span className="truncate">我的收藏</span>
@@ -696,7 +670,7 @@ export const Sidebar = memo(function Sidebar({ onDragStart }: SidebarProps) {
                           .map((prompt) => (
                             <div
                               key={prompt.id}
-                              className="draggable-prompt nc-list-item relative flex items-start gap-2 px-2 py-2 bg-base-100 hover:bg-base-200 transition-colors group cursor-grab"
+                              className="draggable-prompt nc-list-item relative flex items-start gap-2 px-2 py-2 group cursor-grab"
                               draggable
                               onDragStart={(e) => {
                                 e.dataTransfer.setData(
@@ -719,7 +693,7 @@ export const Sidebar = memo(function Sidebar({ onDragStart }: SidebarProps) {
                               {/* 操作按钮 */}
                               <div className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button
-                                  className="btn btn-ghost btn-xs btn-circle"
+                                  className="nc-icon-btn nc-icon-btn-xs"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setPreviewPrompt(prompt);
@@ -730,7 +704,7 @@ export const Sidebar = memo(function Sidebar({ onDragStart }: SidebarProps) {
                                   <Eye className="w-3 h-3" />
                                 </button>
                                 <button
-                                  className="btn btn-ghost btn-xs btn-circle text-error"
+                                  className="nc-icon-btn nc-icon-btn-xs nc-icon-btn-danger"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     removeFavorite(prompt.id);
@@ -763,7 +737,7 @@ export const Sidebar = memo(function Sidebar({ onDragStart }: SidebarProps) {
                           expandedPromptCategories.has(category.id) ? "rotate-90" : ""
                         }`}
                       />
-                      <div className={`p-1 rounded ${categoryColorClass}`}>
+                      <div className={`p-1 rounded-[var(--nc-radius-md)] ${categoryColorClass}`}>
                         {CategoryIcon && <CategoryIcon className="w-3 h-3" />}
                       </div>
                       <span className="truncate">{category.name}</span>
@@ -785,7 +759,7 @@ export const Sidebar = memo(function Sidebar({ onDragStart }: SidebarProps) {
                           {category.prompts.map((prompt) => (
                             <div
                               key={prompt.id}
-                              className="draggable-prompt nc-list-item flex items-start gap-2 px-2 py-2 bg-base-100 hover:bg-base-200 transition-colors group cursor-grab"
+                              className="draggable-prompt nc-list-item flex items-start gap-2 px-2 py-2 group cursor-grab"
                               draggable
                               onDragStart={(e) => {
                                 // 设置提示词模板数据
@@ -807,7 +781,7 @@ export const Sidebar = memo(function Sidebar({ onDragStart }: SidebarProps) {
                                 </div>
                               </div>
                               <button
-                                className="btn btn-ghost btn-xs btn-circle flex-shrink-0"
+                                className="nc-icon-btn nc-icon-btn-xs flex-shrink-0"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   openPromptPreview(prompt);
@@ -834,51 +808,45 @@ export const Sidebar = memo(function Sidebar({ onDragStart }: SidebarProps) {
             </div>
           </>
         )}
+
+        {/* 画廊视图 */}
+        {sidebarView === "gallery" && (
+          <GalleryView />
+        )}
       </div>
     </div>
 
-    {/* Portal: 画布上下文菜单 */}
-    {menuOpenId && menuPosition && menuCanvas && createPortal(
-      <ul
-        className="canvas-context-menu menu nc-panel rounded-lg w-32 p-1 fixed z-[9999]"
-        style={{ top: menuPosition.top, left: menuPosition.left }}
-      >
-        <li>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              startEditing(menuCanvas.id, menuCanvas.name);
-            }}
-          >
-            <Edit3 className="w-4 h-4" />
-            重命名
-          </button>
-        </li>
-        <li>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDuplicate(menuCanvas.id);
-            }}
-          >
-            <Copy className="w-4 h-4" />
-            复制
-          </button>
-        </li>
-        <li>
-          <button
-            className="text-error"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDelete(menuCanvas.id);
-            }}
-          >
-            <Trash2 className="w-4 h-4" />
-            删除
-          </button>
-        </li>
-      </ul>,
-      document.body
+    {/* Portal: 画布上下文菜单（复用共享 ContextMenu 组件） */}
+    {menuOpenId && menuPosition && menuCanvas && (
+      <ContextMenu
+        x={menuPosition.left}
+        y={menuPosition.top}
+        items={[
+          {
+            id: "rename",
+            label: "重命名",
+            icon: <Edit3 className="w-4 h-4" />,
+            onClick: () => startEditing(menuCanvas.id, menuCanvas.name),
+          },
+          {
+            id: "duplicate",
+            label: "复制",
+            icon: <Copy className="w-4 h-4" />,
+            onClick: () => handleDuplicate(menuCanvas.id),
+          },
+          {
+            id: "delete",
+            label: "删除",
+            icon: <Trash2 className="w-4 h-4" />,
+            danger: true,
+            onClick: () => handleDelete(menuCanvas.id),
+          },
+        ]}
+        onClose={() => {
+          setMenuOpenId(null);
+          setMenuPosition(null);
+        }}
+      />
     )}
 
     {/* 提示词预览 Modal */}

@@ -1,6 +1,5 @@
 import type { Node, Edge } from "@xyflow/react";
 import type { ImageGeneratorNodeData } from "@/components/nodes/imageGeneratorConfig";
-import type { VideoGeneratorNodeData } from "@/components/nodes/videoGeneratorConfig";
 import type { LLMContentNodeData } from "@/components/nodes/llmContentConfig";
 
 // 详细错误信息结构
@@ -23,53 +22,8 @@ export interface ErrorDetails {
 // 模型类型（图片生成）- 支持自定义模型名称
 export type ModelType = string;
 
-// 视频模型类型 - 支持自定义模型名称
-export type VideoModelType = string;
-
-// 视频尺寸类型（兼容旧节点数据，统一视频节点使用 videoGeneratorConfig 中的协议配置）
-export type VideoSizeType = string;
-
 // LLM 模型类型（支持自定义模型名称）
 export type LLMModelType = string;
-
-// 视频生成参数（兼容旧调用类型）
-export interface VideoGenerationParams {
-  prompt: string;
-  model: VideoModelType;
-  seconds?: string;
-  size?: VideoSizeType;
-  inputImage?: string; // base64 编码的参考图片
-}
-
-// 视频任务状态响应
-export interface VideoTaskResponse {
-  id: string;
-  object: string;
-  model: string;
-  status: "queued" | "in_progress" | "completed" | "failed";
-  progress: number;
-  created_at: number;
-  seconds: string;
-  completed_at?: number;
-  expires_at?: number;
-  size?: string;
-  error?: {
-    code: string;
-    message: string;
-  };
-  metadata?: Record<string, unknown>;
-}
-
-// 视频生成响应
-export interface VideoGenerationResponse {
-  taskId?: string;
-  videoUrl?: string;
-  videoData?: string; // base64 编码的视频数据
-  status?: VideoTaskResponse["status"];
-  progress?: number;
-  error?: string;
-  errorDetails?: ErrorDetails;  // 详细错误信息
-}
 
 // 图片生成参数
 export interface ImageGenerationParams {
@@ -119,8 +73,6 @@ export interface TextOutputNodeData {
   text?: string;
 }
 
-export type { VideoGeneratorNodeData } from "@/components/nodes/videoGeneratorConfig";
-
 // LLM 内容生成节点数据
 export type { LLMContentNodeData } from "@/components/nodes/llmContentConfig";
 
@@ -134,19 +86,12 @@ export interface FileUploadNodeData {
   fileSize?: number;      // 文件大小（字节）
 }
 
-// PPT 内容节点相关类型（从 PPTContentNode/types.ts 重新导出）
-export type { PPTOutline, PPTPageStatus, PPTPageItem, PPTContentNodeData } from "@/components/nodes/PPTContentNode/types";
-
-// PPT 组装节点相关类型（从 PPTAssemblerNode/types.ts 重新导出）
-export type { PPTPageData, PPTAssemblerNodeData } from "@/components/nodes/PPTAssemblerNode/types";
-
 // 节点类型联合
 export type CustomNodeData =
   | PromptNodeData
   | ImageGeneratorNodeData
   | ImageInputNodeData
   | TextOutputNodeData
-  | VideoGeneratorNodeData
   | LLMContentNodeData
   | FileUploadNodeData;
 
@@ -186,37 +131,15 @@ export interface Provider {
 
 // 节点类型到供应商的映射
 export interface NodeProviderMapping {
-  imageGeneratorPro?: string;   // Gemini Pro 图片协议使用的供应商 ID
-  imageGeneratorFast?: string;  // Gemini Fast 图片协议使用的供应商 ID
   imageGeneratorNB2?: string;   // Gemini generateContent 图片协议使用的供应商 ID
-  dalleGenerator?: string;      // 旧版 DALL-E 图片节点使用的供应商 ID
-  fluxGenerator?: string;       // Flux 图片节点使用的供应商 ID
   gptImageGenerator?: string;   // OpenAI Images API 图片协议使用的供应商 ID
-  doubaoGenerator?: string;     // 豆包图片节点使用的供应商 ID
-  zImageGenerator?: string;     // Z-Image 图片节点使用的供应商 ID
-  videoGenerator?: string;      // 视频节点使用的供应商 ID
-  newApiVideoGenerator?: string; // new-api 通用视频协议使用的供应商 ID
-  veoGenerator?: string;        // Veo 视频节点使用的供应商 ID
-  klingGenerator?: string;      // Kling 视频节点使用的供应商 ID
-  llm?: string;                 // PPT 内容生成节点使用的 LLM 供应商 ID
   llmContent?: string;          // LLM 内容生成节点使用的供应商 ID
 }
 
 // 节点类型允许的协议映射
 export const NODE_ALLOWED_PROTOCOLS: Record<keyof NodeProviderMapping, ProviderProtocol[]> = {
-  imageGeneratorPro: ["google", "openai", "openaiResponses"],
-  imageGeneratorFast: ["google", "openai", "openaiResponses"],
   imageGeneratorNB2: ["google", "openai", "openaiResponses"],
-  dalleGenerator: ["openai"],
-  fluxGenerator: ["openai"],
   gptImageGenerator: ["openai"],
-  doubaoGenerator: ["openai"],
-  zImageGenerator: ["openai"],  // Z-Image 使用 OpenAI DALL-E 格式
-  videoGenerator: ["openai"],
-  newApiVideoGenerator: ["openai"],
-  veoGenerator: ["openai", "google"],  // Veo 支持 OpenAI 兼容和 Google 协议
-  klingGenerator: ["openai"],  // Kling 使用 OpenAI 兼容协议
-  llm: ["google", "openai", "openaiResponses", "claude"],
   llmContent: ["google", "openai", "openaiResponses", "claude"],
 };
 

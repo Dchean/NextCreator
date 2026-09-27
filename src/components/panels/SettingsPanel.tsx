@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
   X,
@@ -11,11 +11,14 @@ import {
   CheckCircle,
   AlertCircle,
   Info,
-  AlertTriangle,
+  FolderOpen,
+  HardDrive,
 } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { useToastStore } from "@/stores/toastStore";
 import { Select } from "@/components/ui/Select";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useModal, getModalAnimationClasses } from "@/hooks/useModal";
 import type { AppSettings } from "@/types";
 import {
@@ -25,9 +28,178 @@ import {
   PROJECT_INFO,
   type UpdateInfo,
 } from "@/services/updateService";
+import {
+  getStorageConfig,
+  setStorageConfig,
+  migrateImagesStorage,
+  type StorageConfigInfo,
+} from "@/services/fileStorageService";
+import { rewriteStoredImagePaths } from "@/utils/imagePathRewrite";
 
 // 更新按钮状态类型
 type UpdateButtonState = "idle" | "checking" | "latest" | "hasUpdate" | "error";
+
+// 图片存储位置设置区块
+function StorageLocationSection() {
+  const [storageInfo, setStorageInfo] = useState<StorageConfigInfo | null>(null);
+  const [busy, setBusy] = useState(false);
+  // 待确认的目录变更：from → target
+  const [pendingChange, setPendingChange] = useState<{ from: string; target: string; isReset: boolean } | null>(null);
+
+  const reload = async (): Promise<StorageConfigInfo | null> => {
+    try {
+      const info = await getStorageConfig();
+      setStorageInfo(info);
+      return info;
+    } catch (e) {
+      console.error("[Settings] 读取存储配置失败:", e);
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    void reload();
+  }, []);
+
+  const pickFolder = async () => {
+    try {
+      const { open } = await import("@tauri-apps/plugin-dialog");
+      const dir = await open({ directory: true, multiple: false, title: "选择图片存储目录" });
+      if (typeof dir !== "string" || !dir) return;
+      // storageInfo 尚未加载时先读取一次，避免所选目录被静默丢弃
+      let info = storageInfo;
+      if (!info) {
+        info = await reload();
+      }
+      if (info) {
+        setPendingChange({ from: info.images_dir, target: dir, isReset: false });
+      }
+    } catch (e) {
+      console.error("[Settings] 选择目录失败:", e);
+      useToastStore.getState().error("选择目录失败");
+    }
+  };
+
+  const handleReset = () => {
+    if (!storageInfo) return;
+    setPendingChange({ from: storageInfo.images_dir, target: storageInfo.default_dir, isReset: true });
+  };
+
+  const applyChange = async (migrate: boolean) => {
+    if (!pendingChange) return;
+    const { from, target, isReset } = pendingChange;
+    setBusy(true);
+    try {
+      if (isReset) {
+        // 恢复默认：写回 null 归一化，避免 default_dir 作为"自定义目录"留在配置里
+        if (migrate) {
+          const result = await migrateImagesStorage(target);
+          rewriteStoredImagePaths(from, target);
+          await setStorageConfig(null);
+          useToastStore
+            .getState()
+            .success(
+              result.failed_files > 0
+                ? `已迁移 ${result.moved_files} 张图片，${result.failed_files} 个失败`
+                : `已迁移 ${result.moved_files} 张图片到默认目录`
+            );
+        } else {
+          await setStorageConfig(null);
+          useToastStore.getState().success("已恢复默认存储目录，旧图片保留在原位置");
+        }
+      } else if (migrate) {
+        const result = await migrateImagesStorage(target);
+        rewriteStoredImagePaths(from, target);
+        useToastStore
+          .getState()
+          .success(
+            result.failed_files > 0
+              ? `已迁移 ${result.moved_files} 张图片，${result.failed_files} 个失败`
+              : `已迁移 ${result.moved_files} 张图片到新目录`
+          );
+      } else {
+        await setStorageConfig(target);
+        useToastStore
+          .getState()
+          .success(
+            "存储目录已更新，已有图片保留在原位置。画廊与新生成的图片将使用新目录（旧图片保留在原位置）。"
+          );
+      }
+      await reload();
+    } catch (e) {
+      console.error("[Settings] 更新存储目录失败:", e);
+      useToastStore.getState().error(`更新存储目录失败: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+      setPendingChange(null);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <HardDrive className="w-4 h-4 text-base-content/70" />
+        <span className="nc-section-title">图片存储位置</span>
+      </div>
+
+      <div className="nc-soft-panel space-y-3">
+        <div>
+          <div className="nc-field-label">当前目录{storageInfo?.is_custom ? "（自定义）" : "（默认）"}</div>
+          <div className="text-sm break-all font-mono bg-base-100 rounded-lg px-3 py-2 border border-base-300">
+            {storageInfo?.images_dir || "读取中..."}
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <button className="btn btn-outline btn-sm flex-1 gap-2" onClick={pickFolder} disabled={busy}>
+            <FolderOpen className="w-4 h-4" />
+            更改目录
+          </button>
+          {storageInfo?.is_custom && (
+            <button className="btn btn-ghost btn-sm gap-2" onClick={handleReset} disabled={busy}>
+              <RotateCcw className="w-4 h-4" />
+              恢复默认
+            </button>
+          )}
+        </div>
+        <p className="text-xs text-base-content/50">
+          新生成的图片将保存到所选目录；更改时可以选择是否迁移已有图片。
+        </p>
+      </div>
+
+      {/* 迁移确认对话框 */}
+      {pendingChange && (
+        <div className="nc-modal-backdrop nc-modal-backdrop-nested nc-modal-backdrop-open">
+          <div className="nc-modal nc-modal-sm mx-4">
+            <div className="nc-modal-header">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-info/10 rounded-lg">
+                  <FolderOpen className="w-5 h-5 text-info" />
+                </div>
+                <h3 className="nc-modal-title">{pendingChange.isReset ? "恢复默认存储目录" : "更改存储目录"}</h3>
+              </div>
+            </div>
+            <div className="nc-modal-body">
+              <p className="text-sm text-base-content/70 mb-1">是否同时把已有图片迁移到新目录？</p>
+              <p className="text-xs text-base-content/50 mb-1 break-all">新目录：{pendingChange.target}</p>
+              <p className="text-xs text-base-content/50 mb-5">不迁移则旧图片保留在原位置，画布中仍可正常显示。</p>
+              <div className="flex flex-col gap-2">
+                <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => void applyChange(true)}>
+                  {busy ? "迁移中..." : "迁移已有图片"}
+                </button>
+                <button className="btn btn-outline btn-sm" disabled={busy} onClick={() => void applyChange(false)}>
+                  仅更改，不迁移
+                </button>
+                <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setPendingChange(null)}>
+                  取消
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function SettingsPanel() {
   const {
@@ -54,7 +226,7 @@ export function SettingsPanel() {
   });
 
   // 获取动画类名
-  const { backdropClasses, contentClasses } = getModalAnimationClasses(isVisible, isClosing);
+  const { contentClasses } = getModalAnimationClasses(isVisible, isClosing);
 
   if (!isSettingsOpen) return null;
 
@@ -145,40 +317,35 @@ export function SettingsPanel() {
   const updateButtonProps = getUpdateButtonProps();
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* 背景遮罩 */}
-      <div
-        className={`
-          absolute inset-0
-          transition-all duration-200 ease-out
-          ${backdropClasses}
-        `}
-        onClick={handleBackdropClick}
-      />
+    <div
+      className={`nc-modal-backdrop ${isVisible && !isClosing ? "nc-modal-backdrop-open" : ""}`}
+      onClick={handleBackdropClick}
+    >
       {/* Modal 内容 */}
       <div
         className={`
-          relative bg-base-100 rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden max-h-[90vh] flex flex-col
+          nc-modal nc-modal-md mx-4 max-h-[90vh] flex flex-col
           transition-all duration-200 ease-out
           ${contentClasses}
         `}
       >
         {/* 头部 */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-base-300">
-          <h2 className="text-lg font-semibold">设置</h2>
+        <div className="nc-modal-header">
+          <h2 className="nc-modal-title">设置</h2>
           <button
-            className="btn btn-ghost btn-sm btn-circle"
+            className="nc-icon-btn"
             onClick={handleClose}
+            aria-label="关闭"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* 内容 */}
-        <div className="p-6 space-y-6 overflow-y-auto flex-1">
+        <div className="nc-modal-body space-y-4">
           {/* 供应商管理入口 */}
           <div
-            className="flex items-center justify-between p-4 bg-base-200 rounded-xl cursor-pointer hover:bg-base-300 transition-colors"
+            className="nc-soft-panel flex items-center justify-between cursor-pointer hover:bg-base-300! transition-colors"
             onClick={handleOpenProviders}
           >
             <div className="flex items-center gap-3">
@@ -196,13 +363,17 @@ export function SettingsPanel() {
           </div>
 
           {/* 分隔线 */}
-          <div className="divider"></div>
+          <hr className="nc-divider" />
+
+          {/* 图片存储位置 */}
+          <StorageLocationSection />
+
+          {/* 分隔线 */}
+          <hr className="nc-divider" />
 
           {/* 主题 */}
           <div className="form-control">
-            <label className="label">
-              <span className="label-text font-medium">主题</span>
-            </label>
+            <label className="nc-field-label">主题</label>
             <Select
               value={localTheme}
               options={[
@@ -217,23 +388,23 @@ export function SettingsPanel() {
           </div>
 
           {/* 分隔线 */}
-          <div className="divider"></div>
+          <hr className="nc-divider" />
 
           {/* 关于与更新 */}
           <div className="space-y-4">
             <div className="flex items-center gap-2">
               <Info className="w-4 h-4 text-base-content/70" />
-              <span className="font-medium">关于</span>
+              <span className="nc-section-title">关于</span>
             </div>
 
             {/* 项目信息卡片 */}
-            <div className="bg-base-200 rounded-xl p-4 space-y-3">
+            <div className="nc-soft-panel space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold text-lg">
                     {PROJECT_INFO.name}
                   </span>
-                  <span className="badge badge-primary badge-sm">
+                  <span className="nc-badge">
                     v{getCurrentVersion()}
                   </span>
                 </div>
@@ -251,7 +422,7 @@ export function SettingsPanel() {
 
             {/* GitHub 仓库链接 */}
             <div
-              className="flex items-center justify-between p-3 bg-base-200 rounded-xl cursor-pointer hover:bg-base-300 transition-colors"
+              className="nc-soft-panel flex items-center justify-between cursor-pointer hover:bg-base-300! transition-colors"
               onClick={handleOpenGitHub}
             >
               <div className="flex items-center gap-3">
@@ -278,7 +449,7 @@ export function SettingsPanel() {
 
             {/* 有新版本时显示更新信息 */}
             {updateButtonState === "hasUpdate" && updateInfo && (
-              <div className="p-4 rounded-xl bg-warning/10 border border-warning/20">
+              <div className="nc-warning-surface rounded-[var(--nc-radius-lg)] p-4">
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <AlertCircle className="w-5 h-5 text-warning" />
@@ -320,19 +491,19 @@ export function SettingsPanel() {
         </div>
 
         {/* 底部 */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-base-300 bg-base-200/50">
+        <div className="nc-modal-footer">
           <button
-            className="btn btn-ghost gap-2"
+            className="btn btn-ghost btn-sm gap-2 mr-auto"
             onClick={() => setShowResetConfirm(true)}
           >
             <RotateCcw className="w-4 h-4" />
             重置
           </button>
           <div className="flex gap-2">
-            <button className="btn btn-ghost" onClick={handleClose}>
+            <button className="btn btn-ghost btn-sm" onClick={handleClose}>
               取消
             </button>
-            <button className="btn btn-primary gap-2" onClick={handleSave}>
+            <button className="btn btn-primary btn-sm gap-2" onClick={handleSave}>
               <Save className="w-4 h-4" />
               保存
             </button>
@@ -341,30 +512,14 @@ export function SettingsPanel() {
 
         {/* 重置确认对话框 */}
         {showResetConfirm && (
-          <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-10 rounded-2xl">
-            <div className="bg-base-100 rounded-xl p-5 mx-4 max-w-sm shadow-xl">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="p-2 bg-error/10 rounded-lg">
-                  <AlertTriangle className="w-5 h-5 text-error" />
-                </div>
-                <h3 className="font-semibold">确认重置</h3>
-              </div>
-              <p className="text-sm text-base-content/70 mb-5">
-                确定要重置所有设置吗？这将清除所有供应商配置和节点分配，此操作不可撤销。
-              </p>
-              <div className="flex gap-2 justify-end">
-                <button
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => setShowResetConfirm(false)}
-                >
-                  取消
-                </button>
-                <button className="btn btn-error btn-sm" onClick={handleReset}>
-                  确认重置
-                </button>
-              </div>
-            </div>
-          </div>
+          <ConfirmDialog
+            tone="error"
+            title="确认重置"
+            message="确定要重置所有设置吗？这将清除所有供应商配置和节点分配，此操作不可撤销。"
+            confirmText="确认重置"
+            onConfirm={handleReset}
+            onClose={() => setShowResetConfirm(false)}
+          />
         )}
       </div>
     </div>,

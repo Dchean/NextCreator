@@ -14,6 +14,7 @@ import {
   RectangleHorizontal,
   Heart,
 } from "lucide-react";
+import { useModal, getModalAnimationClasses } from "@/hooks/useModal";
 import type { PromptItem } from "@/config/promptConfig";
 import { ImagePreviewModal } from "@/components/ui/ImagePreviewModal";
 import { useFavoritePromptStore } from "@/stores/favoritePromptStore";
@@ -25,9 +26,6 @@ interface PromptPreviewModalProps {
 }
 
 export function PromptPreviewModal({ prompt, isOpen, onClose }: PromptPreviewModalProps) {
-  const [isVisible, setIsVisible] = useState(false);
-  const [isClosing, setIsClosing] = useState(false);
-  const [isAnimatingIn, setIsAnimatingIn] = useState(true);
   const [copied, setCopied] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -37,47 +35,22 @@ export function PromptPreviewModal({ prompt, isOpen, onClose }: PromptPreviewMod
   const { isFavorite, toggleFavorite } = useFavoritePromptStore();
   const isCurrentFavorite = prompt ? isFavorite(prompt.id) : false;
 
-  // 处理打开/关闭动画
+  // 统一 Modal 交互（ESC 关闭、背景点击、过渡动画）
+  const { isVisible, isClosing, handleClose, handleBackdropClick } = useModal({
+    isOpen,
+    onClose,
+  });
+
+  const { contentClasses } = getModalAnimationClasses(isVisible, isClosing);
+
+  // 打开时重置媒体状态
   useEffect(() => {
     if (isOpen) {
-      setIsVisible(true);
-      setIsClosing(false);
-      setIsAnimatingIn(true);
       setImageLoaded(false);
       setImageError(false);
       setIsImagePreviewOpen(false); // 重置图片预览状态
-
-      // 触发入场动画
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          setIsAnimatingIn(false);
-        });
-      });
     }
   }, [isOpen]);
-
-  // ESC 键关闭
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        handleClose();
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen]);
-
-  const handleClose = useCallback(() => {
-    setIsClosing(true);
-    setTimeout(() => {
-      setIsVisible(false);
-      setIsClosing(false);
-      onClose();
-    }, 200);
-  }, [onClose]);
 
   // 复制提示词
   const copyToClipboard = useCallback(async () => {
@@ -91,63 +64,49 @@ export function PromptPreviewModal({ prompt, isOpen, onClose }: PromptPreviewMod
     }
   }, [prompt]);
 
-  if (!isVisible || !prompt) return null;
+  if (!isOpen || !prompt) return null;
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
-      onClick={handleClose}
+      className={`nc-modal-backdrop p-4 ${isVisible && !isClosing ? "nc-modal-backdrop-open" : ""}`}
+      onClick={handleBackdropClick}
     >
-      {/* 背景遮罩 - 与整体动画同步 */}
-      <div
-        className={`absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-200 ${
-          isAnimatingIn || isClosing ? "opacity-0" : "opacity-100"
-        }`}
-      />
-
       {/* Modal 内容 */}
       <div
         className={`
-          nc-panel relative w-full max-w-2xl max-h-[90vh] rounded-2xl
-          overflow-hidden flex flex-col
+          nc-modal w-full max-w-2xl max-h-[90vh] flex flex-col
           transition-all duration-200 ease-out
-          ${
-            isAnimatingIn
-              ? "scale-95 opacity-0 translate-y-4"
-              : isClosing
-                ? "scale-95 opacity-0"
-                : "scale-100 opacity-100 translate-y-0"
-          }
+          ${contentClasses}
         `}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 头部 */}
-        <div className="relative border-b border-base-300 bg-base-100 p-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1 min-w-0">
-              <h2 className="text-lg font-bold truncate">{prompt.title}</h2>
-              <p className="text-sm text-base-content/60 truncate">{prompt.titleEn}</p>
-            </div>
-            <button
-              className="btn btn-ghost btn-sm btn-circle flex-shrink-0"
-              onClick={handleClose}
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+        {/* 头部（含标签，底部边框由 .nc-modal-header 提供） */}
+        <div
+          className="nc-modal-header"
+          style={{ alignItems: "flex-start" }}
+        >
+          <div className="flex-1 min-w-0">
+            <h2 className="text-[16px] font-bold truncate">{prompt.title}</h2>
+            <p className="text-sm text-base-content/60 truncate">{prompt.titleEn}</p>
 
-          {/* 标签 */}
-          <div className="flex flex-wrap gap-1.5 mt-3">
-            {prompt.tags.map((tag) => (
-              <span
-                key={tag}
-                className="nc-badge inline-flex items-center gap-1"
-              >
-                <Tag className="w-3 h-3" />
-                {tag}
-              </span>
-            ))}
+            {/* 标签 */}
+            <div className="flex flex-wrap gap-1.5 mt-3">
+              {prompt.tags.map((tag) => (
+                <span key={tag} className="nc-chip nc-chip-accent">
+                  <Tag className="w-3 h-3" />
+                  {tag}
+                </span>
+              ))}
+            </div>
           </div>
+          <button
+            type="button"
+            className="nc-icon-btn flex-shrink-0"
+            onClick={handleClose}
+            aria-label="关闭"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
         {/* 可滚动内容区域 */}
@@ -160,13 +119,13 @@ export function PromptPreviewModal({ prompt, isOpen, onClose }: PromptPreviewMod
           {/* 模板配置信息 */}
           <div className="flex flex-wrap items-center gap-2">
             {/* 模型类型 */}
-            <div
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium ${
+            <span
+              className={`nc-chip nc-chip-lg ${
                 prompt.nodeTemplate.generatorType === "pro"
-                  ? "bg-base-200 text-base-content"
+                  ? "nc-chip-neutral"
                   : prompt.nodeTemplate.generatorType === "nb2"
-                    ? "bg-primary/10 text-primary"
-                    : "bg-warning/10 text-warning"
+                    ? "nc-chip-accent"
+                    : "nc-chip-warning"
               }`}
             >
               {prompt.nodeTemplate.generatorType === "pro" ? (
@@ -181,25 +140,23 @@ export function PromptPreviewModal({ prompt, isOpen, onClose }: PromptPreviewMod
                 : prompt.nodeTemplate.generatorType === "nb2"
                   ? "NanoBanana2"
                   : "NanoBanana"}
-            </div>
+            </span>
 
             {/* 是否需要图片输入 */}
-            <div
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium ${
-                prompt.nodeTemplate.requiresImageInput
-                  ? "bg-blue-500/10 text-blue-600 dark:text-blue-400"
-                  : "bg-base-200 text-base-content/60"
+            <span
+              className={`nc-chip nc-chip-lg ${
+                prompt.nodeTemplate.requiresImageInput ? "nc-chip-accent" : "nc-chip-neutral"
               }`}
             >
               <ImagePlus className="w-3.5 h-3.5" />
               {prompt.nodeTemplate.requiresImageInput ? "需要图片输入" : "无需图片输入"}
-            </div>
+            </span>
 
             {/* 宽高比 */}
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-base-200 text-base-content/70">
+            <span className="nc-chip nc-chip-lg nc-chip-neutral">
               <RectangleHorizontal className="w-3.5 h-3.5" />
               {prompt.nodeTemplate.aspectRatio}
-            </div>
+            </span>
           </div>
 
           {/* 预览图 */}
@@ -263,7 +220,7 @@ export function PromptPreviewModal({ prompt, isOpen, onClose }: PromptPreviewMod
                 )}
               </button>
             </div>
-            <div className="bg-base-200 rounded-xl p-3 border border-base-300">
+            <div className="nc-soft-panel">
               <pre className="text-sm text-base-content/80 whitespace-pre-wrap break-words font-mono leading-relaxed max-h-60 overflow-y-auto">
                 {prompt.prompt}
               </pre>
@@ -280,42 +237,40 @@ export function PromptPreviewModal({ prompt, isOpen, onClose }: PromptPreviewMod
         </div>
 
         {/* 底部操作区 */}
-        <div className="p-4 border-t border-base-200 bg-base-100">
-          <div className="flex items-center justify-end gap-2">
-            <button className="btn btn-ghost btn-sm" onClick={handleClose}>
-              关闭
-            </button>
-            {/* 收藏按钮 */}
-            <button
-              className={`btn btn-sm gap-1.5 ${
-                isCurrentFavorite
-                  ? "btn-error text-white"
-                  : "btn-ghost"
-              }`}
-              onClick={() => prompt && toggleFavorite(prompt.id)}
-            >
-              <Heart
-                className={`w-4 h-4 ${isCurrentFavorite ? "fill-current" : ""}`}
-              />
-              {isCurrentFavorite ? "已收藏" : "收藏"}
-            </button>
-            <button
-              className={`btn btn-primary btn-sm gap-1.5 ${copied ? "btn-success" : ""}`}
-              onClick={copyToClipboard}
-            >
-              {copied ? (
-                <>
-                  <Check className="w-4 h-4" />
-                  已复制到剪贴板
-                </>
-              ) : (
-                <>
-                  <Copy className="w-4 h-4" />
-                  复制提示词
-                </>
-              )}
-            </button>
-          </div>
+        <div className="nc-modal-footer">
+          <button className="btn btn-ghost btn-sm" onClick={handleClose}>
+            关闭
+          </button>
+          {/* 收藏按钮 */}
+          <button
+            className={`btn btn-sm gap-1.5 ${
+              isCurrentFavorite
+                ? "btn-error text-white"
+                : "btn-ghost"
+            }`}
+            onClick={() => prompt && toggleFavorite(prompt.id)}
+          >
+            <Heart
+              className={`w-4 h-4 ${isCurrentFavorite ? "fill-current" : ""}`}
+            />
+            {isCurrentFavorite ? "已收藏" : "收藏"}
+          </button>
+          <button
+            className={`btn btn-primary btn-sm gap-1.5 ${copied ? "btn-success" : ""}`}
+            onClick={copyToClipboard}
+          >
+            {copied ? (
+              <>
+                <Check className="w-4 h-4" />
+                已复制到剪贴板
+              </>
+            ) : (
+              <>
+                <Copy className="w-4 h-4" />
+                复制提示词
+              </>
+            )}
+          </button>
         </div>
       </div>
 

@@ -2,14 +2,20 @@ import { create } from "zustand";
 import {
   getStorageStats,
   getStoragePath,
+  getStorageConfig,
   clearCache,
   clearAllImages,
   deleteCanvasImages,
   listCanvasImages,
   deleteImage,
+  cleanupUnreferencedImages,
+  formatFileSize,
   type StorageStats,
+  type StorageConfigInfo,
   type ImageInfoWithMetadata,
 } from "@/services/fileStorageService";
+import { collectReferencedImagePaths } from "@/utils/imagePathRewrite";
+import { toast } from "@/stores/toastStore";
 
 // 展开的画布 ID 集合
 export type ExpandedCanvases = Set<string>;
@@ -22,6 +28,7 @@ interface StorageManagementState {
   // 文件存储数据
   fileStats: StorageStats | null;
   storagePath: string | null;
+  storageConfig: StorageConfigInfo | null;
   expandedFileCanvases: string[];
   canvasImages: Map<string, ImageInfoWithMetadata[]>;
 
@@ -38,6 +45,7 @@ interface StorageManagementState {
   handleClearAllImages: () => Promise<void>;
   handleClearCanvasImages: (canvasId: string) => Promise<void>;
   handleDeleteImage: (path: string) => Promise<void>;
+  handleCleanupUnreferenced: () => Promise<void>;
   toggleFileCanvasExpanded: (canvasId: string) => Promise<void>;
   loadCanvasImages: (canvasId: string) => Promise<void>;
 }
@@ -49,6 +57,7 @@ export const useStorageManagementStore = create<StorageManagementState>(
 
     fileStats: null,
     storagePath: null,
+    storageConfig: null,
     expandedFileCanvases: [],
     canvasImages: new Map(),
 
@@ -62,13 +71,15 @@ export const useStorageManagementStore = create<StorageManagementState>(
       });
 
       try {
-        const [fileStats, storagePath] = await Promise.all([
+        const [fileStats, storagePath, storageConfig] = await Promise.all([
           getStorageStats(),
           getStoragePath(),
+          getStorageConfig(),
         ]);
         set({
           fileStats,
           storagePath,
+          storageConfig,
           isLoading: false,
         });
       } catch (err) {
@@ -91,8 +102,11 @@ export const useStorageManagementStore = create<StorageManagementState>(
       set({ isLoading: true, error: null });
 
       try {
-        const fileStats = await getStorageStats();
-        set({ fileStats, isLoading: false });
+        const [fileStats, storageConfig] = await Promise.all([
+          getStorageStats(),
+          getStorageConfig(),
+        ]);
+        set({ fileStats, storageConfig, isLoading: false });
       } catch (err) {
         set({
           error: err instanceof Error ? err.message : "刷新失败",
@@ -164,6 +178,27 @@ export const useStorageManagementStore = create<StorageManagementState>(
           error: err instanceof Error ? err.message : "删除图片失败",
           isLoading: false,
         });
+      }
+    },
+
+    // 清理未引用图片：保留所有画布仍在引用的路径，删除其余历史副本
+    handleCleanupUnreferenced: async () => {
+      set({ isLoading: true, error: null });
+      try {
+        const keepPaths = collectReferencedImagePaths();
+        const result = await cleanupUnreferencedImages(keepPaths);
+        await get().refreshStats();
+        if (result.deleted_count > 0) {
+          toast.success(
+            `已清理 ${result.deleted_count} 个未引用文件，释放 ${formatFileSize(result.freed_bytes)}`
+          );
+        } else {
+          toast.info("没有可清理的未引用图片");
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "清理未引用图片失败";
+        set({ error: message, isLoading: false });
+        toast.error(message);
       }
     },
 

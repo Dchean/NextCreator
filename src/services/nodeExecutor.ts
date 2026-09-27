@@ -3,14 +3,11 @@
  * 为每种节点类型提供统一的执行接口
  */
 
-import type { Node, Edge } from "@xyflow/react";
+import type { Edge, Node } from "@xyflow/react";
 import type {
   CustomNodeData,
-  CustomEdge,
   ImageGeneratorNodeData,
   LLMContentNodeData,
-  VideoGeneratorNodeData,
-  PPTContentNodeData,
 } from "@/types";
 import type { NodeExecutionResult } from "@/types/workflow";
 import { shouldSkipNode } from "@/types/workflow";
@@ -18,7 +15,6 @@ import { useFlowStore } from "@/stores/flowStore";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { generateImage, editImage } from "@/services/imageGeneration";
 import { generateLLMContent } from "@/services/llmService";
-import { createVideoTask, getVideoContentBlobUrl, pollVideoTask } from "@/services/videoGeneration";
 import { saveImage, readImage } from "@/services/fileStorageService";
 import {
   buildImageGenerationRequest,
@@ -33,11 +29,6 @@ import {
   getPromptMentionSourcesForNode,
 } from "@/utils/promptMentions";
 import {
-  buildVideoGenerationRequest,
-  getVideoApiProtocol,
-  getVideoApiProtocolConfig,
-} from "@/components/nodes/videoGeneratorConfig";
-import {
   buildLLMGenerationParams,
   getLLMApiProtocol,
 } from "@/components/nodes/llmContentConfig";
@@ -45,6 +36,7 @@ import {
   isFileInputEdge,
   isImageInputEdge,
   isPromptInputEdge,
+  getImageSlotSortKey,
 } from "@/utils/connectionHandles";
 
 // 自定义节点类型
@@ -62,10 +54,6 @@ interface ConnectedImageInfo {
 
 function isImageOutputNodeType(type?: string): boolean {
   return type === "imageGeneratorNode";
-}
-
-function getVideoProviderNodeType(protocol: ReturnType<typeof getVideoApiProtocol>) {
-  return protocol === "newapi-video-generations" ? "newApiVideoGenerator" : "videoGenerator";
 }
 
 function stripDataUrlPrefix(data: string) {
@@ -98,7 +86,7 @@ function imageToLLMFile(imageData: string, index: number) {
  * 从指定画布获取连接的输入数据（异步版本，支持从文件加载图片）
  * 解决画布切换时数据读取错误的问题
  */
-async function getConnectedInputDataFromCanvas(
+export async function getConnectedInputDataFromCanvas(
   nodeId: string,
   canvasId: string
 ): Promise<{
@@ -121,7 +109,10 @@ async function getConnectedInputDataFromCanvas(
 
   const nodes = canvas.nodes as CustomNode[];
   const edges = canvas.edges as Edge[];
-  const incomingEdges = edges.filter((edge) => edge.target === nodeId);
+  // 按参考图槽位编号稳定排序，保证多图输入顺序稳定（非图片连线相对顺序不变）
+  const incomingEdges = edges
+    .filter((edge) => edge.target === nodeId)
+    .sort((a, b) => getImageSlotSortKey(a) - getImageSlotSortKey(b));
 
   // 支持多个 prompt 输入，收集后拼接
   const prompts: string[] = [];
@@ -251,7 +242,7 @@ function getPromptMentionSourcesFromCanvas(nodeId: string, canvasId: string) {
   return getPromptMentionSourcesForNode(canvas.nodes as CustomNode[], canvas.edges as Edge[], nodeId);
 }
 
-async function getConnectedImageDetailsFromCanvas(
+export async function getConnectedImageDetailsFromCanvas(
   nodeId: string,
   canvasId: string
 ): Promise<ConnectedImageInfo[]> {
@@ -268,7 +259,10 @@ async function getConnectedImageDetailsFromCanvas(
 
   const nodes = canvas.nodes as CustomNode[];
   const edges = canvas.edges as Edge[];
-  const incomingEdges = edges.filter((edge) => edge.target === nodeId);
+  // 按参考图槽位编号稳定排序，保证多图输入顺序稳定（非图片连线相对顺序不变）
+  const incomingEdges = edges
+    .filter((edge) => edge.target === nodeId)
+    .sort((a, b) => getImageSlotSortKey(a) - getImageSlotSortKey(b));
   const images: ConnectedImageInfo[] = [];
 
   for (const edge of incomingEdges) {
@@ -503,7 +497,9 @@ async function executeImageGeneratorNode(
           ? response.imageDataList
           : [response.imageData];
         const savedImages = await Promise.all(
-          imagesToSave.map((imageData) => saveImage(imageData, canvasId, node.id))
+          imagesToSave.map((imageData) =>
+            saveImage(imageData, canvasId, node.id, resolvedPrompt, undefined, "generated", model)
+          )
         );
         imagePaths = savedImages.map((image) => image.path);
         imagePath = imagePaths[0];
@@ -641,238 +637,7 @@ async function executeLLMContentNode(
 }
 
 /**
- * 执行视频生成节点
- */
-async function executeVideoGeneratorNode(
-  node: CustomNode,
-  canvasId: string,
-  signal?: AbortSignal
-): Promise<NodeExecutionResult> {
-  const data = node.data as VideoGeneratorNodeData;
-  // 使用画布感知的数据读取，解决画布切换问题（异步从文件加载图片）
-  const { prompt, images } = await getConnectedInputDataFromCanvas(node.id, canvasId);
-  const canvas = useCanvasStore.getState().canvases.find((c) => c.id === canvasId);
-  const nodes = (canvas?.nodes || useFlowStore.getState().nodes) as CustomNode[];
-  const edges = (canvas?.edges || useFlowStore.getState().edges) as CustomEdge[];
-  const mentionSources = getPromptMentionSourcesForNode(nodes, edges, node.id);
-  const resolvedPrompt = buildImageGeneratorPrompt(data.prompt, prompt, mentionSources);
-  const apiProtocol = getVideoApiProtocol(data);
-  const config = getVideoApiProtocolConfig(apiProtocol);
-  const providerNodeType = getVideoProviderNodeType(apiProtocol);
-
-  // 验证输入
-  if (!resolvedPrompt) {
-    updateNodeDataWithCanvas<VideoGeneratorNodeData>(node.id, canvasId, {
-      status: "error",
-      error: "缺少必需的提示词输入",
-    });
-    return { success: false, error: "缺少必需的提示词输入" };
-  }
-
-  // 更新状态为加载中
-  updateNodeDataWithCanvas<VideoGeneratorNodeData>(node.id, canvasId, {
-    status: "loading",
-    error: undefined,
-    taskStage: "queued",
-    progress: 0,
-  });
-
-  try {
-    // 检查是否已取消
-    if (signal?.aborted) {
-      updateNodeDataWithCanvas<VideoGeneratorNodeData>(node.id, canvasId, {
-        status: "idle",
-      });
-      return { success: false, error: "已取消" };
-    }
-
-    let request;
-    try {
-      request = buildVideoGenerationRequest(
-        { ...data, apiProtocol, model: data.model || config.defaultModel },
-        resolvedPrompt,
-        images
-      );
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : "视频参数无效";
-      updateNodeDataWithCanvas<VideoGeneratorNodeData>(node.id, canvasId, {
-        status: "error",
-        error: errorMsg,
-        taskStage: "failed",
-      });
-      return { success: false, error: errorMsg };
-    }
-
-    // 创建任务（传递 signal 以支持取消）
-    const createResult = await createVideoTask(request, providerNodeType, signal);
-
-    if (createResult.error || !createResult.taskId) {
-      const errorMsg = createResult.error || "创建任务失败";
-      updateNodeDataWithCanvas<VideoGeneratorNodeData>(node.id, canvasId, {
-        status: "error",
-        error: errorMsg,
-      });
-      return { success: false, error: errorMsg };
-    }
-
-    const taskId = createResult.taskId;
-
-    // 更新任务 ID
-    updateNodeDataWithCanvas<VideoGeneratorNodeData>(node.id, canvasId, {
-      taskId,
-      taskStage: "queued",
-    });
-
-    // 轮询等待完成（传递 signal 以支持取消）
-    const pollResult = await pollVideoTask(taskId, (info) => {
-      // 检查中断
-      if (signal?.aborted) return;
-
-      // 更新进度
-      updateNodeDataWithCanvas<VideoGeneratorNodeData>(node.id, canvasId, {
-        progress: info.progress,
-        taskStage: info.stage,
-      });
-    }, 120, 5000, signal, providerNodeType);
-
-    // 检查中断
-    if (signal?.aborted) {
-      updateNodeDataWithCanvas<VideoGeneratorNodeData>(node.id, canvasId, {
-        status: "idle",
-        taskStage: undefined,
-        progress: undefined,
-      });
-      return { success: false, error: "已取消" };
-    }
-
-    if (pollResult.error) {
-      updateNodeDataWithCanvas<VideoGeneratorNodeData>(node.id, canvasId, {
-        status: "error",
-        error: pollResult.error,
-        taskStage: "failed",
-      });
-      return { success: false, error: pollResult.error };
-    }
-
-    let outputVideo = pollResult.videoUrl;
-    const videoData = pollResult.videoData;
-
-    if (!outputVideo && !videoData) {
-      const contentResult = await getVideoContentBlobUrl(taskId, providerNodeType);
-      if (signal?.aborted) {
-        updateNodeDataWithCanvas<VideoGeneratorNodeData>(node.id, canvasId, {
-          status: "idle",
-          taskStage: undefined,
-          progress: undefined,
-        });
-        return { success: false, error: "已取消" };
-      }
-
-      if (contentResult.error || !contentResult.url) {
-        const errorMsg = contentResult.error || "视频任务已完成，但没有获取到可预览的视频内容";
-        updateNodeDataWithCanvas<VideoGeneratorNodeData>(node.id, canvasId, {
-          status: "error",
-          error: errorMsg,
-          taskStage: "failed",
-        });
-        return { success: false, error: errorMsg };
-      }
-
-      outputVideo = contentResult.url;
-    }
-
-    // 更新成功状态
-    updateNodeDataWithCanvas<VideoGeneratorNodeData>(node.id, canvasId, {
-      status: "success",
-      taskStage: "completed",
-      progress: 100,
-      outputVideo,
-      videoData,
-      error: undefined,
-    });
-
-    return {
-      success: true,
-      output: { taskId, videoUrl: outputVideo, videoData },
-    };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "执行失败";
-
-    updateNodeDataWithCanvas<VideoGeneratorNodeData>(node.id, canvasId, {
-      status: "error",
-      error: errorMessage,
-      taskStage: "failed",
-    });
-
-    return { success: false, error: errorMessage };
-  }
-}
-
-/**
- * 执行 PPT 内容生成节点
- * 注意：PPT 节点需要两阶段执行（大纲+图片），这里只触发开始
- * 由于 PPT 节点内部已经有复杂的执行逻辑，这里简化处理
- */
-async function executePPTContentNode(
-  node: CustomNode,
-  canvasId: string,
-  _signal?: AbortSignal
-): Promise<NodeExecutionResult> {
-  const data = node.data as PPTContentNodeData;
-  // 使用画布感知的数据读取，解决画布切换问题（异步从文件加载图片）
-  const { prompt, files } = await getConnectedInputDataFromCanvas(node.id, canvasId);
-
-  // 验证输入
-  if (!prompt && files.length === 0) {
-    const errorMsg = "缺少必需的提示词或文件输入";
-    updateNodeDataWithCanvas<PPTContentNodeData>(node.id, canvasId, {
-      error: errorMsg,
-    });
-    return { success: false, error: errorMsg };
-  }
-
-  // 检查大纲状态
-  if (data.outlineStatus !== "ready") {
-    // 大纲未生成，提示用户需要先生成大纲
-    const errorMsg = "请先手动生成 PPT 大纲，然后再运行工作流";
-    updateNodeDataWithCanvas<PPTContentNodeData>(node.id, canvasId, {
-      error: errorMsg,
-    });
-    return {
-      success: false,
-      error: errorMsg,
-    };
-  }
-
-  // 检查是否有待生成的页面
-  const pendingPages = data.pages?.filter((p) => p.status === "pending") || [];
-  if (pendingPages.length === 0) {
-    // 所有页面已完成或没有页面
-    if (data.pages && data.pages.length > 0) {
-      return { success: true }; // 已经完成了
-    }
-    const errorMsg = "没有待生成的页面";
-    updateNodeDataWithCanvas<PPTContentNodeData>(node.id, canvasId, {
-      error: errorMsg,
-    });
-    return { success: false, error: errorMsg };
-  }
-
-  // PPT 节点的执行逻辑较复杂，涉及多页面并发生成
-  // 这里返回提示，建议用户手动触发 PPT 节点
-  // 未来可以扩展为调用 PPT 节点内部的 startGeneration 函数
-  const errorMsg = "PPT 节点请手动点击生成按钮执行，暂不支持自动工作流执行";
-  updateNodeDataWithCanvas<PPTContentNodeData>(node.id, canvasId, {
-    error: errorMsg,
-  });
-  return {
-    success: false,
-    error: errorMsg,
-  };
-}
-
-/**
- * 节点执行器类
+ * 节点执行器：按节点类型分发执行
  */
 export class NodeExecutor {
   /**
@@ -897,12 +662,6 @@ export class NodeExecutor {
 
       case "llmContentNode":
         return executeLLMContentNode(node, canvasId, signal);
-
-      case "videoGeneratorNode":
-        return executeVideoGeneratorNode(node, canvasId, signal);
-
-      case "pptContentNode":
-        return executePPTContentNode(node, canvasId, signal);
 
       default:
         // 未知节点类型，跳过

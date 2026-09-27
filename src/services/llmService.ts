@@ -4,7 +4,7 @@ import { useSettingsStore } from "@/stores/settingsStore";
 import type { LLMApiProtocol } from "@/components/nodes/llmContentConfig";
 
 // LLM 节点类型
-type LLMNodeType = "llm" | "llmContent";
+type LLMNodeType = "llmContent";
 
 // LLM 生成参数
 export interface LLMGenerationParams {
@@ -53,7 +53,7 @@ function getProviderConfig(nodeType: LLMNodeType) {
   const providerId = settings.nodeProviders[nodeType];
 
   if (!providerId) {
-    throw new Error(`请先在供应商管理中配置 ${nodeType === "llm" ? "PPT 内容生成" : "LLM 内容生成"}节点的供应商`);
+    throw new Error(`请先在供应商管理中配置 LLM 内容生成节点的供应商`);
   }
 
   const provider = settings.providers.find((p) => p.id === providerId);
@@ -216,10 +216,10 @@ async function invokeLLMByProtocol(params: TauriLLMParams, provider: Provider, a
   }
 }
 
-// 文本生成（PPT 内容生成节点使用）
+// 文本生成
 export async function generateText(params: LLMGenerationParams): Promise<LLMResponse> {
   try {
-    const provider = getProviderConfig("llm");
+    const provider = getProviderConfig("llmContent");
 
     const baseUrl = provider.baseUrl.replace(/\/+$/, "");
     const requestParams: TauriLLMParams = {

@@ -5,9 +5,10 @@
 
 import type { Edge, Node, Connection } from "@xyflow/react";
 import { nodeCategories } from "@/config/nodeConfig";
+import { isGeneratorImageSlotHandle } from "@/utils/connectionHandles";
 
 // Handle 类型定义
-export type HandleType = "prompt" | "image" | "video" | "data" | "results" | "text" | "file";
+export type HandleType = "prompt" | "image" | "data" | "results" | "text" | "file";
 
 // 节点的输入输出配置映射
 interface NodeIOConfig {
@@ -55,10 +56,6 @@ function isUnifiedImageGeneratorInput(targetNodeType: string | undefined, target
   return targetNodeType === "imageGeneratorNode" && targetHandle === "input";
 }
 
-function isUnifiedVideoGeneratorInput(targetNodeType: string | undefined, targetHandle?: string | null) {
-  return targetNodeType === "videoGeneratorNode" && targetHandle === "input";
-}
-
 function isUnifiedLLMContentInput(targetNodeType: string | undefined, targetHandle?: string | null) {
   return targetNodeType === "llmContentNode" && targetHandle === "input";
 }
@@ -67,7 +64,6 @@ function isUnifiedLLMContentInput(targetNodeType: string | undefined, targetHand
  * 检查类型是否兼容
  * prompt 只能连 prompt 输入
  * image 可以连 image 输入
- * video 可以连 video 输入（如果未来有的话）
  */
 export function areTypesCompatible(
   sourceType: HandleType,
@@ -216,7 +212,7 @@ export function validateConnection(
   // 5. 检查类型兼容性
   // 如果有 targetHandle，用它来确定期望的输入类型
   // 否则检查源类型是否在目标接受的类型中
-  if (isUnifiedImageGeneratorInput(targetNode.type, targetHandle) || isUnifiedVideoGeneratorInput(targetNode.type, targetHandle) || isUnifiedLLMContentInput(targetNode.type, targetHandle)) {
+  if (isUnifiedImageGeneratorInput(targetNode.type, targetHandle) || isUnifiedLLMContentInput(targetNode.type, targetHandle)) {
     if (!areTypesCompatible(sourceOutputType, targetInputTypes)) {
       return {
         isValid: false,
@@ -224,8 +220,10 @@ export function validateConnection(
       };
     }
   } else if (targetHandle) {
-    // targetHandle 格式: "input-prompt" 或 "input-image"
-    const expectedType = targetHandle.replace("input-", "") as HandleType;
+    // targetHandle 格式: "input-prompt"、"input-image" 或动态参考图槽位 "input-image-{k}"
+    const expectedType: HandleType = targetHandle.startsWith("input-image")
+      ? "image"
+      : (targetHandle.replace("input-", "") as HandleType);
     if (sourceOutputType !== expectedType) {
       return {
         isValid: false,
@@ -254,30 +252,27 @@ export function validateConnection(
 
   // 8. 检查单输入限制
   // - prompt 输入: 允许多个连接（会自动拼接）
-  // - image 输入: ImageGenerator 和 PPTContent 允许多个，VideoGenerator 只允许一个
+  // - image 输入: ImageGenerator 允许多个
   const isMultiImageAllowed =
-    targetNode.type === "imageGeneratorNode" ||
-    targetNode.type === "pptContentNode" ||
-    targetNode.type === "veoGeneratorNode";
+    targetNode.type === "imageGeneratorNode";
 
   const isUnifiedImageGeneratorImageInput =
     isUnifiedImageGeneratorInput(targetNode.type, targetHandle) && sourceOutputType === "image";
-  const isUnifiedVideoGeneratorImageInput =
-    isUnifiedVideoGeneratorInput(targetNode.type, targetHandle) && sourceOutputType === "image";
   const isUnifiedLLMContentImageInput =
     isUnifiedLLMContentInput(targetNode.type, targetHandle) && sourceOutputType === "image";
   const isUnifiedLLMContentFileInput =
     isUnifiedLLMContentInput(targetNode.type, targetHandle) && sourceOutputType === "file";
 
+  const isGeneratorSlotInput = isGeneratorImageSlotHandle(targetHandle);
+
   const isImageInput = targetHandle === "input-image" ||
+    isGeneratorSlotInput ||
     isUnifiedImageGeneratorImageInput ||
-    isUnifiedVideoGeneratorImageInput ||
     isUnifiedLLMContentImageInput ||
     (!targetHandle && sourceOutputType === "image");
 
   const isPromptInput = targetHandle === "input-prompt" ||
     (isUnifiedImageGeneratorInput(targetNode.type, targetHandle) && sourceOutputType === "prompt") ||
-    (isUnifiedVideoGeneratorInput(targetNode.type, targetHandle) && sourceOutputType === "prompt") ||
     (isUnifiedLLMContentInput(targetNode.type, targetHandle) && sourceOutputType === "prompt") ||
     (!targetHandle && sourceOutputType === "prompt");
 
@@ -292,48 +287,9 @@ export function validateConnection(
 
   // 如果是允许多图的节点的 image 输入，直接允许连接
   if (isMultiImageAllowed && isImageInput) {
-    // Veo 节点根据模式限制图片数量
-    if (targetNode.type === "veoGeneratorNode") {
-      const targetData = targetNode.data as { generationMode?: string; model?: string };
-      const currentMode = targetData?.generationMode || "text2video";
-      const currentModel = targetData?.model || "veo-3.1-fast-generate-preview";
-
-      if (currentMode === "reference" && currentModel.includes("fast")) {
-        return { isValid: false };
-      }
-
-      let maxImages: number | null = null;
-      if (currentMode === "image2video") {
-        maxImages = 1;
-      } else if (currentMode === "interpolation") {
-        maxImages = 2;
-      } else if (currentMode === "reference") {
-        maxImages = 3;
-      } else if (currentMode === "text2video") {
-        maxImages = 0;
-      }
-
-      if (maxImages !== null) {
-        const existingImageConnections = edges.filter((edge) => {
-          if (edge.target !== target) return false;
-          if (edge.targetHandle === "input-image") return true;
-          if (!edge.targetHandle) {
-            const edgeSourceNode = nodes.find((n) => n.id === edge.source);
-            const edgeSourceType = edgeSourceNode ? getNodeOutputType(edgeSourceNode.type || "") : undefined;
-            return edgeSourceType === "image";
-          }
-          if (edge.targetHandle === "input" && targetNode.type === "imageGeneratorNode") {
-            const edgeSourceNode = nodes.find((n) => n.id === edge.source);
-            const edgeSourceType = edgeSourceNode ? getNodeOutputType(edgeSourceNode.type || "") : undefined;
-            return edgeSourceType === "image";
-          }
-          return false;
-        });
-
-        if (existingImageConnections.length >= maxImages) {
-          return { isValid: false };
-        }
-      }
+    // 动态参考图槽位（input-image-{k}）：每个槽位只允许一条连线
+    if (isGeneratorSlotInput && targetHandleHasConnection(edges, target!, targetHandle)) {
+      return { isValid: false, reason: "该参考图连接点已被占用" };
     }
     return { isValid: true };
   }

@@ -12,20 +12,13 @@ import {
 import { useLLMContentExecution } from "@/hooks/useLLMContentExecution";
 import { useNodeConnectionStatus } from "@/hooks/useNodeConnectionStatus";
 import { useFlowStore } from "@/stores/flowStore";
-import {
-  getPromptMentionSourcesForNode,
-  tokenizePromptMentions,
-} from "@/utils/promptMentions";
-import {
-  isFileInputEdge,
-  isImageInputEdge,
-  isPromptInputEdge,
-} from "@/utils/connectionHandles";
+import { isFileInputEdge, isImageInputEdge } from "@/utils/connectionHandles";
 import type { CustomEdge, CustomNode } from "@/types";
 import type {
   LLMContentNode as LLMContentNodeType,
   LLMContentNodeData,
 } from "./llmContentConfig";
+import { PromptSourceRow } from "./PromptSourceRow";
 import {
   getLLMApiProtocolConfig,
   getLLMModelDisplayName,
@@ -41,13 +34,13 @@ function getNodeAccentClass(accent: string) {
 function getStatusLabel(status: LLMContentNodeData["status"]) {
   switch (status) {
     case "loading":
-      return "Running";
+      return "生成中";
     case "success":
-      return "Success";
+      return "已完成";
     case "error":
-      return "Failed";
+      return "失败";
     default:
-      return "Idle";
+      return "空闲";
   }
 }
 
@@ -92,7 +85,6 @@ function getConnectedInputSources(
     if (!sourceNode || !targetNode || seenSourceIds.has(sourceNode.id)) continue;
 
     const isRelevantInput =
-      isPromptInputEdge(edge, sourceNode, targetNode) ||
       isImageInputEdge(edge, sourceNode, targetNode) ||
       isFileInputEdge(edge, sourceNode, targetNode);
 
@@ -127,6 +119,7 @@ function LLMContentNodeBase({ id, data, selected }: NodeProps<LLMContentNodeType
   const { handleGenerate, validationError } = useLLMContentExecution(id, data);
   const {
     promptText,
+    promptSources,
     hasEmptyImageInputs,
     hasEmptyFileInputs,
   } = useNodeConnectionStatus(id);
@@ -134,21 +127,12 @@ function LLMContentNodeBase({ id, data, selected }: NodeProps<LLMContentNodeType
   const inlinePrompt = data.prompt || "";
   const hasInlinePrompt = inlinePrompt.trim().length > 0;
   const hasResolvedPrompt = hasInlinePrompt || Boolean(promptText?.trim());
-  const mentionSources = useMemo(
-    () => getPromptMentionSourcesForNode(nodes, edges, id),
-    [nodes, edges, id]
-  );
-  const promptTokens = useMemo(
-    () => tokenizePromptMentions(inlinePrompt, mentionSources),
-    [inlinePrompt, mentionSources]
-  );
   const inputSources = useMemo(
     () => getConnectedInputSources(nodes, edges, id),
     [nodes, edges, id]
   );
   const hasAnyInput = hasResolvedPrompt || inputSources.length > 0;
   const canRun = hasAnyInput && data.status !== "loading" && !validationError;
-  const connectedPrompt = promptText?.trim();
 
   return (
     <div className={`${getNodeAccentClass(config.accent)} w-[360px]`}>
@@ -163,7 +147,7 @@ function LLMContentNodeBase({ id, data, selected }: NodeProps<LLMContentNodeType
             <span className="nc-node-header-icon">
               <MessageSquareText className="w-4 h-4" />
             </span>
-            <span className="truncate text-[15px] font-semibold">{data.label || "LLM 内容生成"}</span>
+            <span className="nc-node-title truncate">{data.label || "LLM 内容生成"}</span>
           </div>
           <div className="flex flex-shrink-0 items-center gap-1.5">
             {!hasAnyInput && <CircleAlert className="w-4 h-4 text-warning" />}
@@ -196,10 +180,10 @@ function LLMContentNodeBase({ id, data, selected }: NodeProps<LLMContentNodeType
 
         <div className="space-y-3 px-4 py-3">
           <div className="space-y-2 text-sm">
-            <PromptInfoRow
+            <PromptSourceRow
               hasInlinePrompt={hasInlinePrompt}
-              connectedPrompt={connectedPrompt}
-              promptTokens={promptTokens}
+              inlineCharCount={inlinePrompt.length}
+              promptSources={promptSources}
             />
             <InfoRow label="协议" value={config.label} chipClassName="nc-image-node-chip-neutral" />
             <InfoRow label="模型" value={modelLabel} chipClassName="nc-image-node-chip-primary" />
@@ -249,40 +233,6 @@ function LLMContentNodeBase({ id, data, selected }: NodeProps<LLMContentNodeType
   );
 }
 
-interface PromptInfoRowProps {
-  hasInlinePrompt: boolean;
-  connectedPrompt?: string;
-  promptTokens: ReturnType<typeof tokenizePromptMentions>;
-}
-
-function PromptInfoRow({ hasInlinePrompt, connectedPrompt, promptTokens }: PromptInfoRowProps) {
-  const hasPromptPreview = hasInlinePrompt || Boolean(connectedPrompt);
-
-  return (
-    <div className="flex min-w-0 items-start gap-2">
-      <span className="w-12 flex-shrink-0 pt-1 text-[12px] text-base-content/45">Prompt:</span>
-      <div className={`nc-image-prompt-preview-chip ${hasPromptPreview ? "" : "nc-image-prompt-preview-empty"}`}>
-        {hasInlinePrompt ? (
-          promptTokens.map((token, index) =>
-            token.type === "mention" ? (
-              <span
-                key={`${token.text}-${index}`}
-                className="nc-image-mention-chip"
-              >
-                {token.text}
-              </span>
-            ) : (
-              <span key={`${token.text}-${index}`}>{token.text}</span>
-            )
-          )
-        ) : (
-          <span>{connectedPrompt || "右侧填写或连接提示词"}</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
 interface InfoRowProps {
   label: string;
   value: string;
@@ -292,8 +242,8 @@ interface InfoRowProps {
 function InfoRow({ label, value, chipClassName }: InfoRowProps) {
   return (
     <div className="flex min-w-0 items-center gap-2">
-      <span className="w-12 flex-shrink-0 text-[12px] text-base-content/45">{label}:</span>
-      <span className={`inline-flex min-w-0 items-center gap-1 rounded-md border px-2 py-1 leading-none ${chipClassName}`}>
+      <span className="nc-node-row-label w-12">{label}:</span>
+      <span className={`${chipClassName} min-w-0 border`}>
         <span className="truncate">{value}</span>
       </span>
     </div>
@@ -307,7 +257,7 @@ interface ParameterInfoRowProps {
 function ParameterInfoRow({ labels }: ParameterInfoRowProps) {
   return (
     <div className="flex min-w-0 items-start gap-2">
-      <span className="w-12 flex-shrink-0 pt-1 text-[12px] text-base-content/45">参数:</span>
+      <span className="nc-node-row-label w-12 pt-1">参数:</span>
       <div className="flex min-w-0 flex-wrap gap-1.5">
         {labels.length > 0 ? (
           labels.map((label) => (
@@ -332,7 +282,7 @@ interface InputInfoRowProps {
 function InputInfoRow({ sources }: InputInfoRowProps) {
   return (
     <div className="flex min-w-0 items-start gap-2">
-      <span className="w-12 flex-shrink-0 pt-1 text-[12px] text-base-content/45">Input:</span>
+      <span className="nc-node-row-label w-12 pt-1">参考:</span>
       <div className="flex min-w-0 flex-wrap gap-1.5">
         {sources.length > 0 ? (
           sources.map((source) => (

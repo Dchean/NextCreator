@@ -6,6 +6,7 @@ import { FlowCanvas } from "@/components/FlowCanvas";
 import { Sidebar } from "@/components/Sidebar";
 import { NodeInspector } from "@/components/inspectors/NodeInspector";
 import { SettingsPanel, KeyboardShortcutsPanel } from "@/components/panels";
+import { QueuePanel } from "@/components/panels/QueuePanel";
 import { ProviderPanel } from "@/components/panels/ProviderPanel";
 import { StorageManagementModal } from "@/components/ui/StorageManagementModal";
 import { ToastContainer } from "@/components/ui/Toast";
@@ -13,14 +14,19 @@ import { useCanvasStore } from "@/stores/canvasStore";
 import { useFlowStore } from "@/stores/flowStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { initializeImageGenerationProviders } from "@/services/imageGeneration";
-import { initializeVideoGenerationProviders } from "@/services/videoGeneration";
+import { ensureAssetPathsAllowed, getStorageConfig } from "@/services/fileStorageService";
+import { collectReferencedImagePaths } from "@/utils/imagePathRewrite";
+import { installAssetImgSelfHeal } from "@/utils/assetImgSelfHeal";
+import { sanitizeCanvasData } from "@/utils/canvasCompat";
+import { useToastStore } from "@/stores/toastStore";
 
 import "@/index.css";
 
 // 初始化图片生成提供商
 initializeImageGenerationProviders();
-// 初始化视频生成提供商
-initializeVideoGenerationProviders();
+
+// asset 协议图片加载失败自愈（重启后授权竞态导致的破图）
+installAssetImgSelfHeal();
 
 function App() {
   // 细粒度 selector 订阅，避免不相关状态变化触发重渲染
@@ -75,6 +81,42 @@ function App() {
     }
   }, [_hasHydrated, canvases.length, createCanvas]);
 
+  // 重启后重新授予外部原图的 asset 协议访问权限。
+  // Tauri 运行时的 asset scope 授权不持久化：画布引用的本地原图
+  // （不在应用图片目录内的绝对路径）在重启后会失去访问权限，需重新 allow。
+  useEffect(() => {
+    if (!_hasHydrated) return;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const [config, referenced] = await Promise.all([
+          getStorageConfig(),
+          Promise.resolve(collectReferencedImagePaths()),
+        ]);
+        // 存储目录内的路径属于应用内部图片，无需重新授权
+        const imagesRoot = (config.images_dir || "").trim().replace(/[\\/]+$/, "");
+        const isInternal = (path: string) => {
+          if (!imagesRoot) return false;
+          const normalized = path.replace(/[\\/]+$/, "");
+          if (!normalized.toLowerCase().startsWith(imagesRoot.toLowerCase())) return false;
+          const rest = normalized.slice(imagesRoot.length);
+          return rest === "" || rest.startsWith("\\") || rest.startsWith("/");
+        };
+        const externalPaths = referenced.filter((p) => !isInternal(p));
+        if (!cancelled && externalPaths.length > 0) {
+          await ensureAssetPathsAllowed(externalPaths);
+        }
+      } catch (err) {
+        console.warn("恢复本地原图 asset 授权失败:", err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [_hasHydrated]);
+
   // 切换画布时：先保存旧画布数据，再加载新画布
   useEffect(() => {
     if (activeCanvasId && activeCanvasId !== prevCanvasIdRef.current) {
@@ -99,8 +141,18 @@ function App() {
 
       const canvas = getActiveCanvas();
       if (canvas) {
-        setNodes(canvas.nodes);
-        setEdges(canvas.edges);
+        // 过滤旧版本画布中已移除的节点类型（视频 / PPT）
+        const { nodes, edges, removedCount } = sanitizeCanvasData(canvas.nodes, canvas.edges);
+        if (removedCount > 0) {
+          useToastStore.getState().info(`已忽略 ${removedCount} 个旧版本节点（视频 / PPT 功能已移除）`);
+          useCanvasStore.setState((state) => ({
+            canvases: state.canvases.map((c) =>
+              c.id === canvas.id ? { ...c, nodes, edges, updatedAt: Date.now() } : c
+            ),
+          }));
+        }
+        setNodes(nodes);
+        setEdges(edges);
       }
 
       // 延迟重置标志，确保数据加载完成
@@ -199,6 +251,9 @@ function App() {
 
         {/* 存储管理弹窗 */}
         <StorageManagementModal />
+
+        {/* 生成队列面板 */}
+        <QueuePanel />
 
         {/* Toast 通知容器 */}
         <ToastContainer />

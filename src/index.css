@@ -56,6 +56,58 @@
     rgba(0, 0, 0, 0.02) 0px 7px 15px,
     rgba(0, 0, 0, 0.04) 0px 14px 28px,
     rgba(0, 0, 0, 0.05) 0px 23px 52px;
+
+  /* 节点强调色（主题无关，随 :root 级联到暗色） */
+  --nc-accent-teal: #2a9d99;
+  --nc-accent-purple: #7b61a6;
+  --nc-accent-pink: #c55d8a;
+  --nc-accent-lime: #6f9d36;
+  --nc-accent-indigo: #5b6aa8;
+  --nc-accent-emerald: #1aae39;
+
+  /* 设计令牌：圆角 */
+  --nc-radius-xs: 4px;
+  --nc-radius-sm: 6px;
+  --nc-radius-md: 8px;
+  --nc-radius-lg: 12px;
+  --nc-radius-xl: 16px;
+  --nc-radius-full: 9999px;
+
+  /* 设计令牌：间距 */
+  --nc-space-1: 4px;
+  --nc-space-2: 8px;
+  --nc-space-3: 12px;
+  --nc-space-4: 16px;
+  --nc-space-5: 20px;
+  --nc-space-6: 24px;
+
+  /* 设计令牌：字号 */
+  --nc-text-title: 15px;
+  --nc-text-lg: 16px;
+  --nc-text-md: 14px;
+  --nc-text-sm: 13px;
+  --nc-text-xs: 12px;
+  --nc-text-2xs: 11px;
+
+  /* 设计令牌：弹层阴影与焦点环 */
+  --nc-shadow-dropdown:
+    rgba(0, 0, 0, 0.06) 0 -1px 0 0 inset,
+    rgba(0, 0, 0, 0.10) 0 4px 10px,
+    rgba(0, 0, 0, 0.08) 0 14px 34px;
+  --nc-shadow-pop: rgba(0, 0, 0, 0.12) 0 2px 8px;
+  --nc-focus-ring: 0 0 0 3px color-mix(in srgb, var(--nc-focus) 18%, transparent);
+
+  /* 设计令牌：层级 */
+  --nc-z-overlay-item: 10;
+  --nc-z-overlay-top: 20;
+  --nc-z-toolbar: 40;
+  --nc-z-floating: 50;
+  --nc-z-dropdown: 80;
+  --nc-z-tooltip: 90;
+  --nc-z-modal: 100;
+  --nc-z-modal-nested: 110;
+  --nc-z-context: 120;
+  --nc-z-toast: 130;
 }
 
 [data-theme="dark"] {
@@ -85,6 +137,50 @@
     rgba(0, 0, 0, 0.3) 0px 4px 18px,
     rgba(0, 0, 0, 0.24) 0px 12px 34px,
     rgba(0, 0, 0, 0.18) 0px 23px 52px;
+
+  /* 设计令牌：圆角 */
+  --nc-radius-xs: 4px;
+  --nc-radius-sm: 6px;
+  --nc-radius-md: 8px;
+  --nc-radius-lg: 12px;
+  --nc-radius-xl: 16px;
+  --nc-radius-full: 9999px;
+
+  /* 设计令牌：间距 */
+  --nc-space-1: 4px;
+  --nc-space-2: 8px;
+  --nc-space-3: 12px;
+  --nc-space-4: 16px;
+  --nc-space-5: 20px;
+  --nc-space-6: 24px;
+
+  /* 设计令牌：字号 */
+  --nc-text-title: 15px;
+  --nc-text-lg: 16px;
+  --nc-text-md: 14px;
+  --nc-text-sm: 13px;
+  --nc-text-xs: 12px;
+  --nc-text-2xs: 11px;
+
+  /* 设计令牌：弹层阴影与焦点环（暗色加深） */
+  --nc-shadow-dropdown:
+    rgba(0, 0, 0, 0.3) 0 -1px 0 0 inset,
+    rgba(0, 0, 0, 0.4) 0 4px 10px,
+    rgba(0, 0, 0, 0.35) 0 14px 34px;
+  --nc-shadow-pop: rgba(0, 0, 0, 0.4) 0 2px 8px;
+  --nc-focus-ring: 0 0 0 3px color-mix(in srgb, var(--nc-focus) 18%, transparent);
+
+  /* 设计令牌：层级 */
+  --nc-z-overlay-item: 10;
+  --nc-z-overlay-top: 20;
+  --nc-z-toolbar: 40;
+  --nc-z-floating: 50;
+  --nc-z-dropdown: 80;
+  --nc-z-tooltip: 90;
+  --nc-z-modal: 100;
+  --nc-z-modal-nested: 110;
+  --nc-z-context: 120;
+  --nc-z-toast: 130;
 }
 
 /* 基础样式 */
@@ -114,7 +210,7 @@ textarea {
 :focus-visible {
   outline: 2px solid var(--nc-focus);
   outline-offset: 2px;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--nc-focus) 18%, transparent);
+  box-shadow: var(--nc-focus-ring);
 }
 
 .nc-app-shell {
@@ -125,9 +221,11 @@ textarea {
 
 .nc-toolbar {
   height: 56px;
+  position: relative;
+  z-index: 60;
   background: color-mix(in srgb, var(--nc-paper) 94%, transparent);
   border-bottom: 1px solid var(--nc-border);
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.02);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--nc-text) 2%, transparent);
   backdrop-filter: blur(16px);
 }
 
@@ -144,13 +242,21 @@ textarea {
 .nc-panel {
   background: var(--nc-paper);
   border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-xl);
+  box-shadow: var(--nc-shadow-card);
+}
+
+.nc-panel-lg {
+  background: var(--nc-paper);
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-lg);
   box-shadow: var(--nc-shadow-card);
 }
 
 .nc-card {
   background: var(--nc-paper);
   border: 1px solid var(--nc-border);
-  border-radius: 12px;
+  border-radius: var(--nc-radius-lg);
   box-shadow: var(--nc-shadow-card);
 }
 
@@ -166,7 +272,7 @@ textarea {
 .nc-node-card {
   background: var(--nc-paper);
   border: 1px solid var(--nc-border);
-  border-radius: 12px;
+  border-radius: var(--nc-radius-lg);
   box-shadow: var(--nc-shadow-card);
   color: var(--nc-text);
   overflow: hidden;
@@ -237,7 +343,7 @@ textarea {
   border: 1px solid color-mix(in srgb, var(--nc-border) 78%, transparent);
   background: color-mix(in srgb, var(--nc-paper) 92%, transparent);
   color: var(--nc-muted);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--nc-text) 4%, transparent);
   padding: 7px 9px;
   transition: background-color 0.16s ease, border-color 0.16s ease;
 }
@@ -296,24 +402,24 @@ textarea {
 .nc-node-accent-blue { --nc-node-accent: var(--nc-blue); }
 .nc-node-accent-green { --nc-node-accent: var(--nc-success); }
 .nc-node-accent-orange { --nc-node-accent: var(--nc-warning); }
-.nc-node-accent-teal { --nc-node-accent: #2a9d99; }
-.nc-node-accent-purple { --nc-node-accent: #7b61a6; }
-.nc-node-accent-pink { --nc-node-accent: #c55d8a; }
-.nc-node-accent-lime { --nc-node-accent: #6f9d36; }
-.nc-node-accent-indigo { --nc-node-accent: #5b6aa8; }
-.nc-node-accent-cyan { --nc-node-accent: #2a9d99; }
-.nc-node-accent-emerald { --nc-node-accent: #1aae39; }
+.nc-node-accent-teal { --nc-node-accent: var(--nc-accent-teal); }
+.nc-node-accent-purple { --nc-node-accent: var(--nc-accent-purple); }
+.nc-node-accent-pink { --nc-node-accent: var(--nc-accent-pink); }
+.nc-node-accent-lime { --nc-node-accent: var(--nc-accent-lime); }
+.nc-node-accent-indigo { --nc-node-accent: var(--nc-accent-indigo); }
+.nc-node-accent-cyan { --nc-node-accent: var(--nc-accent-teal); }
+.nc-node-accent-emerald { --nc-node-accent: var(--nc-accent-emerald); }
 
 .nc-node-accent-blue .nc-node-header-icon { background: var(--nc-blue-soft); color: var(--nc-blue); }
 .nc-node-accent-green .nc-node-header-icon { background: color-mix(in srgb, var(--nc-success) 12%, var(--nc-paper)); color: var(--nc-success); }
 .nc-node-accent-orange .nc-node-header-icon { background: color-mix(in srgb, var(--nc-warning) 12%, var(--nc-paper)); color: var(--nc-warning); }
-.nc-node-accent-teal .nc-node-header-icon { background: color-mix(in srgb, #2a9d99 12%, var(--nc-paper)); color: #2a9d99; }
-.nc-node-accent-purple .nc-node-header-icon { background: color-mix(in srgb, #7b61a6 12%, var(--nc-paper)); color: #7b61a6; }
-.nc-node-accent-pink .nc-node-header-icon { background: color-mix(in srgb, #c55d8a 12%, var(--nc-paper)); color: #c55d8a; }
-.nc-node-accent-lime .nc-node-header-icon { background: color-mix(in srgb, #6f9d36 12%, var(--nc-paper)); color: #6f9d36; }
-.nc-node-accent-indigo .nc-node-header-icon { background: color-mix(in srgb, #5b6aa8 12%, var(--nc-paper)); color: #5b6aa8; }
-.nc-node-accent-cyan .nc-node-header-icon { background: color-mix(in srgb, #2a9d99 12%, var(--nc-paper)); color: #2a9d99; }
-.nc-node-accent-emerald .nc-node-header-icon { background: color-mix(in srgb, #1aae39 12%, var(--nc-paper)); color: #1aae39; }
+.nc-node-accent-teal .nc-node-header-icon { background: color-mix(in srgb, var(--nc-accent-teal) 12%, var(--nc-paper)); color: var(--nc-accent-teal); }
+.nc-node-accent-purple .nc-node-header-icon { background: color-mix(in srgb, var(--nc-accent-purple) 12%, var(--nc-paper)); color: var(--nc-accent-purple); }
+.nc-node-accent-pink .nc-node-header-icon { background: color-mix(in srgb, var(--nc-accent-pink) 12%, var(--nc-paper)); color: var(--nc-accent-pink); }
+.nc-node-accent-lime .nc-node-header-icon { background: color-mix(in srgb, var(--nc-accent-lime) 12%, var(--nc-paper)); color: var(--nc-accent-lime); }
+.nc-node-accent-indigo .nc-node-header-icon { background: color-mix(in srgb, var(--nc-accent-indigo) 12%, var(--nc-paper)); color: var(--nc-accent-indigo); }
+.nc-node-accent-cyan .nc-node-header-icon { background: color-mix(in srgb, var(--nc-accent-teal) 12%, var(--nc-paper)); color: var(--nc-accent-teal); }
+.nc-node-accent-emerald .nc-node-header-icon { background: color-mix(in srgb, var(--nc-accent-emerald) 12%, var(--nc-paper)); color: var(--nc-accent-emerald); }
 
 .nc-badge {
   display: inline-flex;
@@ -325,7 +431,7 @@ textarea {
   background: var(--nc-blue-soft);
   color: var(--nc-blue);
   border: 1px solid color-mix(in srgb, var(--nc-blue) 16%, transparent);
-  font-size: 12px;
+  font-size: var(--nc-text-xs);
   font-weight: 600;
   line-height: 1.2;
   letter-spacing: 0;
@@ -341,9 +447,16 @@ textarea {
 
 .nc-section-title {
   color: var(--nc-text);
-  font-size: 14px;
+  font-size: var(--nc-text-md);
   font-weight: 700;
   line-height: 1.3;
+}
+
+.nc-section-title-sm {
+  color: var(--nc-muted);
+  font-size: var(--nc-text-2xs);
+  font-weight: 500;
+  line-height: 1.4;
 }
 
 .nc-list-item {
@@ -393,8 +506,13 @@ textarea {
 .nc-image-node-chip-warning,
 .nc-image-node-chip-neutral,
 .nc-image-node-chip-muted {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   max-width: 252px;
   min-height: 24px;
+  padding: 4px 8px;
+  border-radius: var(--nc-radius-sm);
 }
 
 .nc-image-node-chip-primary {
@@ -476,29 +594,40 @@ textarea {
   font-weight: 500;
 }
 
-.nc-image-status-panel {
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--nc-paper-warm) 76%, var(--nc-paper));
-  border: 1px solid color-mix(in srgb, var(--nc-border) 76%, transparent);
-  padding: 10px 12px;
-}
-
-.nc-image-prompt-preview-chip {
-  display: block;
+.nc-image-prompt-source-chip {
+  display: inline-flex;
   min-width: 0;
   max-width: 252px;
+  min-height: 24px;
+  align-items: center;
+  overflow: hidden;
   border-radius: 6px;
-  border: 1px solid color-mix(in srgb, var(--nc-border) 80%, transparent);
+  border: 1px solid color-mix(in srgb, var(--nc-border) 78%, transparent);
   background: var(--nc-paper-warm);
   color: var(--nc-text-soft);
-  padding: 4px 8px;
-  white-space: pre-wrap;
-  word-break: break-word;
+  padding: 5px 8px;
   font-size: 12px;
-  line-height: 16px;
+  font-weight: 500;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.nc-image-prompt-preview-empty {
+.nc-image-prompt-source-chip-accent {
+  border-color: color-mix(in srgb, var(--nc-node-accent, var(--nc-blue)) 22%, transparent);
+  background: color-mix(in srgb, var(--nc-node-accent, var(--nc-blue)) 10%, var(--nc-paper));
+  color: color-mix(in srgb, var(--nc-node-accent, var(--nc-blue)) 78%, var(--nc-text));
+  font-weight: 600;
+}
+
+.nc-image-prompt-source-chip-warn {
+  border-color: color-mix(in srgb, var(--nc-warning) 20%, transparent);
+  background: color-mix(in srgb, var(--nc-warning) 9%, var(--nc-paper));
+  color: color-mix(in srgb, var(--nc-warning) 72%, var(--nc-text));
+  font-weight: 500;
+}
+
+.nc-image-prompt-source-chip-empty {
   color: var(--nc-muted);
 }
 
@@ -531,6 +660,7 @@ textarea {
 .nc-model-selector-trigger {
   position: relative;
   overflow: hidden;
+  border-radius: var(--nc-radius-md);
   transition:
     background-color 180ms ease,
     border-color 180ms ease,
@@ -563,10 +693,11 @@ textarea {
 
 .nc-model-selector-trigger:hover {
   border-color: color-mix(in srgb, var(--nc-model-accent) 28%, var(--nc-border));
-  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--nc-text) 6%, transparent);
 }
 
 .nc-model-selector-chevron-shell {
+  border-radius: var(--nc-radius-sm);
   transition:
     background-color 180ms ease,
     border-color 180ms ease,
@@ -581,12 +712,24 @@ textarea {
   color: var(--nc-model-accent);
 }
 
+.nc-model-selector-trigger-open .nc-model-selector-chevron-shell {
+  box-shadow: var(--nc-shadow-pop);
+}
+
 .nc-model-selector-chevron {
   transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* 画布节点内嵌 ModelSelector（modal 模式）：行首已有"模型:"标签，隐藏组件自带标签 */
+.nc-node-model-selector > label {
+  display: none;
+}
+
 .nc-model-selector-dropdown {
   transform-origin: top center;
+  border-radius: var(--nc-radius-md);
+  box-shadow: var(--nc-shadow-dropdown);
+  z-index: var(--nc-z-dropdown);
   animation: nc-model-dropdown-in 180ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
@@ -634,6 +777,7 @@ textarea {
 .nc-model-selector-option {
   position: relative;
   overflow: hidden;
+  border-radius: var(--nc-radius-md);
   animation: nc-model-option-in 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
   animation-delay: var(--nc-model-option-delay);
   transition:
@@ -663,6 +807,7 @@ textarea {
 .nc-model-selector-option:hover {
   border-color: color-mix(in srgb, var(--nc-model-accent) 18%, var(--nc-border));
   background: color-mix(in srgb, var(--nc-model-accent) 7%, var(--nc-paper));
+  box-shadow: var(--nc-shadow-pop);
 }
 
 .nc-model-selector-option:hover::before,
@@ -674,6 +819,24 @@ textarea {
 .nc-model-selector-option-selected {
   background: color-mix(in srgb, var(--nc-model-accent) 12%, var(--nc-paper));
   border-color: color-mix(in srgb, var(--nc-model-accent) 25%, transparent);
+  box-shadow: var(--nc-shadow-pop);
+}
+
+/* 共享下拉面板：层级走 dropdown 档位，阴影走 dropdown 阴影令牌 */
+.nc-select-dropdown {
+  z-index: var(--nc-z-dropdown);
+  border-radius: var(--nc-radius-md);
+  box-shadow: var(--nc-shadow-dropdown);
+}
+
+/* 触发器打开态：焦点环令牌 + 强调色边框（ModelSelector 内按变体强调色着色） */
+.nc-select-open {
+  border-color: color-mix(in srgb, var(--nc-model-accent, var(--nc-focus)) 45%, var(--nc-border));
+  box-shadow: var(--nc-focus-ring);
+}
+
+.nc-model-selector .nc-select-open {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--nc-model-accent, var(--nc-focus)) 12%, transparent);
 }
 
 .nc-model-selector-add-option:hover {
@@ -795,6 +958,494 @@ textarea {
   border: 1px solid color-mix(in srgb, var(--nc-warning) 18%, transparent);
 }
 
+/* ===== 共享组件类（设计系统统一，供 ui/ 与面板复用） ===== */
+
+/* ---- Modal ---- */
+/* 遮罩：布局 + 层级由类提供；背景色用 -open/-deep 状态类切换（配合 transition 淡入淡出），
+   沉浸式查看器（deep）改为整体 opacity 过渡 */
+.nc-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--nc-z-modal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: transparent;
+  transition: opacity 200ms ease-out, background-color 200ms ease-out;
+}
+
+.nc-modal-backdrop-open {
+  background-color: rgba(0, 0, 0, 0.6);
+}
+
+/* 图片查看/蒙版编辑等沉浸式弹窗：更深的遮罩 */
+.nc-modal-backdrop-deep {
+  background-color: rgba(0, 0, 0, 0.8);
+}
+
+/* 嵌套弹窗（弹窗中的弹窗） */
+.nc-modal-backdrop-nested {
+  z-index: var(--nc-z-modal-nested);
+}
+
+.nc-modal {
+  position: relative;
+  background: var(--nc-paper);
+  border: 1px solid var(--nc-border);
+  border-radius: var(--nc-radius-xl);
+  box-shadow: var(--nc-shadow-deep);
+  color: var(--nc-text);
+  overflow: hidden;
+}
+
+.nc-modal-sm {
+  width: 100%;
+  max-width: 384px;
+}
+
+.nc-modal-md {
+  width: 100%;
+  max-width: 512px;
+}
+
+.nc-modal-lg {
+  width: 650px;
+  max-width: 100%;
+}
+
+.nc-modal-xl {
+  width: 100%;
+  max-width: 700px;
+}
+
+.nc-modal-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--nc-space-4);
+  padding: 14px var(--nc-space-5);
+  border-bottom: 1px solid var(--nc-border);
+  flex-shrink: 0;
+}
+
+.nc-modal-title {
+  font-size: var(--nc-text-title);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--nc-text);
+}
+
+.nc-modal-subtitle {
+  margin-top: 2px;
+  font-size: var(--nc-text-xs);
+  line-height: 1.4;
+  color: var(--nc-muted);
+}
+
+.nc-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--nc-space-5);
+}
+
+.nc-modal-body-sm {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--nc-space-4);
+}
+
+.nc-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--nc-space-2);
+  padding: var(--nc-space-3) var(--nc-space-5);
+  border-top: 1px solid var(--nc-border);
+  background: color-mix(in srgb, var(--nc-paper-warm) 50%, transparent);
+  flex-shrink: 0;
+}
+
+.nc-modal-footer-center {
+  justify-content: center;
+}
+
+.nc-modal-footer-hint {
+  margin-right: auto;
+  font-size: var(--nc-text-xs);
+  color: var(--nc-muted);
+}
+
+/* ---- 图标按钮 ---- */
+.nc-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: var(--nc-radius-md);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--nc-muted);
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease, opacity 150ms ease;
+}
+
+.nc-icon-btn:hover {
+  background: var(--nc-paper-warm);
+  color: var(--nc-text);
+}
+
+.nc-icon-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.nc-icon-btn-xs {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--nc-radius-sm);
+}
+
+.nc-icon-btn-danger:hover {
+  background: color-mix(in srgb, var(--nc-error) 15%, transparent);
+  color: var(--nc-error);
+}
+
+.nc-icon-btn-active {
+  background: var(--nc-blue-soft);
+  color: var(--nc-blue);
+}
+
+.nc-icon-btn-raised {
+  box-shadow: var(--nc-shadow-pop);
+}
+
+/* 图片查看器工具栏按钮（深色遮罩上使用） */
+.nc-icon-btn-viewer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: var(--nc-radius-md);
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  backdrop-filter: blur(4px);
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease, opacity 150ms ease;
+}
+
+.nc-icon-btn-viewer:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.nc-icon-btn-viewer:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+/* ---- 标签 Chip ---- */
+.nc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--nc-radius-full);
+  border: 1px solid color-mix(in srgb, var(--nc-border-strong) 80%, transparent);
+  background: var(--nc-paper-warm);
+  color: var(--nc-text-soft);
+  font-size: var(--nc-text-xs);
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.nc-chip-neutral {
+  background: var(--nc-paper-warm);
+  border-color: color-mix(in srgb, var(--nc-border) 80%, transparent);
+  color: var(--nc-muted);
+}
+
+.nc-chip-accent {
+  background: var(--nc-blue-soft);
+  border-color: color-mix(in srgb, var(--nc-blue) 20%, transparent);
+  color: var(--nc-blue);
+}
+
+.nc-chip-info {
+  background: var(--nc-blue-soft);
+  border-color: color-mix(in srgb, var(--nc-blue) 20%, transparent);
+  color: var(--nc-blue);
+}
+
+.nc-chip-success {
+  background: color-mix(in srgb, var(--nc-success) 10%, var(--nc-paper));
+  border-color: color-mix(in srgb, var(--nc-success) 22%, transparent);
+  color: color-mix(in srgb, var(--nc-success) 80%, var(--nc-text));
+}
+
+.nc-chip-warning {
+  background: color-mix(in srgb, var(--nc-warning) 10%, var(--nc-paper));
+  border-color: color-mix(in srgb, var(--nc-warning) 22%, transparent);
+  color: color-mix(in srgb, var(--nc-warning) 82%, var(--nc-text));
+}
+
+.nc-chip-error {
+  background: color-mix(in srgb, var(--nc-error) 10%, var(--nc-paper));
+  border-color: color-mix(in srgb, var(--nc-error) 22%, transparent);
+  color: var(--nc-error);
+}
+
+/* 实心标签（存储类型等强对比场景） */
+.nc-chip-solid {
+  background: var(--nc-blue);
+  border-color: transparent;
+  color: #ffffff;
+}
+
+.nc-chip-success-solid {
+  background: var(--nc-success);
+  border-color: transparent;
+  color: #ffffff;
+}
+
+.nc-chip-lg {
+  padding: 4px 10px;
+  border-radius: var(--nc-radius-md);
+}
+
+/* ---- 标题 / 表单 ---- */
+.nc-field-label {
+  display: block;
+  margin-bottom: var(--nc-space-1);
+  font-size: var(--nc-text-xs);
+  font-weight: 500;
+  color: var(--nc-muted);
+}
+
+.nc-node-title {
+  font-size: var(--nc-text-title);
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--nc-text);
+}
+
+/* ---- 空状态 / 分隔线 / 软面板 ---- */
+.nc-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--nc-space-2);
+  padding: var(--nc-space-6) var(--nc-space-4);
+  text-align: center;
+  color: var(--nc-muted);
+}
+
+.nc-empty-state-title {
+  font-size: var(--nc-text-sm);
+  font-weight: 500;
+  color: var(--nc-text-soft);
+}
+
+.nc-empty-state-hint {
+  font-size: var(--nc-text-xs);
+  color: var(--nc-subtle);
+}
+
+.nc-divider {
+  border: 0;
+  border-top: 1px solid var(--nc-border);
+  margin: var(--nc-space-4) 0;
+}
+
+.nc-divider-compact {
+  margin: var(--nc-space-2) 0;
+}
+
+.nc-divider-v {
+  width: 1px;
+  align-self: stretch;
+  border: 0;
+  border-left: 1px solid var(--nc-border);
+  margin: var(--nc-space-1) var(--nc-space-2);
+}
+
+.nc-soft-panel {
+  background: var(--nc-paper-warm);
+  border: 1px solid color-mix(in srgb, var(--nc-border) 76%, transparent);
+  border-radius: var(--nc-radius-lg);
+  padding: var(--nc-space-3);
+}
+
+/* ---- 统计卡片 ---- */
+.nc-stat {
+  background: var(--nc-paper-warm);
+  border-radius: var(--nc-radius-lg);
+  padding: var(--nc-space-3);
+}
+
+.nc-stat-label {
+  display: flex;
+  align-items: center;
+  gap: var(--nc-space-2);
+  margin-bottom: var(--nc-space-1);
+  font-size: var(--nc-text-xs);
+  color: var(--nc-muted);
+}
+
+.nc-stat-value {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--nc-text);
+}
+
+/* ---- 键盘按键 ---- */
+.nc-kbd {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: var(--nc-radius-sm);
+  border: 1px solid var(--nc-border);
+  border-bottom-width: 2px;
+  background: var(--nc-paper-warm);
+  color: var(--nc-muted);
+  font-size: var(--nc-text-2xs);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* ---- 分段控件 ---- */
+.nc-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--nc-radius-md);
+  border: 1px solid var(--nc-border);
+  background: var(--nc-paper-warm);
+}
+
+.nc-seg-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 0;
+  border-radius: var(--nc-radius-sm);
+  background: transparent;
+  color: var(--nc-muted);
+  font-size: var(--nc-text-xs);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.nc-seg-btn:hover {
+  color: var(--nc-text);
+}
+
+.nc-seg-btn-active {
+  background: var(--nc-paper);
+  color: var(--nc-text);
+  box-shadow: var(--nc-shadow-pop);
+}
+
+.nc-seg-btn-warning.nc-seg-btn-active {
+  background: color-mix(in srgb, var(--nc-warning) 12%, var(--nc-paper));
+  color: var(--nc-warning);
+}
+
+.nc-seg-btn-info.nc-seg-btn-active {
+  background: color-mix(in srgb, var(--nc-blue) 12%, var(--nc-paper));
+  color: var(--nc-blue);
+}
+
+.nc-seg-btn-xs {
+  padding: 2px 8px;
+  font-size: var(--nc-text-2xs);
+}
+
+/* ---- 提示 / 工具栏 / 节点行 ---- */
+.nc-overlay-hint {
+  position: absolute;
+  left: 50%;
+  bottom: var(--nc-space-4);
+  transform: translateX(-50%);
+  z-index: var(--nc-z-overlay-top);
+  font-size: var(--nc-text-sm);
+  color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.nc-toolbar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px;
+  border-radius: var(--nc-radius-md);
+  border: 1px solid color-mix(in srgb, var(--nc-border) 70%, transparent);
+  background: color-mix(in srgb, var(--nc-paper) 80%, transparent);
+}
+
+.nc-node-row {
+  display: flex;
+  align-items: center;
+  gap: var(--nc-space-2);
+  min-width: 0;
+}
+
+.nc-node-row-label {
+  flex-shrink: 0;
+  font-size: var(--nc-text-xs);
+  color: var(--nc-muted);
+}
+
+/* ---- 步进按钮 ---- */
+.nc-stepper-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: var(--nc-radius-sm);
+  border: 1px solid var(--nc-border);
+  background: var(--nc-paper);
+  color: var(--nc-muted);
+  cursor: pointer;
+  transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
+}
+
+.nc-stepper-btn:hover {
+  background: var(--nc-paper-warm);
+  color: var(--nc-text);
+}
+
+.nc-stepper-btn-active {
+  background: var(--nc-blue-soft);
+  border-color: color-mix(in srgb, var(--nc-blue) 24%, transparent);
+  color: var(--nc-blue);
+}
+
+/* ---- Toast ---- */
+.nc-toast {
+  box-shadow: var(--nc-shadow-deep);
+}
+
+.nc-toast-enter {
+  animation: fadeIn 0.2s ease-out;
+}
+
 /* React Flow 自定义样式 */
 
 .react-flow__node {
@@ -889,7 +1540,7 @@ textarea {
   background: var(--nc-paper) !important;
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--nc-muted) 58%, transparent),
-    0 2px 8px rgba(15, 23, 42, 0.12) !important;
+    var(--nc-shadow-pop) !important;
 }
 
 .canvas-node-minimal-handle-input {
@@ -1013,21 +1664,7 @@ textarea {
   to { opacity: 1; }
 }
 
-.animate-fade-in {
-  animation: fadeIn 0.2s ease-out;
-}
-
-/* Modal 弹窗动画 - 避免 scale 导致模糊 */
-@keyframes modalBackdropIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes modalBackdropOut {
-  from { opacity: 1; }
-  to { opacity: 0; }
-}
-
+/* Modal 内容入场（PromptEditorModal 未保存确认框使用） */
 @keyframes modalContentIn {
   from {
     opacity: 0;
@@ -1037,65 +1674,14 @@ textarea {
   }
 }
 
-@keyframes modalContentOut {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
-
-/* Modal 遮罩动画类 */
-.modal-backdrop-enter {
-  animation: modalBackdropIn 0.2s ease-out forwards;
-}
-
-.modal-backdrop-exit {
-  animation: modalBackdropOut 0.15s ease-in forwards;
-}
-
-/* Modal 内容动画类 */
 .modal-content-enter {
   animation: modalContentIn 0.2s ease-out forwards;
-}
-
-.modal-content-exit {
-  animation: modalContentOut 0.15s ease-in forwards;
-}
-
-/* 弹出动画 - 避免 scale 导致模糊 */
-@keyframes scaleIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-.animate-scale-in {
-  animation: scaleIn 0.15s ease-out forwards;
-}
-
-/* 滑入动画 - 避免 transform 导致模糊 */
-@keyframes slideInUp {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-.animate-slide-in-up {
-  animation: slideInUp 0.25s ease-out forwards;
 }
 
 /* 按钮点击效果 - 避免 scale 导致模糊 */
 .btn {
   @apply relative overflow-hidden;
-  border-radius: 4px;
+  border-radius: var(--nc-radius-xs);
   font-weight: 600;
   letter-spacing: 0;
   box-shadow: none;
@@ -1128,7 +1714,7 @@ textarea {
 
 .btn-circle,
 .btn-square {
-  border-radius: 8px;
+  border-radius: var(--nc-radius-md);
 }
 
 .divider::before,
@@ -1148,6 +1734,19 @@ textarea {
   color: var(--nc-blue);
 }
 
+/* 键盘按键统一为纸面暖色 + 细边 */
+.kbd {
+  border-radius: var(--nc-radius-sm);
+  background: var(--nc-paper-warm);
+  border: 1px solid var(--nc-border);
+  border-bottom-width: 2px;
+}
+
+/* Toast 视口层级走 toast 档位 */
+.toast {
+  z-index: var(--nc-z-toast);
+}
+
 .tooltip::before {
   border-radius: 6px;
   background: var(--nc-text);
@@ -1155,13 +1754,9 @@ textarea {
   font-weight: 500;
 }
 
-/* 卡片悬停效果 - 避免 translate 导致模糊 */
-.card-hover {
-  @apply transition-all duration-200;
-}
-
-.card-hover:hover {
-  box-shadow: var(--nc-shadow-deep);
+/* 防止工具提示气泡被相邻层叠上下文遮挡 */
+.tooltip[data-tip]:before {
+  z-index: var(--nc-z-tooltip);
 }
 
 .shadow-lg,
@@ -1170,38 +1765,13 @@ textarea {
   box-shadow: var(--nc-shadow-card) !important;
 }
 
-/* 标签页内容切换动画 - 避免 transform 导致模糊 */
-@keyframes tabContentIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-.animate-tab-content {
-  animation: tabContentIn 0.2s ease-out forwards;
-}
-
-/* 图片预览样式 */
-.image-preview {
-  @apply relative overflow-hidden rounded-lg;
-  background: var(--nc-paper-warm);
-  border: 1px solid var(--nc-border);
-}
-
-.image-preview img {
-  @apply w-full h-full object-cover;
-}
-
 /* 输入框统一样式优化 */
 .input,
 .select,
 .textarea {
   background: var(--nc-paper);
   border-color: var(--nc-border);
-  border-radius: 4px;
+  border-radius: var(--nc-radius-xs);
   color: var(--nc-text);
   transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
@@ -1212,7 +1782,7 @@ textarea {
   background: var(--nc-paper);
   border-color: var(--nc-focus);
   outline: none;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--nc-focus) 16%, transparent);
+  box-shadow: var(--nc-focus-ring);
 }
 
 .input::placeholder {
@@ -1269,6 +1839,11 @@ textarea {
   background-position: right 0.5rem center;
   background-repeat: no-repeat;
   background-size: 1.25em 1.25em;
+}
+
+/* 暗色主题下箭头使用浅色描边（--nc-muted 的暗色值） */
+[data-theme="dark"] .select {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23b9b1aa' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
 }
 
 /* 下拉选项列表样式 */

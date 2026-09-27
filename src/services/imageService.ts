@@ -4,7 +4,7 @@ import { useSettingsStore } from "@/stores/settingsStore";
 import { extractBase64ImageFromText, normalizeImageInput } from "@/services/imageDataUtils";
 
 // 图片节点类型
-type ImageNodeType = "imageGeneratorPro" | "imageGeneratorFast" | "imageGeneratorNB2";
+type ImageNodeType = "imageGeneratorNB2";
 
 // 获取供应商配置
 function getProviderConfig(nodeType: ImageNodeType) {

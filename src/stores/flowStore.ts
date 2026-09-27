@@ -26,12 +26,42 @@ import {
   isFileInputEdge,
   isImageInputEdge,
   isPromptInputEdge,
+  getImageSlotSortKey,
 } from "@/utils/connectionHandles";
 
 const IMAGE_OUTPUT_NODE_TYPES = new Set(["imageGeneratorNode"]);
 
 function isImageOutputNodeType(type: string | undefined): boolean {
   return !!type && IMAGE_OUTPUT_NODE_TYPES.has(type);
+}
+
+// 连线颜色：提示词=蓝、参考图=绿、文件=橙（与来源节点 handle 颜色一致），其余保持中性色
+const EDGE_COLOR_PROMPT = "#3b82f6"; // blue-500
+const EDGE_COLOR_IMAGE = "#22c55e"; // green-500
+const EDGE_COLOR_FILE = "#f97316"; // orange-500
+const EDGE_COLOR_DEFAULT = "var(--nc-subtle)";
+
+function getEdgeStrokeColor(
+  edge: Pick<Edge, "source" | "target" | "sourceHandle" | "targetHandle">,
+  nodes: Node[]
+): string {
+  const sourceNode = nodes.find((n) => n.id === edge.source);
+  if (!sourceNode) return EDGE_COLOR_DEFAULT;
+  const targetNode = nodes.find((n) => n.id === edge.target);
+  if (isPromptInputEdge(edge as Edge, sourceNode, targetNode)) return EDGE_COLOR_PROMPT;
+  if (isImageInputEdge(edge as Edge, sourceNode, targetNode)) return EDGE_COLOR_IMAGE;
+  if (isFileInputEdge(edge as Edge, sourceNode, targetNode)) return EDGE_COLOR_FILE;
+  return EDGE_COLOR_DEFAULT;
+}
+
+function withEdgeStroke<T extends Edge>(
+  edge: T,
+  nodes: Node[]
+): T {
+  return {
+    ...edge,
+    style: { ...edge.style, stroke: getEdgeStrokeColor(edge, nodes) },
+  };
 }
 
 // 历史记录状态（用于撤销/重做）
@@ -50,7 +80,7 @@ function createLightweightSnapshot(nodes: CustomNode[], edges: CustomEdge[]): Hi
     const { data } = node;
     // 检查是否有需要清除的大体积字段
     const hasHeavyData = 'imageData' in data || 'outputImage' in data
-      || 'maskImageData' in data || 'fileData' in data || 'videoData' in data;
+      || 'maskImageData' in data || 'fileData' in data;
     if (!hasHeavyData) return node;
 
     return {
@@ -61,7 +91,6 @@ function createLightweightSnapshot(nodes: CustomNode[], edges: CustomEdge[]): Hi
         outputImage: undefined,
         maskImageData: undefined,
         fileData: undefined,
-        videoData: undefined,
       },
     };
   }) as CustomNode[];
@@ -89,6 +118,10 @@ interface FlowStore {
   onNodesChange: OnNodesChange<CustomNode>;
   onEdgesChange: OnEdgesChange;
   onConnect: OnConnect;
+  // 拖拽改接连线：以新连接替换旧连线的端点；校验失败时弹 toast 并返回 false
+  reconnectEdge: (oldEdge: CustomEdge, connection: Connection) => boolean;
+  // 拖拽改接过程中的预览校验（排除被改接的边本身，避免循环/占用误判）
+  isReconnectionValid: (oldEdge: CustomEdge, connection: Connection | Edge) => boolean;
   addNode: (type: string, position: { x: number; y: number }, data: CustomNodeData) => string;
   addPromptTemplate: (
     position: { x: number; y: number },
@@ -259,9 +292,66 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
       updatedEdges = edges.filter((e) => e.id !== validationResult.existingEdge!.id);
     }
 
+    // 按连线类型着色（提示词=蓝 / 参考图=绿 / 文件=橙）
     set({
-      edges: addEdge(connection, updatedEdges),
+      edges: addEdge(withEdgeStroke(connection as CustomEdge, nodes), updatedEdges),
     });
+  },
+
+  reconnectEdge: (oldEdge, connection) => {
+    const { nodes, edges } = get();
+
+    const nextConnection: Connection = {
+      source: connection.source,
+      target: connection.target,
+      sourceHandle: connection.sourceHandle ?? null,
+      targetHandle: connection.targetHandle ?? null,
+    };
+    const nextEdge: CustomEdge = {
+      ...oldEdge,
+      ...nextConnection,
+    };
+
+    // 原样放回（端点未变化）时不做任何处理，避免产生无意义的撤销记录
+    const unchanged =
+      nextConnection.source === oldEdge.source &&
+      nextConnection.target === oldEdge.target &&
+      nextConnection.sourceHandle === (oldEdge.sourceHandle ?? null) &&
+      nextConnection.targetHandle === (oldEdge.targetHandle ?? null);
+    if (unchanged) {
+      return true;
+    }
+
+    // 校验时排除被改接的边本身，避免把“原样放回”或经由自身的路径误判为循环/重复/占用
+    const remainingEdges = edges.filter((e) => e.id !== oldEdge.id);
+    const validationResult = validateConnection(nextConnection, nodes, remainingEdges);
+
+    if (!validationResult.isValid) {
+      toast.error(`无法改接连线：${validationResult.reason ?? "连接无效"}`);
+      return false;
+    }
+
+    get().saveToHistory();
+
+    const restyledEdge = withEdgeStroke(nextEdge, nodes);
+    // 注意：必须在完整 edges 列表上替换（remainingEdges 已排除旧边，
+    // 在其上 map 永远匹配不到旧边 id，会把改接变成静默删除）
+    set({
+      edges: edges.map((e) => (e.id === oldEdge.id ? restyledEdge : e)),
+    });
+    return true;
+  },
+
+  isReconnectionValid: (oldEdge, connection) => {
+    const { nodes, edges } = get();
+    const remainingEdges = edges.filter((e) => e.id !== oldEdge.id);
+    const candidate: Connection = {
+      source: connection.source,
+      target: connection.target,
+      sourceHandle: connection.sourceHandle ?? null,
+      targetHandle: connection.targetHandle ?? null,
+    };
+    return validateConnection(candidate, nodes, remainingEdges).isValid;
   },
 
   addNode: (type, position, data) => {
@@ -343,30 +433,40 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
       } as CustomNodeData,
     });
 
-    // 4. 创建连接
+    // 4. 创建连接（新连接统一使用 typed handle：提示词 / 参考图槽位）
     // 提示词 -> 生成器
-    newEdges.push({
-      id: uuidv4(),
-      source: promptNodeId,
-      target: generatorNodeId,
-      sourceHandle: "output-prompt",
-      targetHandle: "input",
-      type: "smoothstep",
-      animated: true,
-    });
+    newEdges.push(
+      withEdgeStroke(
+        {
+          id: uuidv4(),
+          source: promptNodeId,
+          target: generatorNodeId,
+          sourceHandle: "output-prompt",
+          targetHandle: "input-prompt",
+          type: "smoothstep",
+          animated: true,
+        },
+        newNodes
+      )
+    );
 
-    // 如果有图片输入，连接到生成器
+    // 如果有图片输入，连接到生成器的第一个空闲参考图槽位
     if (template.requiresImageInput && nodeIds.length >= 3) {
       const imageInputId = nodeIds[0];
-      newEdges.push({
-        id: uuidv4(),
-        source: imageInputId,
-        target: generatorNodeId,
-        sourceHandle: "output-image",
-        targetHandle: "input",
-        type: "smoothstep",
-        animated: true,
-      });
+      newEdges.push(
+        withEdgeStroke(
+          {
+            id: uuidv4(),
+            source: imageInputId,
+            target: generatorNodeId,
+            sourceHandle: "output-image",
+            targetHandle: "input-image-0",
+            type: "smoothstep",
+            animated: true,
+          },
+          newNodes
+        )
+      );
     }
 
     // 5. 更新状态
@@ -906,7 +1006,10 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
 
   getConnectedInputData: (nodeId) => {
     const { nodes, edges } = get();
-    const incomingEdges = edges.filter((edge) => edge.target === nodeId);
+    // 按参考图槽位编号稳定排序，保证多图输入顺序稳定（非图片连线相对顺序不变）
+    const incomingEdges = edges
+      .filter((edge) => edge.target === nodeId)
+      .sort((a, b) => getImageSlotSortKey(a) - getImageSlotSortKey(b));
 
     // 支持多个 prompt 输入，收集后拼接
     const prompts: string[] = [];
@@ -1002,7 +1105,10 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
   // 获取连接的节点数据 - 异步版本，从文件按需加载图片数据
   getConnectedInputDataAsync: async (nodeId) => {
     const { nodes, edges } = get();
-    const incomingEdges = edges.filter((edge) => edge.target === nodeId);
+    // 按参考图槽位编号稳定排序，保证多图输入顺序稳定（非图片连线相对顺序不变）
+    const incomingEdges = edges
+      .filter((edge) => edge.target === nodeId)
+      .sort((a, b) => getImageSlotSortKey(a) - getImageSlotSortKey(b));
 
     // 支持多个 prompt 输入，收集后拼接
     const prompts: string[] = [];
@@ -1154,7 +1260,10 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
   // 获取连接的图片详细信息（包含 ID、文件名、路径）- 同步版本，用于检测连接状态
   getConnectedImagesWithInfo: (nodeId) => {
     const { nodes, edges } = get();
-    const incomingEdges = edges.filter((edge) => edge.target === nodeId);
+    // 按参考图槽位编号稳定排序，保证多图输入顺序稳定（非图片连线相对顺序不变）
+    const incomingEdges = edges
+      .filter((edge) => edge.target === nodeId)
+      .sort((a, b) => getImageSlotSortKey(a) - getImageSlotSortKey(b));
 
     const images: Array<{ id: string; fileName?: string; imageData: string; imagePath?: string; hasMask?: boolean }> = [];
 
@@ -1198,7 +1307,10 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
   // 获取连接的图片详细信息 - 异步版本，从文件按需加载图片数据
   getConnectedImagesWithInfoAsync: async (nodeId) => {
     const { nodes, edges } = get();
-    const incomingEdges = edges.filter((edge) => edge.target === nodeId);
+    // 按参考图槽位编号稳定排序，保证多图输入顺序稳定（非图片连线相对顺序不变）
+    const incomingEdges = edges
+      .filter((edge) => edge.target === nodeId)
+      .sort((a, b) => getImageSlotSortKey(a) - getImageSlotSortKey(b));
 
     const images: Array<{
       id: string;
@@ -1295,7 +1407,10 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
   // 获取连接的文件详细信息（包含 ID、文件名、MIME类型）
   getConnectedFilesWithInfo: (nodeId) => {
     const { nodes, edges } = get();
-    const incomingEdges = edges.filter((edge) => edge.target === nodeId);
+    // 按参考图槽位编号稳定排序，保证多图输入顺序稳定（非图片连线相对顺序不变）
+    const incomingEdges = edges
+      .filter((edge) => edge.target === nodeId)
+      .sort((a, b) => getImageSlotSortKey(a) - getImageSlotSortKey(b));
 
     const files: Array<{ id: string; fileName?: string; mimeType?: string; fileData: string }> = [];
 
@@ -1327,7 +1442,10 @@ export const useFlowStore = create<FlowStore>((set, get) => ({
   // 检测空输入连接：返回连接了但数据为空的输入类型
   getEmptyConnectedInputs: (nodeId) => {
     const { nodes, edges } = get();
-    const incomingEdges = edges.filter((edge) => edge.target === nodeId);
+    // 按参考图槽位编号稳定排序，保证多图输入顺序稳定（非图片连线相对顺序不变）
+    const incomingEdges = edges
+      .filter((edge) => edge.target === nodeId)
+      .sort((a, b) => getImageSlotSortKey(a) - getImageSlotSortKey(b));
 
     const emptyImages: Array<{ id: string; label: string }> = [];
     const emptyFiles: Array<{ id: string; label: string }> = [];

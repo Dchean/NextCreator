@@ -2,19 +2,18 @@ import { useState, useCallback, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
   X,
-  Download,
-  ZoomIn,
-  ZoomOut,
   Copy,
   Check,
   Image as ImageIcon,
   FileText,
   Calendar,
   HardDrive,
-  Loader2,
   ChevronDown,
   ChevronUp,
+  ZoomIn,
 } from "lucide-react";
+import { useModal } from "@/hooks/useModal";
+import { ImageViewerToolbar } from "@/components/ui/ImageViewerToolbar";
 import {
   getImageUrl,
   readImage,
@@ -30,8 +29,6 @@ interface ImageDetailModalProps {
 
 export function ImageDetailModal({ imageInfo, onClose }: ImageDetailModalProps) {
   const [scale, setScale] = useState(1);
-  const [isVisible, setIsVisible] = useState(false);
-  const [isClosing, setIsClosing] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showDetails, setShowDetails] = useState(true);
@@ -40,10 +37,27 @@ export function ImageDetailModal({ imageInfo, onClose }: ImageDetailModalProps) 
   } | null>(null);
   const [imageLoadError, setImageLoadError] = useState(false);  // 新增：图片加载失败状态
 
-  // 进入动画
+  // 统一 Modal 交互（背景点击、过渡动画；ESC 由下方自定义处理：先关闭嵌套预览）
+  const { isVisible, isClosing, handleClose } = useModal({
+    isOpen: true,
+    onClose,
+    enableEscClose: false,
+  });
+
+  // ESC 键关闭：嵌套的输入图片预览打开时优先关闭它
   useEffect(() => {
-    requestAnimationFrame(() => setIsVisible(true));
-  }, []);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (previewInputImage) {
+          setPreviewInputImage(null);
+        } else {
+          handleClose();
+        }
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [handleClose, previewInputImage]);
 
   // 获取图片 URL
   const imageUrl = useMemo(() => {
@@ -54,14 +68,7 @@ export function ImageDetailModal({ imageInfo, onClose }: ImageDetailModalProps) 
   const metadata = imageInfo.metadata;
   const hasMetadata = Boolean(metadata?.prompt || (metadata?.input_images && metadata.input_images.length > 0));
 
-  // 关闭时先播放退出动画
-  const handleClose = useCallback(() => {
-    setIsClosing(true);
-    setIsVisible(false);
-    setTimeout(onClose, 200);
-  }, [onClose]);
-
-  // 处理背景点击
+  // 处理背景点击（阻止冒泡避免触发父级 Modal）
   const handleBackgroundClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -123,27 +130,12 @@ export function ImageDetailModal({ imageInfo, onClose }: ImageDetailModalProps) 
   const handleZoomIn = () => setScale((s) => Math.min(s + 0.25, 3));
   const handleZoomOut = () => setScale((s) => Math.max(s - 0.25, 0.5));
 
-  // ESC 键关闭
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        if (previewInputImage) {
-          setPreviewInputImage(null);
-        } else {
-          handleClose();
-        }
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [handleClose, previewInputImage]);
-
   return createPortal(
     <div
       className={`
-        fixed inset-0 z-[9999] flex items-center justify-center
+        nc-modal-backdrop nc-modal-backdrop-deep
         transition-all duration-200 ease-out
-        ${isVisible && !isClosing ? "bg-black/80" : "bg-black/0"}
+        ${isVisible && !isClosing ? "opacity-100" : "opacity-0"}
       `}
       onClick={handleBackgroundClick}
     >
@@ -158,46 +150,18 @@ export function ImageDetailModal({ imageInfo, onClose }: ImageDetailModalProps) 
       >
         {/* 工具栏 */}
         <div className="absolute -top-12 right-0 flex items-center gap-2 z-10">
-          <button
-            className="btn btn-circle btn-sm bg-base-100/90 hover:bg-base-100 border-0"
-            onClick={handleZoomOut}
-          >
-            <ZoomOut className="w-4 h-4" />
-          </button>
-          <span className="text-white text-sm min-w-[60px] text-center">
-            {Math.round(scale * 100)}%
-          </span>
-          <button
-            className="btn btn-circle btn-sm bg-base-100/90 hover:bg-base-100 border-0"
-            onClick={handleZoomIn}
-          >
-            <ZoomIn className="w-4 h-4" />
-          </button>
-          <div className="w-px h-6 bg-white/20 mx-1" />
-          <button
-            className={`btn btn-circle btn-sm bg-base-100/90 hover:bg-base-100 border-0 ${
-              isDownloading ? "btn-disabled" : ""
-            }`}
-            onClick={handleDownload}
-            disabled={isDownloading}
-            title="下载图片"
-          >
-            {isDownloading ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Download className="w-4 h-4" />
-            )}
-          </button>
-          <button
-            className="btn btn-circle btn-sm bg-base-100/90 hover:bg-base-100 border-0"
-            onClick={handleClose}
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <ImageViewerToolbar
+            scale={scale}
+            isDownloading={isDownloading}
+            onZoomIn={handleZoomIn}
+            onZoomOut={handleZoomOut}
+            onDownload={() => void handleDownload()}
+            onClose={handleClose}
+          />
         </div>
 
         {/* 图片预览 */}
-        <div className="overflow-auto rounded-t-xl bg-base-300/50">
+        <div className="overflow-auto rounded-t-[var(--nc-radius-lg)] bg-base-300/50">
           {imageLoadError ? (
             <div className="flex flex-col items-center justify-center min-h-[40vh] p-8 text-base-content/60">
               <ImageIcon className="w-16 h-16 mb-4 opacity-30" />
@@ -216,7 +180,7 @@ export function ImageDetailModal({ imageInfo, onClose }: ImageDetailModalProps) 
         </div>
 
         {/* 详情面板 */}
-        <div className="bg-base-100 rounded-b-xl overflow-hidden">
+        <div className="bg-base-100 rounded-b-[var(--nc-radius-lg)] overflow-hidden">
           {/* 详情头部（可折叠） */}
           <button
             className="w-full flex items-center justify-between px-4 py-3 hover:bg-base-200 transition-colors"
@@ -310,7 +274,7 @@ export function ImageDetailModal({ imageInfo, onClose }: ImageDetailModalProps) 
                       <div key={index} className="relative">
                         {img.path ? (
                           <button
-                            className="w-16 h-16 rounded-lg overflow-hidden bg-base-300 hover:ring-2 hover:ring-primary transition-all group"
+                            className="w-16 h-16 rounded-[var(--nc-radius-md)] overflow-hidden bg-base-300 hover:ring-2 hover:ring-primary transition-all group"
                             onClick={() => setPreviewInputImage({ path: img.path })}
                             title={img.label}
                           >
@@ -325,11 +289,11 @@ export function ImageDetailModal({ imageInfo, onClose }: ImageDetailModalProps) 
                           </button>
                         ) : (
                           <div
-                            className="w-16 h-16 rounded-lg bg-base-200 flex flex-col items-center justify-center text-base-content/40"
+                            className="w-16 h-16 rounded-[var(--nc-radius-md)] bg-base-200 flex flex-col items-center justify-center text-base-content/40"
                             title={`${img.label}（原图已删除或不可用）`}
                           >
                             <ImageIcon className="w-5 h-5" />
-                            <span className="text-[10px] mt-0.5">不可用</span>
+                            <span className="text-[11px] mt-0.5">不可用</span>
                           </div>
                         )}
                       </div>
@@ -351,10 +315,11 @@ export function ImageDetailModal({ imageInfo, onClose }: ImageDetailModalProps) 
         </div>
       </div>
 
-      {/* 输入图片预览弹窗 */}
+      {/* 输入图片预览弹窗（嵌套层级） */}
       {previewInputImage && previewInputImage.path && (
         <div
-          className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70"
+          className="nc-modal-backdrop nc-modal-backdrop-nested"
+          style={{ backgroundColor: "rgba(0, 0, 0, 0.7)" }}
           onClick={() => setPreviewInputImage(null)}
         >
           <div
@@ -362,7 +327,9 @@ export function ImageDetailModal({ imageInfo, onClose }: ImageDetailModalProps) 
             onClick={(e) => e.stopPropagation()}
           >
             <button
-              className="absolute -top-10 right-0 btn btn-circle btn-sm bg-base-100/90 hover:bg-base-100 border-0"
+              type="button"
+              aria-label="关闭预览"
+              className="nc-icon-btn-viewer absolute -top-10 right-0"
               onClick={() => setPreviewInputImage(null)}
             >
               <X className="w-4 h-4" />
@@ -370,7 +337,7 @@ export function ImageDetailModal({ imageInfo, onClose }: ImageDetailModalProps) 
             <img
               src={getImageUrl(previewInputImage.path)}
               alt="输入图片预览"
-              className="max-w-full max-h-[80vh] object-contain rounded-xl"
+              className="max-w-full max-h-[80vh] object-contain rounded-[var(--nc-radius-xl)]"
             />
           </div>
         </div>
@@ -379,7 +346,7 @@ export function ImageDetailModal({ imageInfo, onClose }: ImageDetailModalProps) 
       {/* 提示 */}
       <div
         className={`
-          absolute bottom-4 left-1/2 -translate-x-1/2 text-white/60 text-sm
+          nc-overlay-hint
           transition-all duration-200 ease-out
           ${isVisible && !isClosing ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"}
         `}

@@ -123,7 +123,7 @@ export function WorkflowControls() {
       {hasError && (
         <div className="flex items-center gap-2">
           <button
-            className="flex items-center gap-1 text-error text-sm hover:bg-error/10 px-2 py-1 rounded transition-colors"
+            className="btn btn-ghost btn-sm text-error! gap-1"
             onClick={() => setShowErrorDetails(!showErrorDetails)}
           >
             <AlertTriangle className="w-4 h-4" />
@@ -161,7 +161,7 @@ export function WorkflowControls() {
             onClick={() => setShowErrorDetails(false)}
           />
           {/* 错误列表 */}
-          <div className="absolute top-full left-0 mt-2 z-50 bg-base-100 rounded-lg shadow-xl border border-base-300 min-w-[300px] max-w-[400px] max-h-[300px] overflow-auto">
+          <div className="absolute top-full left-0 mt-2 z-[80] rounded-[var(--nc-radius-md)] shadow-[var(--nc-shadow-dropdown)] bg-base-100 border border-base-300 min-w-[300px] max-w-[400px] max-h-[300px] overflow-auto">
             <div className="sticky top-0 bg-base-100 px-3 py-2 border-b border-base-300 flex items-center justify-between">
               <span className="text-sm font-medium">失败节点详情</span>
               <button

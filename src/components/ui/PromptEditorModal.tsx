@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { X, MessageSquare, Check, AlertTriangle } from "lucide-react";
+import { useModal, getModalAnimationClasses } from "@/hooks/useModal";
 
 interface PromptEditorModalProps {
   initialValue: string;
@@ -18,32 +19,31 @@ export function PromptEditorModal({
   title = "编辑提示词",
 }: PromptEditorModalProps) {
   const [value, setValue] = useState(initialValue);
-  const [isVisible, setIsVisible] = useState(false);
-  const [isClosing, setIsClosing] = useState(false);
   // 确认对话框状态
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isComposingRef = useRef(false);
 
+  // 统一 Modal 交互（背景点击、过渡动画；ESC 由下方自定义处理，区分确认框）
+  const { isVisible, isClosing, handleClose: closeWithAnimation, handleBackdropClick } = useModal({
+    isOpen: true,
+    onClose,
+    enableEscClose: false,
+  });
+
+  const { contentClasses } = getModalAnimationClasses(isVisible, isClosing);
+
   // 检测内容是否有变化
   const hasChanges = useMemo(() => value !== initialValue, [value, initialValue]);
 
-  // 进入动画
+  // 进入时聚焦到文本框末尾
   useEffect(() => {
-    requestAnimationFrame(() => setIsVisible(true));
-    // 聚焦到文本框末尾
     if (textareaRef.current) {
       textareaRef.current.focus();
       textareaRef.current.setSelectionRange(value.length, value.length);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // 真正执行关闭（播放退出动画）
-  const doClose = useCallback(() => {
-    setIsClosing(true);
-    setIsVisible(false);
-    setTimeout(onClose, 200);
-  }, [onClose]);
 
   // 尝试关闭 - 检查是否有未保存的更改
   const handleClose = useCallback(() => {
@@ -52,22 +52,22 @@ export function PromptEditorModal({
       setShowConfirmDialog(true);
     } else {
       // 没有更改，直接关闭
-      doClose();
+      closeWithAnimation();
     }
-  }, [hasChanges, doClose]);
+  }, [hasChanges, closeWithAnimation]);
 
   // 确认对话框：保存并关闭
   const handleConfirmSave = useCallback(() => {
     onSave(value);
     setShowConfirmDialog(false);
-    doClose();
-  }, [value, onSave, doClose]);
+    closeWithAnimation();
+  }, [value, onSave, closeWithAnimation]);
 
   // 确认对话框：不保存直接关闭
   const handleConfirmDiscard = useCallback(() => {
     setShowConfirmDialog(false);
-    doClose();
-  }, [doClose]);
+    closeWithAnimation();
+  }, [closeWithAnimation]);
 
   // 确认对话框：取消（返回编辑）
   const handleConfirmCancel = useCallback(() => {
@@ -77,8 +77,8 @@ export function PromptEditorModal({
   // 保存并关闭
   const handleSave = useCallback(() => {
     onSave(value);
-    doClose();
-  }, [value, onSave, doClose]);
+    closeWithAnimation();
+  }, [value, onSave, closeWithAnimation]);
 
   // ESC 键关闭，Ctrl/Cmd + Enter 保存
   useEffect(() => {
@@ -101,36 +101,31 @@ export function PromptEditorModal({
 
   return createPortal(
     <div
-      className={`
-        fixed inset-0 z-[9999] flex items-center justify-center p-4
-        transition-all duration-200 ease-out
-        ${isVisible && !isClosing ? "bg-black/60" : "bg-black/0"}
-      `}
-      onClick={handleClose}
+      className={`nc-modal-backdrop p-4 ${isVisible && !isClosing ? "nc-modal-backdrop-open" : ""}`}
+      onClick={handleBackdropClick}
     >
       {/* Modal 内容 */}
       <div
         className={`
-          nc-panel w-full max-w-2xl rounded-2xl overflow-hidden
+          nc-modal w-full max-w-2xl overflow-hidden
           transition-all duration-200 ease-out
-          ${isVisible && !isClosing
-            ? "opacity-100 scale-100 translate-y-0"
-            : "opacity-0 scale-95 translate-y-4"
-          }
+          ${contentClasses}
         `}
         onClick={(e) => e.stopPropagation()}
       >
         {/* 头部 */}
-        <div className="nc-node-header nc-node-header-accent nc-node-accent-blue px-4 py-3">
+        <div className="nc-modal-header nc-node-header-accent nc-node-accent-blue">
           <div className="flex items-center gap-2">
             <span className="nc-node-header-icon">
               <MessageSquare className="w-5 h-5" />
             </span>
-            <span className="text-base font-semibold">{title}</span>
+            <span className="nc-modal-title">{title}</span>
           </div>
           <button
-            className="btn btn-circle btn-ghost btn-sm"
+            type="button"
+            className="nc-icon-btn"
             onClick={handleClose}
+            aria-label="关闭"
           >
             <X className="w-4 h-4" />
           </button>
@@ -154,8 +149,8 @@ export function PromptEditorModal({
         </div>
 
         {/* 底部操作栏 */}
-        <div className="flex items-center justify-between px-4 py-3 bg-base-200/50 border-t border-base-300">
-          <span className="text-xs text-base-content/50">
+        <div className="nc-modal-footer">
+          <span className="nc-modal-footer-hint">
             按 ESC 取消 · Ctrl/Cmd + Enter 保存
           </span>
           <div className="flex items-center gap-2">
@@ -170,24 +165,25 @@ export function PromptEditorModal({
         </div>
       </div>
 
-      {/* 未保存确认对话框 */}
+      {/* 未保存确认对话框（嵌套层级） */}
       {showConfirmDialog && (
         <div
-          className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/40"
+          className="nc-modal-backdrop nc-modal-backdrop-nested p-4"
+          style={{ backgroundColor: "rgba(0, 0, 0, 0.4)" }}
           onClick={handleConfirmCancel}
         >
           <div
-            className="w-full max-w-sm bg-base-100 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150"
+            className="nc-panel-lg w-full max-w-sm overflow-hidden modal-content-enter"
             onClick={(e) => e.stopPropagation()}
           >
             {/* 警告头部 */}
             <div className="flex items-center gap-3 px-4 py-3 bg-warning/10 border-b border-warning/20">
-              <div className="p-2 bg-warning/20 rounded-full">
+              <div className="p-2 bg-warning/20 rounded-[var(--nc-radius-md)]">
                 <AlertTriangle className="w-5 h-5 text-warning" />
               </div>
               <div>
-                <h3 className="font-medium text-base-content">未保存的更改</h3>
-                <p className="text-xs text-base-content/60">您有尚未保存的内容</p>
+                <h3 className="nc-modal-title">未保存的更改</h3>
+                <p className="nc-modal-subtitle mt-0">您有尚未保存的内容</p>
               </div>
             </div>
 
