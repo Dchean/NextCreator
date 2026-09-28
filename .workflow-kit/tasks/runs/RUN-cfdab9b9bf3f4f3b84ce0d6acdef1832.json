@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "RUN-cfdab9b9bf3f4f3b84ce0d6acdef1832",
+  "task_id": "TASK-005",
+  "kind": "review",
+  "outcome": "blocked",
+  "executor": {
+    "harness": "current_agent",
+    "model": null,
+    "context_id": "independent reviewer subagent 2cb39439-1453-4ae8-9c15-a201be573951 (fifth fresh context; reviewers r1-r4 all excluded); manager independently confirmed the structural reachability chain of the paused-state finding (all six cases force paused:false at queue-regression.mjs:509/643/787/912/1028 with zero paused:true occurrences; QueuePanel.tsx:110-115 real pause toggle; ImageGeneratorNode.tsx:215 canRun ignores paused; useImageGeneratorExecution.ts:86-90 writes data.queued after the first await) and disclosed that its own probe could not isolate the 6-of-6 PASS claim itself"
+  },
+  "started_at_utc": "2026-09-28T06:22:25.973612Z",
+  "finished_at_utc": "2026-09-28T06:22:26.026053Z",
+  "exit_code": null,
+  "timed_out": false,
+  "input_digest": "408539f1508d617d72e30ac8fc2c51e81391da3709dd9619fd785d1773e89c7f",
+  "candidate_digest": "246952c35a917429b46a60cff7e7b04caa2194b0debd7b93ea37ea83e64901d3",
+  "raw_output_refs": [
+    ".workflow-kit/tasks/evidence/RUN-cfdab9b9bf3f4f3b84ce0d6acdef1832-review.json"
+  ],
+  "checks": [],
+  "review": {
+    "mode": "independent",
+    "verdict": "FAIL",
+    "report": ".workflow-kit/tasks/evidence/RUN-cfdab9b9bf3f4f3b84ce0d6acdef1832-review.json",
+    "candidate_digest": "246952c35a917429b46a60cff7e7b04caa2194b0debd7b93ea37ea83e64901d3"
+  },
+  "estimated_cost_usd": null,
+  "failure_kind": "review_failure",
+  "failure_reason": "Review requires changes; inspect the findings"
+}
