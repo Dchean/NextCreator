@@ -3,19 +3,21 @@
   "id": "RUN-ff79c96088cb4d85aa5b2fdedc871ef7",
   "task_id": "TASK-005",
   "kind": "repair",
-  "outcome": "running",
+  "outcome": "completed",
   "executor": {
     "harness": "current_agent",
     "model": null,
     "context_id": "coder subagent cfe0eebd repair round 3 (final allowed round; same author reused per user rule that a subagent which wrote this code may continue writing it; reviewer must be fresh)"
   },
   "started_at_utc": "2026-09-28T04:52:32.556411Z",
-  "finished_at_utc": null,
-  "exit_code": null,
+  "finished_at_utc": "2026-09-28T05:03:34.548213Z",
+  "exit_code": 0,
   "timed_out": false,
   "input_digest": "408539f1508d617d72e30ac8fc2c51e81391da3709dd9619fd785d1773e89c7f",
-  "candidate_digest": null,
-  "raw_output_refs": [],
+  "candidate_digest": "a4c99764aa6c2e5d3be2ee15d3f31cdd40f7289a3747e24656e585b117e795fd",
+  "raw_output_refs": [
+    ".workflow-kit/tasks/evidence/RUN-ff79c96088cb4d85aa5b2fdedc871ef7-worker-result.json"
+  ],
   "checks": [],
   "review": {
     "mode": null,

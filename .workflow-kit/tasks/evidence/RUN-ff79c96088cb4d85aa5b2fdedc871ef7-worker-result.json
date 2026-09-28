@@ -1,0 +1,17 @@
+{
+  "task_id": "TASK-005",
+  "run_id": "RUN-ff79c96088cb4d85aa5b2fdedc871ef7",
+  "status": "ready_for_verification",
+  "summary": "修复轮 3（最终允许轮）：按用户锁定的三点范围修复，未扩展。① 新增用例 D（scripts/queue-regression.mjs:666-776）：构造 concurrency=1 + 另一节点 gen-slot-z 的 running job 占满额度（不依赖执行耗时），再对节点 gen-queued-b 连点 3 次；判据为 after1===1（该节点不得被连带拒绝，用于识别全局单飞）与 after3===after1（queued 数不增长），并含 slotHeld() 前提核对（额度未占满则 ERROR）。② 用例 C 超窗改判 ERROR（:615-626，常量 SETTLE_TIMEOUT_MS :500），并把默认模式汇总语改为 ERROR 与 FAIL 分开报告，避免把基础设施/时序问题误读为业务缺陷。③ 用例 B/C 增加快照覆盖边界注释（:367-378、:493-496），声明只覆盖基于 queueStore 真实状态的守卫、不覆盖基于 data 快照的守卫（那类为假红非假绿），判据未改。既有断言（用例 A/B/C）逐字保留，无弱化。",
+  "changed_files": [
+    "scripts/queue-regression.mjs",
+    "scripts/queue-regression.selfcheck.mjs"
+  ],
+  "validation_requests": [
+    "typecheck: node ./node_modules/typescript/bin/tsc --noEmit（预期退出码 0）",
+    "harness-red-state: node --experimental-strip-types scripts/queue-regression.mjs --expect-red（预期退出码 0，四个用例均按预期复现）"
+  ],
+  "requested_actions": [],
+  "unresolved_items": [],
+  "blocked_reason": null
+}
