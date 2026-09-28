@@ -7,7 +7,7 @@
   "ui_change": false,
   "ui_contract_ref": null,
   "ui_checks": [],
-  "status": "running",
+  "status": "review",
   "objective": "为项目建立一份可复用的零新增依赖行为测试基础设施：一个能加载真实 src/**/*.ts 的 Node 加载器，以及在其上运行的队列回归脚本（两个用例 + 红状态自检模式）。本任务只交付基础设施与红状态证据，不修复任何业务缺陷——业务修复由后续任务在本门禁之上进行。",
   "non_goals": [
     "不修复 REQ-001 与 REQ-002——本任务只建立门禁并取得红状态证据，修复由后续任务负责。",
@@ -177,13 +177,14 @@
     "RUN-ff79c96088cb4d85aa5b2fdedc871ef7",
     "RUN-4b8c27857d774893ab76b2169063ed76",
     "RUN-d7ee4f7bf09f43b1b975cb6c7671ae54",
-    "RUN-65bdecd0a49b4068ae167a3d3a42a3f7"
+    "RUN-65bdecd0a49b4068ae167a3d3a42a3f7",
+    "RUN-59a8c90b8dff49f5af05fe8d40142138"
   ],
   "blockers": [],
   "evidence": {
-    "candidate_manifest": ".workflow-kit/tasks/evidence/RUN-4b8c27857d774893ab76b2169063ed76-candidate.json",
-    "candidate_digest": "a4c99764aa6c2e5d3be2ee15d3f31cdd40f7289a3747e24656e585b117e795fd",
-    "verification_run": "RUN-4b8c27857d774893ab76b2169063ed76",
+    "candidate_manifest": ".workflow-kit/tasks/evidence/RUN-59a8c90b8dff49f5af05fe8d40142138-candidate.json",
+    "candidate_digest": "246952c35a917429b46a60cff7e7b04caa2194b0debd7b93ea37ea83e64901d3",
+    "verification_run": "RUN-59a8c90b8dff49f5af05fe8d40142138",
     "review_run": null,
     "acceptance_ref": null,
     "owner_decision_ids": [],
@@ -303,6 +304,16 @@
       "at_utc": "2026-09-28T05:35:00.415626Z",
       "note": "开始执行，保留原任务身份和截止时间；沿用本任务先前的范围基线，changed_files 为本任务累计改动",
       "next_action": "完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify"
+    },
+    {
+      "at_utc": "2026-09-28T05:56:10.798919Z",
+      "note": "编码结果已记录，差异范围已核对：scripts/queue-regression.mjs, scripts/queue-regression.selfcheck.mjs",
+      "next_action": "运行 verify；代码完成尚未等于验收通过"
+    },
+    {
+      "at_utc": "2026-09-28T05:56:21.846654Z",
+      "note": "预先定义的必需测试全部通过，日志已保存",
+      "next_action": "审查当前候选；独立审查使用没有参与编码的新上下文"
     }
   ],
   "resume_phase": "review",

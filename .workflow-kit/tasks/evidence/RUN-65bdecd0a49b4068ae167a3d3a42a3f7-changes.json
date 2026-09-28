@@ -1,0 +1,6 @@
+{
+  "changed_files": [
+    "scripts/queue-regression.mjs",
+    "scripts/queue-regression.selfcheck.mjs"
+  ]
+}

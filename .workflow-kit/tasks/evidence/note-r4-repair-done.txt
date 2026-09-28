@@ -1,0 +1,15 @@
+TASK-005 修复轮 4（用户追加预算 DEC-8273051 后的一轮）完成并经总控独立复核（候选 246952c35a917429b46a60cff7e7b04caa2194b0debd7b93ea37ea83e64901d3，验证 run RUN-59a8c90b8dff49f5af05fe8d40142138）。三项锁定范围修复均经实测确认，且本轮出现了质量上的实质跃升：
+
+决定性对照（总控亲自运行，逐用例判定）：--self-check=entry-guard-active 即 r4 审查者构造的 P1 形态（守卫语义完全正确 queued||running，但置于 handleGenerate 顶部）：
+  A=FAIL  B=PASS  C=PASS  D=PASS  E=FAIL  F=FAIL
+即 B/C/D 会被 P1 骗过，而只有本轮新增的 E（并发点击）与 F（retry 路径）能判出「守卫位置」问题。这正面证明门禁已从「能判出有没有守卫」升级为「能判出守卫放对了地方没有」。反向对照 --self-check=full-fix（store 层同步、按点击整批原子判定）六用例全 PASS，排除永假门禁。
+
+其余复核：默认模式 EXIT=1（PASS 0 / FAIL 6）、--expect-red EXIT=0、tsc EXIT=0、自检套件 27/27 EXIT=0。
+
+总控自身失误已被工具永久防住：此前总控用不存在的键名 guard-global-single-flight 做验证、得到退出码 1 便误判为「判红成功」，实际等价于跑基线。本轮新增 SELF_CHECK_KEYS 键名白名单后，总控实测该键名与混用形式（full-fix,typo-key）均 EXIT=2 并打印 13 个有效键名、不执行任何用例。该缺陷从「会被静默吞掉」变为「立刻报错」，总控的失误类型今后不会再产生假验证。
+
+编码者主动报告的两起事故（均已自修复，总控已核实当前状态完好）：
+(1) 它用 Get-Content -Raw | Set-Content 做文本替换时，PowerShell 把 UTF-8 当 GBK 读入写出，不可逆损坏了 queue-regression.mjs（丢 662 字符/换行）；它检测到后用 Node 读取残余结构逐行重建整份文件。总控核实：bytes=68037、无 BOM、U+FFFD 计数=0、中文注释正常、scripts/ 目录无残留临时目录（仅两个交付脚本）。
+(2) 本轮 P1 变异体最初静默失效：用例以绝对文件路径 import hook，绕过了 registerHooks 的 resolve 钩子，导致 hook 副本从未生效（症状是用例 E/F 在 P1 下仍 PASS，看起来像断言无效，实为变异未注入——与问题 3 同类的「空过」）。已修为统一走 hookModuleUrl()（:307-310），并把变异临时目录改到 scripts/.nc-mutants-*（系统 temp 下 react 等 bare specifier 解析失败）。
+
+已派发第五个全新审查者（前四轮审查者全部排除复用）。特别要求它独立构造 P1 等价场景以排除「变异机制自证」，并系统性核对 27 项自检是否仍有空过项、白名单与实际键是否完全一致。

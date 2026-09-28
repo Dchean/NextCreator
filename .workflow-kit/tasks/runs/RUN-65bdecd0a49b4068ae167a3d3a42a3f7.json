@@ -3,19 +3,21 @@
   "id": "RUN-65bdecd0a49b4068ae167a3d3a42a3f7",
   "task_id": "TASK-005",
   "kind": "repair",
-  "outcome": "running",
+  "outcome": "completed",
   "executor": {
     "harness": "current_agent",
     "model": null,
     "context_id": "coder subagent cfe0eebd repair round 4 (budget extended by explicit user decision DEC-8273051; same author reused; scope locked to three items)"
   },
   "started_at_utc": "2026-09-28T05:35:00.323187Z",
-  "finished_at_utc": null,
-  "exit_code": null,
+  "finished_at_utc": "2026-09-28T05:56:10.752616Z",
+  "exit_code": 0,
   "timed_out": false,
   "input_digest": "408539f1508d617d72e30ac8fc2c51e81391da3709dd9619fd785d1773e89c7f",
-  "candidate_digest": null,
-  "raw_output_refs": [],
+  "candidate_digest": "246952c35a917429b46a60cff7e7b04caa2194b0debd7b93ea37ea83e64901d3",
+  "raw_output_refs": [
+    ".workflow-kit/tasks/evidence/RUN-65bdecd0a49b4068ae167a3d3a42a3f7-worker-result.json"
+  ],
   "checks": [],
   "review": {
     "mode": null,
