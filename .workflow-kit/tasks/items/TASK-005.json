@@ -7,7 +7,7 @@
   "ui_change": false,
   "ui_contract_ref": null,
   "ui_checks": [],
-  "status": "review",
+  "status": "blocked",
   "objective": "为项目建立一份可复用的零新增依赖行为测试基础设施：一个能加载真实 src/**/*.ts 的 Node 加载器，以及在其上运行的队列回归脚本（两个用例 + 红状态自检模式）。本任务只交付基础设施与红状态证据，不修复任何业务缺陷——业务修复由后续任务在本门禁之上进行。",
   "non_goals": [
     "不修复 REQ-001 与 REQ-002——本任务只建立门禁并取得红状态证据，修复由后续任务负责。",
@@ -165,9 +165,12 @@
     "RUN-0eebc354468a496f801deca8dc1c1c4a",
     "RUN-ec6d5730f13b421999003eb5c681b89a",
     "RUN-ff79c96088cb4d85aa5b2fdedc871ef7",
-    "RUN-4b8c27857d774893ab76b2169063ed76"
+    "RUN-4b8c27857d774893ab76b2169063ed76",
+    "RUN-d7ee4f7bf09f43b1b975cb6c7671ae54"
   ],
-  "blockers": [],
+  "blockers": [
+    "Review requires changes; inspect the findings"
+  ],
   "evidence": {
     "candidate_manifest": ".workflow-kit/tasks/evidence/RUN-4b8c27857d774893ab76b2169063ed76-candidate.json",
     "candidate_digest": "a4c99764aa6c2e5d3be2ee15d3f31cdd40f7289a3747e24656e585b117e795fd",
@@ -276,6 +279,11 @@
       "at_utc": "2026-09-28T05:03:45.276260Z",
       "note": "预先定义的必需测试全部通过，日志已保存",
       "next_action": "审查当前候选；独立审查使用没有参与编码的新上下文"
+    },
+    {
+      "at_utc": "2026-09-28T05:24:56.205930Z",
+      "note": "Review requires changes; inspect the findings",
+      "next_action": "先核对已有文件及原始日志，再处理 review_failure；不要新建任务或重置预算"
     }
   ],
   "resume_phase": "review",
@@ -290,5 +298,6 @@
       "note": "核对：diff --run 显示 changed_files 与 changed_this_run 均为 [package.json, scripts/queue-regression.mjs]，outside 与 protected 均为空，无越界改动；两处交付物已由总控独立运行复核（默认模式退出码 1、--expect-red 退出码 0）。候选从未生成（candidate_digest 为 null），故按默认出口回到 ready 重新 begin/finish，不消耗修复轮、保留原时钟与两次中断历史。",
       "resumed_to": "ready"
     }
-  ]
+  ],
+  "failure_kind": "review_failure"
 }

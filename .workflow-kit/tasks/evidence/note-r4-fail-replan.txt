@@ -1,0 +1,15 @@
+TASK-005 第四轮独立审查结论 FAIL（review run RUN-d7ee4f7bf09f43b1b975cb6c7671ae54，reviewer=第四个未参与实现的子代理 194aa201）。修复轮已达上限 3/3，按 RECOVERY 的 replan 要求停止机械加固。
+
+四轮审查的净结果：前三轮修复大部分被独立确认为真（用例 A 双断言、用例 B 时间无关主断言、用例 D 对「仅 running」的区分力、环境变量独立性、full-fix 绿色对照、超窗改判 ERROR 的安全性）。但每一轮都发现新的假绿，本轮为：
+
+(1) 门禁对 REQ-002 守卫在 handleGenerate 内的**位置**不敏感。总控复核确认结构成因：用例 B/C/D 的点击循环均为「await 完上一次 handle() 才点下一次」（queue-regression.mjs:436-447，:444 为 await handle()），因此从不进入 handleGenerate 首行到首个 await（getConnectedInputDataAsync）之间的窗口。审查者以自建 hook 副本 P1（守卫置于首行、语义正确 queued||running）+ 模拟正确 REQ-001 修复的 store 副本，经门禁副本测得 exit 0 / 四用例全 PASS；而同一 P1 实现在节点连有带 imagePath 的图片输入节点时（flowStore.ts:1140/1153 → readImage → invoke("read_image") 真实 IPC 往返），以 40ms 间隔的现实连点仍产生同节点 3 个并发 job；守卫紧邻入队（P1b）则恒为 1。
+
+(2) queueStore.retry（QueuePanel.tsx:221 重试按钮 → queueStore.ts:93 enqueue）绕过 handleGenerate 直接入队，任何入口级守卫拦不住。实测同节点 job 4→5。四用例无非 handleGenerate 入队路径的覆盖。
+
+(3) 自检套件空过：queue-regression.mjs:47 声明支持 guard-inside-batch-loop，但 GUARD_RULES(:825-832) 无该键，installGuard 静默返回 null 而不注入任何守卫，对应自检项恒真通过。故 20/20 中有 1 项未测任何东西。
+
+总控自身验证失误（如实记录并已更正）：此前一轮向编码者与用户汇报「全局单飞守卫已被正确判红」时，使用的键名 guard-global-single-flight 在脚本中并不存在（真实键为 guard-global-single），故那次运行等价于基线，并非有效验证。用真实键重测：guard-global-single → 用例 C 与 D FAIL、PASS 1 / FAIL 3 / EXIT=1，该形态确实被正确判红，结论成立但那次具体验证空过。教训已记入日志。
+
+总控的技术判断（提交用户决定）：本轮两条新发现实际上同时指向「去重应下沉到 queueStore.enqueue（store 层）」这一实现方向 —— (a) store 层的判定与状态更新是同步的，不受 handleGenerate 中 await 窗口影响，可关闭 (1) 的竞态；(b) retry 直接调用 enqueue，store 层守卫天然覆盖 (2)。而总控此前已决定修复落点在 store 层并写入 TASK-006 验收标准。因此门禁的这两处缺口对「store 层实现」的约束力弱于对「入口级实现」，但仍无法自动证明，故需用户选择后续路线。
+
+已向用户提交三个选项：① 追加预算再修门禁（聚焦并发点击用例 + retry 用例）；② 停止加固，转入 TASK-006 并把缺口写为人工回归清单（配合 store 层实现方向）；③ 收窄门禁到已证明可靠的范围，其余转人工验收。

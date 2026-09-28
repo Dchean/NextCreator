@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "RUN-d7ee4f7bf09f43b1b975cb6c7671ae54",
+  "task_id": "TASK-005",
+  "kind": "review",
+  "outcome": "blocked",
+  "executor": {
+    "harness": "current_agent",
+    "model": null,
+    "context_id": "independent reviewer subagent 194aa201-65d5-4888-83ca-c3a48bc4bb84 (fourth fresh context; reviewers r1/r2/r3 excluded because each had seen its own round's candidate); manager independently confirmed the await-per-click structure at queue-regression.mjs:436-447, confirmed guard-inside-batch-loop is absent from GUARD_RULES, verified the real key guard-global-single does fail cases C/D, and disclosed its own earlier no-op verification using the nonexistent key guard-global-single-flight"
+  },
+  "started_at_utc": "2026-09-28T05:24:56.119563Z",
+  "finished_at_utc": "2026-09-28T05:24:56.162776Z",
+  "exit_code": null,
+  "timed_out": false,
+  "input_digest": "408539f1508d617d72e30ac8fc2c51e81391da3709dd9619fd785d1773e89c7f",
+  "candidate_digest": "a4c99764aa6c2e5d3be2ee15d3f31cdd40f7289a3747e24656e585b117e795fd",
+  "raw_output_refs": [
+    ".workflow-kit/tasks/evidence/RUN-d7ee4f7bf09f43b1b975cb6c7671ae54-review.json"
+  ],
+  "checks": [],
+  "review": {
+    "mode": "independent",
+    "verdict": "FAIL",
+    "report": ".workflow-kit/tasks/evidence/RUN-d7ee4f7bf09f43b1b975cb6c7671ae54-review.json",
+    "candidate_digest": "a4c99764aa6c2e5d3be2ee15d3f31cdd40f7289a3747e24656e585b117e795fd"
+  },
+  "estimated_cost_usd": null,
+  "failure_kind": "review_failure",
+  "failure_reason": "Review requires changes; inspect the findings"
+}
