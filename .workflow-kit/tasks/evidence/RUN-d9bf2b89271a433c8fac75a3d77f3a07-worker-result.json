@@ -1,0 +1,18 @@
+{
+  "task_id": "TASK-005",
+  "run_id": "RUN-d9bf2b89271a433c8fac75a3d77f3a07",
+  "status": "ready_for_verification",
+  "summary": "修复轮 2：封堵第二轮独立审查的两条 finding，并保留全部既有断言（未弱化）。finding 1（批量分支无门禁）：新增独立用例 C（scripts/queue-regression.mjs），判据为 firstBatchExact（首点后同节点 job 数必须 == batchCount=4）、noGrowth（第 2/3 次点击不得增长，与首点比较）、canRegenerate（该批结束后再点仍产生完整一批），并含两项前提核对（batchCount 必须为 4，否则 ERROR；连点前活动数不得为 0，否则 ERROR）。finding 2（变异开关可伪造绿色）：移除环境变量入口，改为显式 CLI 参数 --self-check=<name>，全脚本对 process.env 零读取；另新增 scripts/queue-regression.selfcheck.mjs 自动验证不变量链。总控已独立复核：默认模式退出码 1、--expect-red 退出码 0、tsc 退出码 0；环境变量 NC_QUEUE_MUTANT=full-fix 下默认模式仍为退出码 1（修复前为 0，伪造通道已关闭）；三种破坏性修复形态 guard-inside-batch-loop / store-dedupe-any / any-history-dedupe 均退出码 1（正确判 FAIL）；full-fix 绿色对照经 CLI 退出码 0（证明断言可达而非永假门禁）；自检套件 14/14 项符合预期、退出码 0。",
+  "changed_files": [
+    "scripts/queue-regression.mjs",
+    "scripts/queue-regression.selfcheck.mjs",
+    "package.json"
+  ],
+  "validation_requests": [
+    "typecheck: node ./node_modules/typescript/bin/tsc --noEmit（预期退出码 0）",
+    "harness-red-state: node --experimental-strip-types scripts/queue-regression.mjs --expect-red（预期退出码 0，三个用例均按预期复现）"
+  ],
+  "requested_actions": [],
+  "unresolved_items": [],
+  "blocked_reason": null
+}

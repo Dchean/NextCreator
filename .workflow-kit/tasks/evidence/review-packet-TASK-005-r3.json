@@ -1,0 +1,438 @@
+{
+  "ok": true,
+  "instructions": "# 审查执行器\n\n读取明确指定的审查包。任务的角色是 reviewer，输入包括 task_id、candidate_digest、原始需求/验收、质量目标、当前源码、完整差异、验证 RUN 与必要参考。先依据这些事实形成结论，不采用作者的“应该通过”。\n\nindependent 必须来自没有参与实现的新上下文。同一模型可以；同一上下文改名字不可以。Agent 包办不要求 CLI，宿主提供独立上下文即可。自审只能在策略允许且任务不是高风险时使用，并如实标记。\n\n## 五项核对\n\n- requirements：逐项对照用户的当前需求，包括 Bug、新增功能和兼容限制；检查是否漏做、顺带改变行为或扩大范围。\n- regression：阅读实际验证命令、原始输出及测试断言，检查它们是否能发现目标缺陷，是否弱化了仍有效的保护。\n- failure_paths：核对实际相关的异常、空输入、重复执行、恢复、数据/权限边界；需要时验证具体反例。不要只走成功路径。\n- maintainability：检查职责、依赖方向、重复规则、命名、模块边界及新增维护负担。工作量大不是拒绝必要改进的理由，抽象层数也不等于质量。结构调整（拆分、合并、抽取公共层）必须有 REFACTOR 列出的代码证据：变更原因不同、无法单独验证、重复规则、依赖方向、必须隔离的边界或真实并行冲突；只以行数或“太大”为理由的拆分、为将来复用预建的抽象，记为 finding。有证据需要拆而未拆的地方可以指出，不强制。\n- performance：检查代表性负载下的测量和回归；静态分析须明确其范围，不能伪称实测提升。不受影响时解释不适用，不强造基准。\n\ndocumentation/baseline 任务只需 requirements 和 regression 两项，其余三项可省略；其他任务五项齐全。每项保存 status、简短的结论依据 analysis 和 evidence_files。evidence_files 只能引用候选快照内的文件，或 .workflow-kit/tasks/runs/、.workflow-kit/tasks/evidence/ 下的附件；不要引用任务条目、任务卡、DECISIONS、PROJECT 或笔记，这些文件由工具改写，引用它们会让审查在保存后立即失效。需要引用其他源文件时，应由总控把它加进任务的 snapshot_paths 再验证。报告记录可核对事实，不要求披露内部推理过程。requirements/regression 不能标不适用；高风险的 failure_paths 也不能。未完成检查时用顶层 BLOCKED，有待修问题用 FAIL；不能留下 NOT_RUN/FAIL 项却给总体 PASS。\n\n自审前暂停编码，从原需求和完整差异重新检查，包括新增、删除、重命名、未跟踪文件。发现问题后回到原任务修复，重新验证再审，不在审查阶段改验收、预算或代码放行。\n\n## 适用性与 UI\n\n重构核对 test_review：原测试、CI、mock/fixture 和快照是否仍适用，适配是否保留行为，替换/退役是否有对应需求决定，新需求是否有覆盖。原始基线和已知失败应保留；命令没变不代表断言没弱化。\n\nui_change=true 时检查 UI 约定、当前截图、交互报告与 ui_checks，实际操作适用控件的展开、焦点、错误、窄屏和键盘状态；checked_states 填 ui_checks 的 id。没有真实视觉依据不能把构建成功写成界面通过。\n\n## 输出\n\n使用 contracts/review-result.schema.json 的完整结构。以下只是字段形状，标识、依据和路径必须替换为实际值：\n\n~~~json\n{\n  \"task_id\": \"TASK-actual\",\n  \"candidate_digest\": \"当前候选摘要\",\n  \"verification_run\": \"RUN-actual-verification\",\n  \"verdict\": \"PASS\",\n  \"summary\": \"审查范围及实际结论\",\n  \"findings\": [],\n  \"review_checks\": [\n    {\"area\": \"requirements\", \"status\": \"PASS\", \"analysis\": \"具体需求与差异如何对应\", \"evidence_files\": [\"实际源码或证据路径\"]},\n    {\"area\": \"regression\", \"status\": \"PASS\", \"analysis\": \"实际测试如何保护目标行为\", \"evidence_files\": [\"实际验证记录路径\"]},\n    {\"area\": \"failure_paths\", \"status\": \"PASS\", \"analysis\": \"已核对的异常和恢复场景\", \"evidence_files\": [\"实际证据路径\"]},\n    {\"area\": \"maintainability\", \"status\": \"PASS\", \"analysis\": \"具体结构变化和维护影响\", \"evidence_files\": [\"实际源码路径\"]},\n    {\"area\": \"performance\", \"status\": \"NOT_APPLICABLE\", \"analysis\": \"仅在确实不涉及运行性能时填写具体理由\", \"evidence_files\": []}\n  ],\n  \"ui_review\": null\n}\n~~~\n\n每个 finding 说明位置、触发条件、影响和建议。UI PASS 用包含 contract_ref、checked_states、evidence_files 的对象替代 ui_review=null；文件含实际截图和交互报告。不得复制示例中的不适用理由给任意项目。\n\n报告与当前 verification_run、候选和证据绑定；改动后旧结论不能继续放行。程序核对完整性、关联与变更，不能自动判断分析有无遗漏或证明上下文独立。\n",
+  "task_packet": {
+    "task_id": "TASK-005",
+    "run_id": null,
+    "task": {
+      "schema_version": 1,
+      "id": "TASK-005",
+      "title": "建立零依赖行为门禁基础设施（TS 加载器 + 队列回归脚本骨架）",
+      "kind": "implementation",
+      "retry_safe": true,
+      "ui_change": false,
+      "ui_contract_ref": null,
+      "ui_checks": [],
+      "status": "review",
+      "objective": "为项目建立一份可复用的零新增依赖行为测试基础设施：一个能加载真实 src/**/*.ts 的 Node 加载器，以及在其上运行的队列回归脚本（两个用例 + 红状态自检模式）。本任务只交付基础设施与红状态证据，不修复任何业务缺陷——业务修复由后续任务在本门禁之上进行。",
+      "non_goals": [
+        "不修复 REQ-001 与 REQ-002——本任务只建立门禁并取得红状态证据，修复由后续任务负责。",
+        "不追求测试覆盖率数字；只覆盖这两个用例描述的可观察行为。",
+        "不引入 jsdom/浏览器环境；不测渲染与 UI。",
+        "不测真实 Tauri 运行时、HTTP 供应商调用与 Rust 侧逻辑。"
+      ],
+      "requirement_refs": [
+        "REQ-001",
+        "REQ-002"
+      ],
+      "reference_ids": [
+        "REF-NODE-STRIP-TYPES"
+      ],
+      "decision_refs": [
+        ".workflow-kit/docs/ADR/ADR-0002-zero-dependency-regression-gate.md"
+      ],
+      "dependencies": [],
+      "blocks": [],
+      "risk": {
+        "level": "low",
+        "decision_ids": [
+          "DEC-zero-dep-verification"
+        ]
+      },
+      "scope": {
+        "allowed_paths": [
+          "scripts",
+          "package.json"
+        ],
+        "protected_paths": [
+          "AGENTS.md",
+          "CLAUDE.md",
+          "WORKFLOW.md",
+          "tasks/**",
+          "docs/PRODUCT.md",
+          "docs/FEATURES.md",
+          "docs/workflow/**",
+          "scripts/project_workflow.py",
+          "scripts/workflow_runtime.py",
+          "scripts/workflow_bootstrap.py",
+          "scripts/workflow_intake.py",
+          "scripts/workflow_progress.py",
+          "WORKFLOW-KIT.md",
+          ".workflow-kit/binding.json",
+          ".workflow-kit/tasks/**",
+          ".workflow-kit/notes/**",
+          ".workflow-kit/scripts/**",
+          ".workflow-kit/docs/workflow/**",
+          ".workflow-kit/legacy/**",
+          ".workflow-kit/AGENTS.md",
+          ".workflow-kit/CLAUDE.md",
+          ".workflow-kit/WORKFLOW.md",
+          ".workflow-kit/docs/PRODUCT.md",
+          ".workflow-kit/docs/FEATURES.md",
+          "src",
+          "src-tauri",
+          "vite.config.ts",
+          "tsconfig.json",
+          ".workflow-kit/tasks/evidence/probe-dup-enqueue.mjs"
+        ],
+        "network": "none",
+        "data": "synthetic_only"
+      },
+      "acceptance": [
+        "新增 scripts/queue-regression.mjs，可通过 `node --experimental-strip-types scripts/queue-regression.mjs` 运行，退出码语义为：全部用例通过 0，任一失败非 0。",
+        "脚本必须支持 --expect-red 自检模式：当两个用例都如预期失败时退出码为 0（表示“红状态符合预期、基础设施正常”）；若某用例意外通过则退出码非 0 并明确报告“预期红但实际绿”。默认（不带参数）模式断言的则是修复后应有的行为，当前应 FAIL 且退出码非 0——该模式供后续修复任务作门禁。",
+        "必须实际运行并记录两种模式的原始输出与退出码：默认模式（预期非 0）与 --expect-red 模式（预期 0）。",
+        "脚本必须加载并驱动真实 src 代码，不得复制或重新实现被测逻辑。允许 stub 外部边界（@xyflow/react、@tauri-apps/*），但被测的 queueStore 与 useImageGeneratorExecution 必须是真实实现。",
+        "包含两个用例：(A) 重启恢复——持久化中存在 queued 任务，经水合/启动后断言该任务不再停留 queued；(B) 重复入队——同一节点连续触发生成，断言活动任务数不增长。",
+        "两个用例的断言对象必须是需求描述的可观察行为，不得断言内部变量、私有函数或调用顺序。",
+        "脚本内含的三个技术要点必须落地（均为总控已验证的既有事实，不需重新发现）：① @/ 别名映射到 src/；② 无扩展名相对导入仅当父模块为 .ts/.tsx 时才补扩展名，否则会破坏 react/index.js 的 CJS 解析；③ 必须 stub @xyflow/react 这一层，因为 react-dom 的 CJS 内部 require 不会被 ESM hook 拦截。另需 stub globalThis.window（tauriStorage.ts:100 有顶层 window.addEventListener）。",
+        "必须实际运行并记录当前的失败输出作为红状态证据，写进交付说明。若某用例当前意外通过，必须如实说明而不是调整断言使其失败。",
+        "在 package.json 的 scripts 中新增一条 regression:queue 条目，不改动其他现有条目。",
+        "node ./node_modules/typescript/bin/tsc --noEmit 保持 PASS。",
+        "不新增任何需要安装的依赖（不使用 vitest/jest/jsdom/happy-dom），脚本仅使用 Node 内置模块。",
+        "不修改任何业务源码（src/stores/queueStore.ts、src/hooks/useImageGeneratorExecution.ts 等保持原样）；本任务只新增测试基础设施。"
+      ],
+      "gates": [
+        {
+          "id": "typecheck",
+          "required": true,
+          "program": "node",
+          "args": [
+            "./node_modules/typescript/bin/tsc",
+            "--noEmit"
+          ],
+          "cwd": ".",
+          "timeout_seconds": 600
+        },
+        {
+          "id": "harness-red-state",
+          "required": true,
+          "program": "node",
+          "args": [
+            "--experimental-strip-types",
+            "scripts/queue-regression.mjs",
+            "--expect-red"
+          ],
+          "cwd": ".",
+          "timeout_seconds": 600
+        }
+      ],
+      "test_review": {
+        "behavior": "preserve",
+        "baseline": {
+          "status": "PASS",
+          "evidence_ref": ".workflow-kit/tasks/evidence/probe-dup-enqueue.mjs",
+          "summary": "项目原本没有任何自动化行为测试（0 测试文件、0 lint；唯一 CI 只在 v* tag 触发且无 typecheck 步骤），故不存在可继承的旧套件。基线由总控自建的三个零依赖探针确立，均已实际运行并记录原始输出：(1) probe-queue-store.mjs 复现 REQ-001（重启遗留 queued 任务 250ms 无变化，显式 pump() 后转 error）；(2) probe-partialize-deadbranch.mjs 穷举证明 partialize 恒不输出 running，故 queueStore.ts:217-226 恢复分支不可达；(3) probe-dup-enqueue.mjs 用 react-dom/server 的 renderToStaticMarkup 驱动真实 React hook，证明 REQ-002 红状态：同一节点连续三次 handleGenerate 后活动 job 数为 1→2→3，退出码 1（预期红）。已知限制：vite build 在沙箱因 esbuild spawn EPERM 不可运行；cargo 因 TLS 凭证失败未运行；本基础设施只覆盖 store 与 hook 级逻辑，不覆盖真实 Tauri 运行时、渲染与 HTTP 调用。",
+          "note": "本任务为 behavior=preserve：只新增门禁，不改变任何业务行为。两个用例断言的是当前已确认需求下的期望行为，故在修复任务完成前会呈现红状态，这正是本任务要固化的证据。"
+        },
+        "decision_ids": [
+          "DEC-zero-dep-verification"
+        ],
+        "actions": [
+          {
+            "target": "自动化行为测试基础设施（原为完全缺失）",
+            "action": "add",
+            "reason": "基线证明项目无任何行为测试，且 tsc 已实证抓不到整模块死代码（imageService.ts 393 行零引用仍 PASS）与逻辑死分支。按 DEC-zero-dep-verification 补充零依赖门禁基础设施，使后续 REQ-001/REQ-002 修复具备红→绿可执行证据。",
+            "gate_ids": [
+              "harness-red-state"
+            ]
+          },
+          {
+            "target": "tsc --noEmit 类型门禁",
+            "action": "keep",
+            "reason": "strict + noUnusedLocals + noUnusedParameters 全开且当前零诊断，是项目唯一既有自动化保护，必须继续运行并保持 PASS。",
+            "gate_ids": [
+              "typecheck"
+            ]
+          }
+        ]
+      },
+      "input": {
+        "manifest": ".workflow-kit/tasks/evidence/TASK-005-input-09853a88b8464c50b586cc022b13da4c.json",
+        "digest": "408539f1508d617d72e30ac8fc2c51e81391da3709dd9619fd785d1773e89c7f",
+        "source_revision": null,
+        "definition_digest": "e8f400f6094f3d8690cd8d480849a1b707cb43485c833375a860f57f8d7e239b"
+      },
+      "budget": {
+        "started_at_utc": "2026-09-28T03:04:49.037712Z",
+        "deadline_at_utc": "2026-09-28T06:04:49.037712Z",
+        "repair_rounds_used": 2
+      },
+      "batch_id": "BATCH-b0beab2c90244930976c328fcf1d59e2",
+      "run_ids": [
+        "RUN-6a3941f7d5fe40c1a9fc437a9245a2e7",
+        "RUN-8aac424a088943fda6f95b8899e1a6eb",
+        "RUN-762472b3e99f4ef983ce9a7c5394bd2a",
+        "RUN-33efd879e5ca40588aaad68b7af1b837",
+        "RUN-64f53ddb04d14c99a130b814564a9754",
+        "RUN-735daa0585be4acc8a71ef3605fe904d",
+        "RUN-2440a1ec05fd42929757ae5413b3a717",
+        "RUN-d9bf2b89271a433c8fac75a3d77f3a07",
+        "RUN-0eebc354468a496f801deca8dc1c1c4a"
+      ],
+      "blockers": [],
+      "evidence": {
+        "candidate_manifest": ".workflow-kit/tasks/evidence/RUN-0eebc354468a496f801deca8dc1c1c4a-candidate.json",
+        "candidate_digest": "27abba6fe57f16ffc649e4c025843c81d97311cdc3f0abd6b780a557a5b08128",
+        "verification_run": "RUN-0eebc354468a496f801deca8dc1c1c4a",
+        "review_run": null,
+        "acceptance_ref": null,
+        "owner_decision_ids": [],
+        "merge_ref": null
+      },
+      "snapshot_paths": [
+        ".workflow-kit/tasks/evidence/probe-dup-enqueue.mjs",
+        "package.json",
+        "scripts",
+        "src/hooks/useImageGeneratorExecution.ts",
+        "src/stores/queueStore.ts",
+        "src/utils/tauriStorage.ts",
+        "tsconfig.json"
+      ],
+      "resume_phase": "review"
+    },
+    "brief": {
+      "goal": "为 NextCreator（可视化节点 AI 内容生成工作流桌面工具）建立可维护、稳定的继续演进基础，支持持续增加新节点与 AI 能力；本轮先做评估，不预设重构。",
+      "audience": "主要作者本人使用（个人工具），近期方向是继续增加功能。",
+      "acceptance": [
+        "第一批 A：queueStore 启动恢复（重启后遗留 queued 任务能正确处置，节点不再卡在“排队中”）；恢复同一节点重复入队保护；删除 393 行零引用死代码（imageService.ts 312 行 + imageCompression.ts 81 行）后 tsc 仍 PASS。",
+        "第一批 B：建立全局单一并发上限（不再出现 queueStore 2 × workflowEngine 3 各自为政）；nodeExecutor 的图片生成路径复用 executeImageGeneration 实现，消除最大一处重复；取消语义补全（在途返回后复查 aborted）。",
+        "第一批 C：API Key 不再以明文形式落盘，并配套旧数据迁移（用户已授权改数据格式）。",
+        "第一批 D：清理冗余依赖与构建产物（双锁文件、已废弃的 @types/uuid），不影响运行行为。",
+        "每项以真实命令验证（tsc + 适用的人工回归路径），并由未参与实现的新子代理独立审查后交用户验收。"
+      ],
+      "non_goals": [
+        "本轮不做双画布“两份真相”的合并（5 个写入者、不可分割的跨文件改动，需先有测试网）。",
+        "本轮不拆分 flowStore（1674 行）与 imageGeneratorConfig.ts（534 行）。",
+        "本轮不做功能与 UI 优化；该项留待后续单独讨论计划后再定。",
+        "本轮不引入完整测试框架（用户未选“引入最小测试网”路线）。",
+        "不做发布、不改认证或计费方式、不推送版本 tag。"
+      ],
+      "compatibility": "保留现有画布数据与 app-data.json 中除 API Key 存储方式以外的字段语义、已配置的供应商与模型设置、现有节点类型与连线行为；允许改动本地数据格式，但必须配套旧数据迁移。约束：现有用户数据与画布/画廊文件格式、已配置的供应商与模型设置、已确认的 UI 与交互行为；未提交改动与旧有文档保留。 待 Agent 基线核对后补充具体的兼容清单。",
+      "quality": {
+        "priority": "quality_first",
+        "maintainability": "目标：同一业务流程只保留一份执行实现；service 层不再反向依赖 components；删除全部零引用死代码。可核对方式：grep 确认单一实现入口、tsc --noEmit PASS、审查者核对无新增重复。",
+        "stability": "目标：消除已确认的用户可见缺陷（REQ-001、REQ-002），使取消语义与并发边界可预期。可核对方式：按人工回归清单逐条复现（手动生成 / 工作流 / LLM / 批量 / 重启后队列），记录实际命令与观察结果。",
+        "performance": {
+          "mode": "not_applicable",
+          "workload": "",
+          "targets": [],
+          "rationale": "用户反馈规模不大但曾感觉卡顿；已识别的三处性能可疑点均属未经测量的静态推断，本轮 A-D 四项改造不改变渲染与数据规模，无代表性负载可定义，故本轮不建立性能基准。REQ-009 记为待办，待用户确认可接受场景与目标后另行测量，不做无证据的优化。"
+        }
+      },
+      "requirements": [
+        {
+          "id": "REQ-001",
+          "kind": "bug",
+          "description": "重启后遗留的 queued 任务永不执行，节点持续显示“排队中”并禁用生成。queueStore.ts:209-212 持久化了 queued 但 :213-228 只修 running；pump() 全项目仅 3 处调用，启动时无人调用。",
+          "in_scope": true,
+          "acceptance": [
+            "重启应用后遗留 queued 任务得到明确处置（恢复执行或明确标记为可重试的失败），相关节点不再永久显示“排队中”。"
+          ]
+        },
+        {
+          "id": "REQ-002",
+          "kind": "bug",
+          "description": "缺少同一节点的重复入队保护（taskManager 时代的 isTaskRunning 语义未迁移）。useImageGeneratorExecution.ts:62 前无早退检查，连点会创建多个 job 并发写同一 node.data。",
+          "in_scope": true,
+          "acceptance": [
+            "同一节点已有 queued/running 任务时，再次触发不再产生并发任务；节点数据不被并发覆盖。"
+          ]
+        }
+      ],
+      "ui": {
+        "mode": "existing",
+        "style_intent": "沿用现有 UI：保持 React 19 + Tailwind CSS 4 + daisyUI 5 主题、现有节点/检查器/面板的视觉与交互不变。本轮为内部修复与去重，不改变界面外观与交互；受影响控件仅做回归检查。功能与 UI 优化计划留待后续单独讨论。",
+        "target_devices": [
+          "Windows 桌面（Tauri 2）",
+          "macOS 桌面（Tauri 2，仓库已有构建工作流）"
+        ]
+      }
+    },
+    "reference_candidates": [
+      {
+        "id": "REF-NODE-STRIP-TYPES",
+        "title": "Node.js 原生 TypeScript 剥离 + module.registerHooks（本项目验证门禁方案）",
+        "url": "https://nodejs.org/api/module.html#moduleregisterhooks",
+        "inspected_at_utc": "2026-09-28T02:20:00Z",
+        "fit": "零新增依赖即可在无浏览器、无 Tauri 运行时的情况下加载并驱动真实业务代码。已实测：106ms 加载 src/stores/queueStore.ts，pump() 真实执行，job 从 queued→running→error；persist.rehydrate/hasHydrated 与 persist.getOptions().partialize 均可直接调用，故水合链路也能自动化测试。总控已独立复现（probe-queue-store.mjs 退出码 0）。",
+        "limitations": "需自写约 40 行 loader 解决四件事：@/ 别名、无扩展名相对导入补 .ts、stub @xyflow/react（必须在该层 stub，因 react-dom 内部 CJS require 无法被 hook 拦截）、stub globalThis.window（tauriStorage.ts:100 顶层 window.addEventListener）。需 Node >= 22.15；本项目本机 Node 24.19.0 满足，但 CI 与 tauri.conf 用 bun，bun 兼容性未核验。项目中无 enum/装饰器/namespace（已 grep 确认 0 命中），故 --experimental-strip-types 的语法限制不构成阻碍。",
+        "reuse": "adapt_code",
+        "license": "MIT（Node.js）",
+        "revision": "Node 24.19.0（本机实测）",
+        "evidence": "总控独立复现：node --experimental-strip-types .workflow-kit/tasks/evidence/probe-queue-store.mjs 退出码 0，输出 IMPORT OK / enqueue->running / clamp(99)=4，并复现 REQ-001（遗留 queued 任务 250ms 无变化，显式 pump 后转 error）。另 probe-partialize-deadbranch.mjs 证明 partialize 恒不输出 running。"
+      }
+    ],
+    "read_first": [
+      "AGENTS.md",
+      "WORKFLOW-KIT.md"
+    ],
+    "candidate_digest": "27abba6fe57f16ffc649e4c025843c81d97311cdc3f0abd6b780a557a5b08128",
+    "deadline_at_utc": "2026-09-28T06:04:49.037712Z",
+    "role": "reviewer",
+    "verification": {
+      "schema_version": 1,
+      "id": "RUN-0eebc354468a496f801deca8dc1c1c4a",
+      "task_id": "TASK-005",
+      "kind": "verification",
+      "outcome": "completed",
+      "executor": {
+        "harness": "local_process",
+        "model": null,
+        "context_id": "tool-5ceaf3ce34be4f14990999dce1aa2b1c"
+      },
+      "started_at_utc": "2026-09-28T04:03:38.513849Z",
+      "finished_at_utc": "2026-09-28T04:03:44.486645Z",
+      "exit_code": 0,
+      "timed_out": false,
+      "input_digest": "408539f1508d617d72e30ac8fc2c51e81391da3709dd9619fd785d1773e89c7f",
+      "candidate_digest": "27abba6fe57f16ffc649e4c025843c81d97311cdc3f0abd6b780a557a5b08128",
+      "raw_output_refs": [
+        ".workflow-kit/tasks/evidence/RUN-0eebc354468a496f801deca8dc1c1c4a-typecheck.stdout.txt",
+        ".workflow-kit/tasks/evidence/RUN-0eebc354468a496f801deca8dc1c1c4a-typecheck.stderr.txt",
+        ".workflow-kit/tasks/evidence/RUN-0eebc354468a496f801deca8dc1c1c4a-harness-red-state.stdout.txt",
+        ".workflow-kit/tasks/evidence/RUN-0eebc354468a496f801deca8dc1c1c4a-harness-red-state.stderr.txt"
+      ],
+      "checks": [
+        {
+          "gate_id": "typecheck",
+          "status": "PASS",
+          "exit_code": 0,
+          "log": ".workflow-kit/tasks/evidence/RUN-0eebc354468a496f801deca8dc1c1c4a-typecheck.stdout.txt",
+          "stderr": ".workflow-kit/tasks/evidence/RUN-0eebc354468a496f801deca8dc1c1c4a-typecheck.stderr.txt",
+          "candidate_digest": "27abba6fe57f16ffc649e4c025843c81d97311cdc3f0abd6b780a557a5b08128",
+          "command": {
+            "argv": [
+              "C:\\Program Files\\nodejs\\node.exe",
+              "./node_modules/typescript/bin/tsc",
+              "--noEmit"
+            ],
+            "cwd": ".",
+            "started_at_utc": "2026-09-28T04:03:38.614177Z",
+            "finished_at_utc": "2026-09-28T04:03:41.073059Z",
+            "exit_code": 0,
+            "timed_out": false,
+            "cancelled": false,
+            "stdout": ".workflow-kit/tasks/evidence/RUN-0eebc354468a496f801deca8dc1c1c4a-typecheck.stdout.txt",
+            "stderr": ".workflow-kit/tasks/evidence/RUN-0eebc354468a496f801deca8dc1c1c4a-typecheck.stderr.txt"
+          }
+        },
+        {
+          "gate_id": "harness-red-state",
+          "status": "PASS",
+          "exit_code": 0,
+          "log": ".workflow-kit/tasks/evidence/RUN-0eebc354468a496f801deca8dc1c1c4a-harness-red-state.stdout.txt",
+          "stderr": ".workflow-kit/tasks/evidence/RUN-0eebc354468a496f801deca8dc1c1c4a-harness-red-state.stderr.txt",
+          "candidate_digest": "27abba6fe57f16ffc649e4c025843c81d97311cdc3f0abd6b780a557a5b08128",
+          "command": {
+            "argv": [
+              "C:\\Program Files\\nodejs\\node.exe",
+              "--experimental-strip-types",
+              "scripts/queue-regression.mjs",
+              "--expect-red"
+            ],
+            "cwd": ".",
+            "started_at_utc": "2026-09-28T04:03:41.097271Z",
+            "finished_at_utc": "2026-09-28T04:03:44.475389Z",
+            "exit_code": 0,
+            "timed_out": false,
+            "cancelled": false,
+            "stdout": ".workflow-kit/tasks/evidence/RUN-0eebc354468a496f801deca8dc1c1c4a-harness-red-state.stdout.txt",
+            "stderr": ".workflow-kit/tasks/evidence/RUN-0eebc354468a496f801deca8dc1c1c4a-harness-red-state.stderr.txt"
+          }
+        }
+      ],
+      "review": {
+        "mode": null,
+        "verdict": null,
+        "report": null,
+        "candidate_digest": null
+      },
+      "estimated_cost_usd": null,
+      "pid": 40144,
+      "controller_pid": 40280,
+      "commands": [
+        {
+          "argv": [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "./node_modules/typescript/bin/tsc",
+            "--noEmit"
+          ],
+          "cwd": ".",
+          "started_at_utc": "2026-09-28T04:03:38.614177Z",
+          "stdout": ".workflow-kit/tasks/evidence/RUN-0eebc354468a496f801deca8dc1c1c4a-typecheck.stdout.txt",
+          "stderr": ".workflow-kit/tasks/evidence/RUN-0eebc354468a496f801deca8dc1c1c4a-typecheck.stderr.txt",
+          "finished_at_utc": "2026-09-28T04:03:41.073059Z",
+          "exit_code": 0,
+          "timed_out": false,
+          "cancelled": false
+        },
+        {
+          "argv": [
+            "C:\\Program Files\\nodejs\\node.exe",
+            "--experimental-strip-types",
+            "scripts/queue-regression.mjs",
+            "--expect-red"
+          ],
+          "cwd": ".",
+          "started_at_utc": "2026-09-28T04:03:41.097271Z",
+          "stdout": ".workflow-kit/tasks/evidence/RUN-0eebc354468a496f801deca8dc1c1c4a-harness-red-state.stdout.txt",
+          "stderr": ".workflow-kit/tasks/evidence/RUN-0eebc354468a496f801deca8dc1c1c4a-harness-red-state.stderr.txt",
+          "finished_at_utc": "2026-09-28T04:03:44.475389Z",
+          "exit_code": 0,
+          "timed_out": false,
+          "cancelled": false
+        }
+      ]
+    },
+    "verification_ref": ".workflow-kit/tasks/runs/RUN-0eebc354468a496f801deca8dc1c1c4a.json",
+    "required_review_areas": [
+      "requirements",
+      "regression",
+      "failure_paths",
+      "maintainability",
+      "performance"
+    ],
+    "required_review_mode": "independent_required",
+    "candidate_files": [
+      {
+        "path": ".workflow-kit/tasks/evidence/probe-dup-enqueue.mjs",
+        "sha256": "113ae66317da6ded990cff35bf50fc6858d0eb5c08c70ac372abacfd52411836"
+      },
+      {
+        "path": "package.json",
+        "sha256": "5aaf487296f12216acc109b29e621e241b30ef8ea7f4cab754e9e38d0ac972c6"
+      },
+      {
+        "path": "scripts/queue-regression.mjs",
+        "sha256": "07dd44247ebfa6dfa66707ac917ba851593fc7f33f711a6c0b5b06701ae3cabb"
+      },
+      {
+        "path": "scripts/queue-regression.selfcheck.mjs",
+        "sha256": "f885188990b3d7c672d575da1308c8f75f11fcf2e8c1d0faac270dde79719f82"
+      },
+      {
+        "path": "src/hooks/useImageGeneratorExecution.ts",
+        "sha256": "6a076eae5b9c618c0c0c6a64e39379e8f2357486581857587c91d09dad285e18"
+      },
+      {
+        "path": "src/stores/queueStore.ts",
+        "sha256": "bfec4313dd3b25215d4ecd056427f78538cc9e8da59737f6672f7cc86adc1272"
+      },
+      {
+        "path": "src/utils/tauriStorage.ts",
+        "sha256": "09d36fb8015a5c11e324e1ade90356a4ac3fca64c662d5c38bc8e4a3d0dc7f83"
+      },
+      {
+        "path": "tsconfig.json",
+        "sha256": "dfee6e5208cc2f515d9eea89584ed986b010a6259dbe7a9b03fca5f9ab3c91d9"
+      }
+    ],
+    "changed_files": [
+      "package.json",
+      "scripts/queue-regression.mjs",
+      "scripts/queue-regression.selfcheck.mjs"
+    ]
+  },
+  "instruction": "把此输入交给未参与实现的新上下文；同模型即可，不要求 CLI。不要复制作者会话或通过预期。不能创建独立上下文时如实报告，按已确认审查策略处理。 审查证据只能引用候选文件或 tasks/runs、tasks/evidence 下的附件，不要引用任务记录、卡片或决定文件。"
+}

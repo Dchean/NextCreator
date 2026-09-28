@@ -3,19 +3,21 @@
   "id": "RUN-d9bf2b89271a433c8fac75a3d77f3a07",
   "task_id": "TASK-005",
   "kind": "repair",
-  "outcome": "running",
+  "outcome": "completed",
   "executor": {
     "harness": "current_agent",
     "model": null,
     "context_id": "coder subagent cfe0eebd repair round 2 (same author; findings fed back per EXECUTION: review defect -> original task scope and remaining budget, no new task)"
   },
   "started_at_utc": "2026-09-28T03:53:38.002194Z",
-  "finished_at_utc": null,
-  "exit_code": null,
+  "finished_at_utc": "2026-09-28T04:03:33.948553Z",
+  "exit_code": 0,
   "timed_out": false,
   "input_digest": "408539f1508d617d72e30ac8fc2c51e81391da3709dd9619fd785d1773e89c7f",
-  "candidate_digest": null,
-  "raw_output_refs": [],
+  "candidate_digest": "27abba6fe57f16ffc649e4c025843c81d97311cdc3f0abd6b780a557a5b08128",
+  "raw_output_refs": [
+    ".workflow-kit/tasks/evidence/RUN-d9bf2b89271a433c8fac75a3d77f3a07-worker-result.json"
+  ],
   "checks": [],
   "review": {
     "mode": null,
