@@ -418,6 +418,17 @@
         "previous_deadline_at_utc": "2026-09-28T06:04:49.037712Z",
         "deadline_at_utc": "2026-09-28T07:34:49.037712Z"
       }
+    },
+    {
+      "id": "DEC-0e474b6109074b82b60a760b06a32c5f",
+      "issuer": "owner",
+      "status": "accepted",
+      "source": "用户决断（提问工具 close_005 与 verify_mode_006）：① TASK-005 收口（接受现门禁，6 项已知缺口转为 TASK-006 约束，不再追加门禁修复轮）；② 继续推进 TASK-006 做 REQ-001+REQ-002 的实际修复，验收方式为门禁加用户实机确认。用户已明确选择继续推进本批业务修复，故开启下一批。原批次成员与记录保留，未移除任何已启动任务。",
+      "statement": "Owner approved the next bounded batch under the existing brief and policy",
+      "scope": [
+        "workflow"
+      ],
+      "recorded_at_utc": "2026-09-28T06:24:48.779213Z"
     }
   ]
 }

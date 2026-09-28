@@ -7,7 +7,7 @@
   "ui_change": false,
   "ui_contract_ref": null,
   "ui_checks": [],
-  "status": "blocked",
+  "status": "cancelled",
   "objective": "为项目建立一份可复用的零新增依赖行为测试基础设施：一个能加载真实 src/**/*.ts 的 Node 加载器，以及在其上运行的队列回归脚本（两个用例 + 红状态自检模式）。本任务只交付基础设施与红状态证据，不修复任何业务缺陷——业务修复由后续任务在本门禁之上进行。",
   "non_goals": [
     "不修复 REQ-001 与 REQ-002——本任务只建立门禁并取得红状态证据，修复由后续任务负责。",
@@ -181,9 +181,7 @@
     "RUN-59a8c90b8dff49f5af05fe8d40142138",
     "RUN-cfdab9b9bf3f4f3b84ce0d6acdef1832"
   ],
-  "blockers": [
-    "Review requires changes; inspect the findings"
-  ],
+  "blockers": [],
   "evidence": {
     "candidate_manifest": ".workflow-kit/tasks/evidence/RUN-59a8c90b8dff49f5af05fe8d40142138-candidate.json",
     "candidate_digest": "246952c35a917429b46a60cff7e7b04caa2194b0debd7b93ea37ea83e64901d3",
@@ -322,6 +320,16 @@
       "at_utc": "2026-09-28T06:22:26.077150Z",
       "note": "Review requires changes; inspect the findings",
       "next_action": "先核对已有文件及原始日志，再处理 review_failure；不要新建任务或重置预算"
+    },
+    {
+      "at_utc": "2026-09-28T06:23:52.267596Z",
+      "note": "阻塞已处置（review_failure）：处置依据：门禁修复轮已用满 4/4（含用户追加的一轮）；五轮审查各发现一类新假绿，穷尽门禁不收敛。审查结论保持 FAIL 记录不追认为 PASS；交付物状态为'已被用户接受但带已知缺口'。已知缺口六项已逐条写入 .workflow-kit/tasks/evidence/note-close-005.txt 并转为 TASK-006 约束。核对：候选 246952c35a917429b46a60cff7e7b04caa2194b0debd7b93ea37ea83e64901d3 的 diff 仅含 scripts/ 两文件与 package.json，outside 与 protected 均为空；门禁两模式与 tsc 均符合预期；总控自身未修改任何业务源码。",
+      "next_action": "verify 当前候选"
+    },
+    {
+      "at_utc": "2026-09-28T06:24:26.172180Z",
+      "note": "任务已取消：独立审查第 4、5 轮均判定 FAIL（均发现新的假绿路径：守卫位置不敏感/retry 旁路/自检空过；暂停态假绿/自检特异性不足/键名漂移）。用户决断收口：接受现门禁的可用能力，把 6 项已知缺口转为 TASK-006 的实现约束与人工回归清单，不再追加门禁修复轮。故本任务不予 verified/accept——审查结论保持 FAIL 记录，不追认为 PASS。交付物（scripts/queue-regression.mjs 与 selfcheck）保留在工作区并由 TASK-006 作为门禁直接消费；其能力已由五轮独立审查反复确认（含 r5 用自建 load-hook harness 确认用例 E/F 真实有效、旧断言仍承重、环境变量独立、键名白名单可靠）。",
+      "next_action": "如需同一目标，准备新的任务并引用本任务作为历史"
     }
   ],
   "resume_phase": "review",
@@ -335,7 +343,22 @@
       "source": "总控处置：action_required 由总控自身的 worker-result 填写方式引起，非实现缺陷。unresolved_items 非空会被工具判为'执行者请求管理动作'，但那 4 条实为总控给后续 TASK-001 的设计注意点，应写入 summary 或由总控记为 note，而不是放在 worker 的 unresolved_items 里。已把该 4 条移出并另存 .workflow-kit/tasks/evidence/task-005-unresolved-notes.json。",
       "note": "核对：diff --run 显示 changed_files 与 changed_this_run 均为 [package.json, scripts/queue-regression.mjs]，outside 与 protected 均为空，无越界改动；两处交付物已由总控独立运行复核（默认模式退出码 1、--expect-red 退出码 0）。候选从未生成（candidate_digest 为 null），故按默认出口回到 ready 重新 begin/finish，不消耗修复轮、保留原时钟与两次中断历史。",
       "resumed_to": "ready"
+    },
+    {
+      "at_utc": "2026-09-28T06:23:52.168851Z",
+      "failure_kind": "review_failure",
+      "blockers": [
+        "Review requires changes; inspect the findings"
+      ],
+      "source": "用户决断（提问工具 close_005）：收口——接受现门禁，把第五轮审查的 6 项发现转为 TASK-006 的实现约束与人工回归清单，不再追加门禁修复轮。",
+      "note": "处置依据：门禁修复轮已用满 4/4（含用户追加的一轮）；五轮审查各发现一类新假绿，穷尽门禁不收敛。审查结论保持 FAIL 记录不追认为 PASS；交付物状态为'已被用户接受但带已知缺口'。已知缺口六项已逐条写入 .workflow-kit/tasks/evidence/note-close-005.txt 并转为 TASK-006 约束。核对：候选 246952c35a917429b46a60cff7e7b04caa2194b0debd7b93ea37ea83e64901d3 的 diff 仅含 scripts/ 两文件与 package.json，outside 与 protected 均为空；门禁两模式与 tsc 均符合预期；总控自身未修改任何业务源码。",
+      "resumed_to": "verifying"
+    },
+    {
+      "at_utc": "2026-09-28T06:24:26.123063Z",
+      "cancelled": true,
+      "reason": "独立审查第 4、5 轮均判定 FAIL（均发现新的假绿路径：守卫位置不敏感/retry 旁路/自检空过；暂停态假绿/自检特异性不足/键名漂移）。用户决断收口：接受现门禁的可用能力，把 6 项已知缺口转为 TASK-006 的实现约束与人工回归清单，不再追加门禁修复轮。故本任务不予 verified/accept——审查结论保持 FAIL 记录，不追认为 PASS。交付物（scripts/queue-regression.mjs 与 selfcheck）保留在工作区并由 TASK-006 作为门禁直接消费；其能力已由五轮独立审查反复确认（含 r5 用自建 load-hook harness 确认用例 E/F 真实有效、旧断言仍承重、环境变量独立、键名白名单可靠）。",
+      "source": "用户决断（提问工具 close_005）：收口——接受现门禁，转为 TASK-006 约束；用户明确知晓该交付物带已知缺口"
     }
-  ],
-  "failure_kind": "review_failure"
+  ]
 }

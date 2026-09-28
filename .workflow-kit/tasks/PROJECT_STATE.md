@@ -24,19 +24,20 @@
 
 **性能安排**：用户反馈规模不大但曾感觉卡顿；已识别的三处性能可疑点均属未经测量的静态推断，本轮 A-D 四项改造不改变渲染与数据规模，无代表性负载可定义，故本轮不建立性能基准。REQ-009 记为待办，待用户确认可接受场景与目标后另行测量，不做无证据的优化。
 
-已建任务 3 项：已验收 0，待验收 0，阻塞 1。
+已建任务 4 项：已验收 0，待验收 0，阻塞 0。
 
 | 任务 | 状态 | 目标 / 下一步 |
 | --- | --- | --- |
-| [TASK-005 · 建立零依赖行为门禁基础设施（TS 加载器 + 队列回归脚本骨架）](<cards/TASK-005.md>) | 阻塞 | Review requires changes; inspect the findings；先核对已有文件及原始日志，再处理 review_failure；不要新建任务或重置预算 |
+| [TASK-006 · 修复 REQ-001 重启恢复与 REQ-002 重复入队保护（A 项收口，以 TASK-005 门禁验收）](<cards/TASK-006.md>) | 待执行 | 修复 REQ-001（应用重启后遗留的 queued 任务永不执行、相关节点永久显示“排队中”并禁用生成）与 REQ-002（缺少同一节点的重复入队保护），并建立一份零新增依赖的行为回归门禁，使这两项缺陷有可执行的红→绿证据。 |
 | [TASK-001 · queueStore 重启恢复与重复入队保护（含零依赖回归门禁）](<cards/TASK-001.md>) | 已取消 | 任务已取消：总控 replan：拆分任务粒度。原 TASK-001 同时承担'搭建零依赖测试基础设施'与'修复两个业务缺陷'，连续两次派发（RUN-51a36a44、RUN-fd43e498）均因编码子代理上下文耗尽失败且业务源码零改动，属任务包过大而非偶发。现拆为 TASK-004（只交付门禁基础设施与红状态证据）与新 TASK-001（只做业务修复并以上述门禁验收）。本记录保留原任务身份、两次中断现场与 0 修复轮的时钟。；如需同一目标，准备新的任务并引用本任务作为历史 |
 | [TASK-004 · 建立零依赖行为门禁基础设施（TS 加载器 + 队列回归脚本骨架）](<cards/TASK-004.md>) | 已取消 | 任务已取消：门禁规格含工具不支持的 expect_failure 字段，会致红状态门禁在 verify 时被误判为 FAIL。改为脚本自身提供 --expect-red 自检模式（红状态符合预期时退出码 0，意外变绿则非 0）。编码子代理的工作在修正后的新任务卡下继续，已产出的设计不受影响。；如需同一目标，准备新的任务并引用本任务作为历史 |
+| [TASK-005 · 建立零依赖行为门禁基础设施（TS 加载器 + 队列回归脚本骨架）](<cards/TASK-005.md>) | 已取消 | 任务已取消：独立审查第 4、5 轮均判定 FAIL（均发现新的假绿路径：守卫位置不敏感/retry 旁路/自检空过；暂停态假绿/自检特异性不足/键名漂移）。用户决断收口：接受现门禁的可用能力，把 6 项已知缺口转为 TASK-006 的实现约束与人工回归清单，不再追加门禁修复轮。故本任务不予 verified/accept——审查结论保持 FAIL 记录，不追认为 PASS。交付物（scripts/queue-regression.mjs 与 selfcheck）保留在工作区并由 TASK-006 作为门禁直接消费；其能力已由五轮独立审查反复确认（含 r5 用自建 load-hook harness 确认用例 E/F 真实有效、旧断言仍承重、环境变量独立、键名白名单可靠）。；如需同一目标，准备新的任务并引用本任务作为历史 |
 
 **已确认但尚未拆分的需求**：删除零引用死代码：imageService.ts（312 行）与 imageCompression.ts（81 行）共 393 行，全项目零外部 importer，而 tsc 在 noUnusedLocals 开启下仍 PASS，证明现有门禁抓不到整模块死代码。；执行链重复：手动路径 queueStore→imageGenerationExecution.ts（470 行）与工作流路径 workflowEngine:435→nodeExecutor.ts:390（159 行）不共享实现，后者缺 runRecords/取消/批量/缩略图。已有 imageGenerationExecution.ts:34 的 withRunRecords 开关使复用可不改调用方。；并发无全局背压：queueStore.ts:58 concurrency=2 与 workflowEngine.ts:46 maxParallelNodes=3 互不知情，最多 5 路并发打同一 API Key。；取消不彻底：gemini.ts:136 与 gptImage.ts:175 仅在发起前检查 aborted，invoke 无 signal 透传，取消无法阻止在途请求继续（也无法阻止计费）。；API Key 明文落盘：settingsStore.ts:164 将含 apiKey 的 settings.providers 全量持久化到 app-data.json，全项目零加密。用户已授权改变数据格式并配套迁移。；依赖与构建收尾：bun.lock 与 package-lock.json 双锁文件并存（CI 与实际构建用 bun，package-lock.json 无人使用）；@types/uuid 已废弃且 uuid v13 自带类型。
 
 **本轮暂缓**：用户反馈曾经“有卡顿的感觉”，但自称使用规模不大。静态阅读发现三处可疑点（flowStore.ts:482-490 每次 updateNodeData 全量重建 nodes；App.tsx:167-186 800ms 防抖整画布深拷贝 + canvasStore.partialize 遍历全部画布全部节点；config/prompts/ 5700+ 行静态文案全进主 bundle 且无 manualChunks），均未在真实运行中测量。；参考成熟产品做功能与 UI 优化（用户已提出，但要求先列计划、以问答确认后再实施）。；结构性问题（双画布两份真相、flowStore 巨型化、imageGeneratorConfig.ts 双向依赖）已被证据证实存在，但用户选择渐进路线且本轮不合并。
 
-**阻塞**：Review requires changes; inspect the findings
+**阻塞**：无已记录阻塞
 
 **下一步**：结合当前任务、验收与实际文件确定下一步
 

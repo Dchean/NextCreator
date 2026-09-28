@@ -1,7 +1,7 @@
 <!-- project-workflow: generated view; edit task JSON instead -->
 # TASK-005 · 建立零依赖行为门禁基础设施（TS 加载器 + 队列回归脚本骨架）
 
-**状态**：blocked
+**状态**：cancelled
 
 **目标**：为项目建立一份可复用的零新增依赖行为测试基础设施：一个能加载真实 src/**/*.ts 的 Node 加载器，以及在其上运行的队列回归脚本（两个用例 + 红状态自检模式）。本任务只交付基础设施与红状态证据，不修复任何业务缺陷——业务修复由后续任务在本门禁之上进行。
 
@@ -42,19 +42,19 @@
 - 当前截止时间：2026-09-28T07:34:49.037712Z
 - 时钟：按活动时间计：已用 49 分钟 / 额度 270 分钟（等待、断网和只读门禁不计）
 - 已用修复轮：4
-- 阻塞：Review requires changes; inspect the findings
-- 下一步：先核对已有文件及原始日志，再处理 review_failure；不要新建任务或重置预算
+- 阻塞：无
+- 下一步：如需同一目标，准备新的任务并引用本任务作为历史
 
 ## 最近检查点
 
-- 2026-09-28T05:03:34.589562Z：编码结果已记录，差异范围已核对：package.json, scripts/queue-regression.mjs, scripts/queue-regression.selfcheck.mjs；下一步：运行 verify；代码完成尚未等于验收通过
-- 2026-09-28T05:03:45.276260Z：预先定义的必需测试全部通过，日志已保存；下一步：审查当前候选；独立审查使用没有参与编码的新上下文
 - 2026-09-28T05:24:56.205930Z：Review requires changes; inspect the findings；下一步：先核对已有文件及原始日志，再处理 review_failure；不要新建任务或重置预算
 - 2026-09-28T05:34:54.822718Z：依据新决定追加预算；原始时钟与失败记录保留；下一步：先核对已有成果，再按原任务范围继续
 - 2026-09-28T05:35:00.415626Z：开始执行，保留原任务身份和截止时间；沿用本任务先前的范围基线，changed_files 为本任务累计改动；下一步：完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify
 - 2026-09-28T05:56:10.798919Z：编码结果已记录，差异范围已核对：scripts/queue-regression.mjs, scripts/queue-regression.selfcheck.mjs；下一步：运行 verify；代码完成尚未等于验收通过
 - 2026-09-28T05:56:21.846654Z：预先定义的必需测试全部通过，日志已保存；下一步：审查当前候选；独立审查使用没有参与编码的新上下文
 - 2026-09-28T06:22:26.077150Z：Review requires changes; inspect the findings；下一步：先核对已有文件及原始日志，再处理 review_failure；不要新建任务或重置预算
+- 2026-09-28T06:23:52.267596Z：阻塞已处置（review_failure）：处置依据：门禁修复轮已用满 4/4（含用户追加的一轮）；五轮审查各发现一类新假绿，穷尽门禁不收敛。审查结论保持 FAIL 记录不追认为 PASS；交付物状态为'已被用户接受但带已知缺口'。已知缺口六项已逐条写入 .workflow-kit/tasks/evidence/note-close-005.txt 并转为 TASK-006 约束。核对：候选 246952c35a917429b46a60cff7e7b04caa2194b0debd7b93ea37ea83e64901d3 的 diff 仅含 scripts/ 两文件与 package.json，outside 与 protected 均为空；门禁两模式与 tsc 均符合预期；总控自身未修改任何业务源码。；下一步：verify 当前候选
+- 2026-09-28T06:24:26.172180Z：任务已取消：独立审查第 4、5 轮均判定 FAIL（均发现新的假绿路径：守卫位置不敏感/retry 旁路/自检空过；暂停态假绿/自检特异性不足/键名漂移）。用户决断收口：接受现门禁的可用能力，把 6 项已知缺口转为 TASK-006 的实现约束与人工回归清单，不再追加门禁修复轮。故本任务不予 verified/accept——审查结论保持 FAIL 记录，不追认为 PASS。交付物（scripts/queue-regression.mjs 与 selfcheck）保留在工作区并由 TASK-006 作为门禁直接消费；其能力已由五轮独立审查反复确认（含 r5 用自建 load-hook harness 确认用例 E/F 真实有效、旧断言仍承重、环境变量独立、键名白名单可靠）。；下一步：如需同一目标，准备新的任务并引用本任务作为历史
 
 ## 原始证据
 

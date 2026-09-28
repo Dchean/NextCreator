@@ -31,7 +31,10 @@
     "node ./node_modules/typescript/bin/tsc --noEmit 保持 PASS。不改 UI 外观与交互；不改节点数据字段语义；不改画布或 app-data.json 既有字段含义。",
     "去重必须覆盖 queued 与 running 两种活动状态，且必须按「用户点击」粒度判定、只对活动任务生效：既不得拦掉同一次点击内的合法批量 job（batchCount>1，useImageGeneratorExecution.ts:61-74），也不得因历史 job 锁死节点重生成。禁止写成仅判定 running（历史上 taskManager.isTaskRunning 即为该形态，会导致同节点在额度占满时累积多个 queued 任务后并发派发）。",
     "禁止全局单飞守卫（不按 nodeId 区分、任何节点有活动 job 即拒绝入队），这会禁止不同节点并发生成，与 queueStore 的 concurrency 1..4 设计冲突。",
-    "启动恢复必须落在 store 层（如 onRehydrateStorage）：门禁用例 A 只驱动 store 水合链路、不 mount App，实现在 App.tsx 的 useEffect 会被判红；且恢复须同时清除节点的 data.queued 标记，否则用户仍看到按钮禁用与“排队中”。"
+    "启动恢复必须落在 store 层（如 onRehydrateStorage）：门禁用例 A 只驱动 store 水合链路、不 mount App，实现在 App.tsx 的 useEffect 会被判红；且恢复须同时清除节点的 data.queued 标记，否则用户仍看到按钮禁用与“排队中”。",
+    "【门禁已知缺口转为实现约束】门禁经五轮独立审查，确认存在 6 项未被自动覆盖的形态；实现必须逐条规避，不得依赖门禁代替判断：(a) 暂停态——守卫不得在 queueStore.paused 为真时跳过判定（暂停时生成按钮仍可点，data.queued 在首个 await 之后才写，连点会累积并发任务）；(b) 守卫必须放在 queueStore.enqueue 内同步判定，不得只放 handleGenerate 入口（否则重叠点击与 retry 两条路径都能绕过）；(c) 必须按「用户点击」整批原子判定，不得逐个 job 判重（否则批量拆分被截断为 1）；(d) 只判定该节点的活动任务（queued||running），不得对历史任务判重（否则锁死重试与重生成）；(e) 不得写成「仅判定 running」（历史 taskManager.isTaskRunning 即该形态）；(f) 不得写成全局单飞（不按 nodeId 区分）。",
+    "【必须由用户实机确认，不得仅以门禁通过为完成依据】门禁未覆盖暂停态等场景（见上）。交付时总控须提供具体手动验证步骤清单，至少覆盖四个场景：快速连点同一节点、批量 n>1 生成、队列暂停状态下的连点、应用重启后的遗留任务处置。由用户实际启动应用逐项确认。",
+    "门禁脚本（scripts/queue-regression.mjs 与 selfcheck）属受保护路径：实现者不得修改、弱化或绕过它们来使结果通过；若发现门禁断言与需求冲突，停止并报告。"
   ],
   "non_goals": [
     "不新建或修改测试基础设施（scripts/ 归 TASK-000，本任务只消费它）。",
@@ -40,9 +43,7 @@
     "不合并双画布与 flowStore 的“两份真相”。",
     "不重写现有 5 条人工回归路径，也不替代用户验收。"
   ],
-  "dependencies": [
-    "TASK-005"
-  ],
+  "dependencies": [],
   "risk": {
     "level": "medium",
     "decision_ids": [
@@ -51,14 +52,16 @@
     ]
   },
   "snapshot_paths": [
-    "src/stores/queueStore.ts",
-    "src/hooks/useImageGeneratorExecution.ts",
-    "src/components/nodes/ImageGeneratorNode.tsx",
-    "src/services/imageGenerationExecution.ts",
-    "src/utils/tauriStorage.ts",
     "package.json",
-    "tsconfig.json",
-    "scripts"
+    "scripts",
+    "scripts/queue-regression.mjs",
+    "scripts/queue-regression.selfcheck.mjs",
+    "src/components/nodes/ImageGeneratorNode.tsx",
+    "src/hooks/useImageGeneratorExecution.ts",
+    "src/services/imageGenerationExecution.ts",
+    "src/stores/queueStore.ts",
+    "src/utils/tauriStorage.ts",
+    "tsconfig.json"
   ],
   "allowed_paths": [
     "src/stores/queueStore.ts",
@@ -67,10 +70,12 @@
     "src/main.tsx"
   ],
   "protected_paths": [
-    "src/services/imageGenerationExecution.ts",
-    "src/utils/tauriStorage.ts",
+    "scripts/queue-regression.mjs",
+    "scripts/queue-regression.selfcheck.mjs",
+    "src-tauri",
     "src/services/imageGeneration",
-    "src-tauri"
+    "src/services/imageGenerationExecution.ts",
+    "src/utils/tauriStorage.ts"
   ],
   "gates": [
     {

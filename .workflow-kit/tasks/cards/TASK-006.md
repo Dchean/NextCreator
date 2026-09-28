@@ -1,0 +1,62 @@
+<!-- project-workflow: generated view; edit task JSON instead -->
+# TASK-006 · 修复 REQ-001 重启恢复与 REQ-002 重复入队保护（A 项收口，以 TASK-005 门禁验收）
+
+**状态**：ready
+
+**目标**：修复 REQ-001（应用重启后遗留的 queued 任务永不执行、相关节点永久显示“排队中”并禁用生成）与 REQ-002（缺少同一节点的重复入队保护），并建立一份零新增依赖的行为回归门禁，使这两项缺陷有可执行的红→绿证据。
+
+**依赖**：无
+**参考方案**：REF-NODE-STRIP-TYPES
+**界面约定**：不涉及界面
+**界面检查**：不适用
+**修改范围**：src/stores/queueStore.ts, src/hooks/useImageGeneratorExecution.ts, src/App.tsx, src/main.tsx
+
+## 验收标准
+
+- REQ-001：应用重启（store 重新水合）后，持久化下来的 queued 任务得到明确处置，不再永久停留在 queued。已确认行为按 DEC-restart-queue-resume：自动恢复并继续生成（会产生真实 API 费用，用户已明确接受）。
+- REQ-001 根因处理：queueStore.ts:209-212 的 partialize 过滤掉 running，而 :213-228 的 onRehydrateStorage 只查找 running，导致该恢复分支恒不可达（已实测穷举证明）。必须使 partialize 与恢复逻辑意图自洽，硬性要求：不允许留下仍然不可达的分支。
+- REQ-001 竞态：恢复不得早于画布数据就绪导致任务因“节点不存在”失败（imageGenerationExecution 会返回该错误）；必须处理该顺序竞态，使缺陷不以新形式复现。
+- REQ-001 防崩溃循环：若应用在恢复后立即崩溃，不得无限反复重试；需有次数或状态约束。
+- REQ-001 节点锁死解除：处置完成后，相关节点不再被 data.queued 永久锁死（ImageGeneratorNode.tsx:215 的 canRun）。
+- REQ-002：同一节点已有 queued 或 running 任务时，再次触发生成不再产生并发任务。注意不得误伤批量拆分（batchCount > 1 时 useImageGeneratorExecution.ts:61-74 会连续 enqueue 多个 job）。
+- 必须实际运行 TASK-000 交付的门禁 node --experimental-strip-types scripts/queue-regression.mjs，并记录修复后的通过输出；同时引用 TASK-000 记录的修复前失败输出，形成红→绿证据。
+- 不得通过修改 scripts/queue-regression.mjs 的断言来使结果通过；若某断言与需求冲突，停止并报告。
+- 保持 concurrency 钳制 1..4（queueStore.ts:112）与现有取消语义不变。
+- node ./node_modules/typescript/bin/tsc --noEmit 保持 PASS。不改 UI 外观与交互；不改节点数据字段语义；不改画布或 app-data.json 既有字段含义。
+- 去重必须覆盖 queued 与 running 两种活动状态，且必须按「用户点击」粒度判定、只对活动任务生效：既不得拦掉同一次点击内的合法批量 job（batchCount>1，useImageGeneratorExecution.ts:61-74），也不得因历史 job 锁死节点重生成。禁止写成仅判定 running（历史上 taskManager.isTaskRunning 即为该形态，会导致同节点在额度占满时累积多个 queued 任务后并发派发）。
+- 禁止全局单飞守卫（不按 nodeId 区分、任何节点有活动 job 即拒绝入队），这会禁止不同节点并发生成，与 queueStore 的 concurrency 1..4 设计冲突。
+- 启动恢复必须落在 store 层（如 onRehydrateStorage）：门禁用例 A 只驱动 store 水合链路、不 mount App，实现在 App.tsx 的 useEffect 会被判红；且恢复须同时清除节点的 data.queued 标记，否则用户仍看到按钮禁用与“排队中”。
+- 【门禁已知缺口转为实现约束】门禁经五轮独立审查，确认存在 6 项未被自动覆盖的形态；实现必须逐条规避，不得依赖门禁代替判断：(a) 暂停态——守卫不得在 queueStore.paused 为真时跳过判定（暂停时生成按钮仍可点，data.queued 在首个 await 之后才写，连点会累积并发任务）；(b) 守卫必须放在 queueStore.enqueue 内同步判定，不得只放 handleGenerate 入口（否则重叠点击与 retry 两条路径都能绕过）；(c) 必须按「用户点击」整批原子判定，不得逐个 job 判重（否则批量拆分被截断为 1）；(d) 只判定该节点的活动任务（queued||running），不得对历史任务判重（否则锁死重试与重生成）；(e) 不得写成「仅判定 running」（历史 taskManager.isTaskRunning 即该形态）；(f) 不得写成全局单飞（不按 nodeId 区分）。
+- 【必须由用户实机确认，不得仅以门禁通过为完成依据】门禁未覆盖暂停态等场景（见上）。交付时总控须提供具体手动验证步骤清单，至少覆盖四个场景：快速连点同一节点、批量 n>1 生成、队列暂停状态下的连点、应用重启后的遗留任务处置。由用户实际启动应用逐项确认。
+- 门禁脚本（scripts/queue-regression.mjs 与 selfcheck）属受保护路径：实现者不得修改、弱化或绕过它们来使结果通过；若发现门禁断言与需求冲突，停止并报告。
+
+## 测试适用性
+
+- 既有行为：按已确认需求变化
+- 原始基线：PASS；项目原本没有任何自动化测试（0 测试文件、0 lint、唯一 CI 只在 v* tag 触发且无 typecheck 步骤），因此不存在可继承的旧测试套件。基线由总控自建的两个零依赖探针确立，均已实际运行、退出码 0：(1) probe-queue-store.mjs 复现 REQ-001 —— 模拟重启遗留 queued 任务后 250ms 仍为 queued，显式调用 pump() 后立即转为 error，证明缺失的调用就是启动时的 pump()；(2) probe-partialize-deadbranch.mjs 穷举证明 partialize 恒不输出 running（输出仅 queued,success,error,cancelled），故 queueStore.ts:217-226 的 running 恢复分支不可达，这正是 REQ-001 的根因。两项探针同时确认 queueStore 可在无浏览器、无 Tauri 运行时的情况下被真实驱动。已知限制：vite build 在本会话沙箱因 esbuild spawn EPERM 无法运行，故前端构建与真实运行行为仍属未验证；cargo check 因 TLS 凭证失败未运行。
+- 基线证据：.workflow-kit/tasks/evidence/probe-queue-store.mjs
+- 需求决定：DEC-restart-queue-resume, DEC-zero-dep-verification
+- 替换：queueStore 重启恢复行为（原 partialize 与 onRehydrateStorage 的不可达分支）；用户已确认行为变更：重启后未完成的任务应自动恢复并继续生成，而现状是任务永久卡在 queued。原恢复分支因 partialize 过滤 running 而恒不可达，旧行为（卡死）由用户明确决定替换。；验证：behavior-regression
+- 补充：重复入队保护（原 taskManager.isTaskRunning 语义，已在 750e4fd 重构中丢失）；该保护在删除 src/services/taskManager.ts 时丢失，新需求未覆盖，需补充行为测试锁定。；验证：behavior-regression
+- 保留：tsc --noEmit 类型门禁；strict + noUnusedLocals + noUnusedParameters 全部开启且当前零诊断，是项目唯一既有的自动化保护，必须继续运行并保持 PASS。；验证：typecheck
+- 补充：自动化行为测试套件（原为完全缺失）；基线证明项目不存在任何行为测试；本轮按 DEC-zero-dep-verification 补充零依赖回归门禁，使 REQ-001/REQ-002 具备红→绿可执行证据。；验证：behavior-regression
+
+## 执行与恢复
+
+- 首次开始：None
+- 原截止时间：None
+- 当前截止时间：None
+- 时钟：未开始
+- 已用修复轮：0
+- 阻塞：无
+- 下一步：执行 start/next 获取可继续的动作
+
+## 最近检查点
+
+
+## 原始证据
+
+[唯一状态记录](../items/TASK-006.json)
+
+
+卡片是自动生成的视图。Agent 修改任务记录、执行命令或保存检查点后重新生成；不手工把状态改成通过。
