@@ -9,17 +9,17 @@
 
 目标：为 NextCreator（可视化节点 AI 内容生成工作流桌面工具）建立可维护、稳定的继续演进基础，支持持续增加新节点与 AI 能力；本轮先做评估，不预设重构。
 
-当前阶段：**分步实施**
+当前阶段：**回归与审查**
 
-阶段目标：落实已确认的完整范围，逐步交付并保持已验收行为：重启后遗留的 queued 任务永不执行，节点持续显示“排队中”并禁用生成。queueStore.ts:209-212 持久化了 queued 但 :213-228 只修 running；pump() 全项目仅 3 处调用，启动时无人调用。；缺少同一节点的重复入队保护（taskManager 时代的 isTaskRunning 语义未迁移）。useImageGeneratorExecution.ts:62 前无早退检查，连点会创建多个 job 并发写同一 node.data。；删除零引用死代码：imageService.ts（312 行）与 imageCompression.ts（81 行）共 393 行，全项目零外部 importer，而 tsc 在 noUnusedLocals 开启下仍 PASS，证明现有门禁抓不到整模块死代码。
+阶段目标：以需求、失败路径、适用界面检查、维护性和性能证据核对当前组合候选
 
 | 阶段 | 目标 | 状态 |
 | --- | --- | --- |
 | 需求与目标 | 明确目标、已有 Bug、新功能、其他要求、质量目标和执行边界 | 已完成 |
 | 分析与方案 | 记录参考、原始基线状态与限制，说明维护、稳定和性能取舍，并确认路线 | 已完成 |
 | 界面预览 | 验证关键流程、整体设计和控件完整状态，确认后沿用前端实现 | 不适用 |
-| 分步实施 | 落实已确认的完整范围，逐步交付并保持已验收行为：重启后遗留的 queued 任务永不执行，节点持续显示“排队中”并禁用生成。queueStore.ts:209-212 持久化了 queued 但 :213-228 只修 running；pump() 全项目仅 3 处调用，启动时无人调用。；缺少同一节点的重复入队保护（taskManager 时代的 isTaskRunning 语义未迁移）。useImageGeneratorExecution.ts:62 前无早退检查，连点会创建多个 job 并发写同一 node.data。；删除零引用死代码：imageService.ts（312 行）与 imageCompression.ts（81 行）共 393 行，全项目零外部 importer，而 tsc 在 noUnusedLocals 开启下仍 PASS，证明现有门禁抓不到整模块死代码。 | 当前 |
-| 回归与审查 | 以需求、失败路径、适用界面检查、维护性和性能证据核对当前组合候选 | 分批推进 |
+| 分步实施 | 落实已确认的完整范围，逐步交付并保持已验收行为：重启后遗留的 queued 任务永不执行，节点持续显示“排队中”并禁用生成。queueStore.ts:209-212 持久化了 queued 但 :213-228 只修 running；pump() 全项目仅 3 处调用，启动时无人调用。；缺少同一节点的重复入队保护（taskManager 时代的 isTaskRunning 语义未迁移）。useImageGeneratorExecution.ts:62 前无早退检查，连点会创建多个 job 并发写同一 node.data。；删除零引用死代码：imageService.ts（312 行）与 imageCompression.ts（81 行）共 393 行，全项目零外部 importer，而 tsc 在 noUnusedLocals 开启下仍 PASS，证明现有门禁抓不到整模块死代码。 | 分批推进 |
+| 回归与审查 | 以需求、失败路径、适用界面检查、维护性和性能证据核对当前组合候选 | 当前 |
 | 验收与交付 | 核对完整范围，交付可运行成果、使用说明及适用的恢复办法 | 待推进 |
 
 **完整验收目标**：第一批 A：queueStore 启动恢复（重启后遗留 queued 任务能正确处置，节点不再卡在“排队中”）；恢复同一节点重复入队保护；删除 393 行零引用死代码（imageService.ts 312 行 + imageCompression.ts 81 行）后 tsc 仍 PASS。；第一批 B：建立全局单一并发上限（不再出现 queueStore 2 × workflowEngine 3 各自为政）；nodeExecutor 的图片生成路径复用 executeImageGeneration 实现，消除最大一处重复；取消语义补全（在途返回后复查 aborted）。；第一批 C：API Key 不再以明文形式落盘，并配套旧数据迁移（用户已授权改数据格式）。；第一批 D：清理冗余依赖与构建产物（双锁文件、已废弃的 @types/uuid），不影响运行行为。；每项以真实命令验证（tsc + 适用的人工回归路径），并由未参与实现的新子代理独立审查后交用户验收。
@@ -32,7 +32,7 @@
 
 | 任务 | 状态 | 目标 / 下一步 |
 | --- | --- | --- |
-| [TASK-005 · 建立零依赖行为门禁基础设施（TS 加载器 + 队列回归脚本骨架）](<../tasks/cards/TASK-005.md>) | 进行中 | 开始执行，保留原任务身份和截止时间；完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify |
+| [TASK-005 · 建立零依赖行为门禁基础设施（TS 加载器 + 队列回归脚本骨架）](<../tasks/cards/TASK-005.md>) | 审查中 | 预先定义的必需测试全部通过，日志已保存；审查当前候选；独立审查使用没有参与编码的新上下文 |
 | [TASK-001 · queueStore 重启恢复与重复入队保护（含零依赖回归门禁）](<../tasks/cards/TASK-001.md>) | 已取消 | 任务已取消：总控 replan：拆分任务粒度。原 TASK-001 同时承担'搭建零依赖测试基础设施'与'修复两个业务缺陷'，连续两次派发（RUN-51a36a44、RUN-fd43e498）均因编码子代理上下文耗尽失败且业务源码零改动，属任务包过大而非偶发。现拆为 TASK-004（只交付门禁基础设施与红状态证据）与新 TASK-001（只做业务修复并以上述门禁验收）。本记录保留原任务身份、两次中断现场与 0 修复轮的时钟。；如需同一目标，准备新的任务并引用本任务作为历史 |
 | [TASK-004 · 建立零依赖行为门禁基础设施（TS 加载器 + 队列回归脚本骨架）](<../tasks/cards/TASK-004.md>) | 已取消 | 任务已取消：门禁规格含工具不支持的 expect_failure 字段，会致红状态门禁在 verify 时被误判为 FAIL。改为脚本自身提供 --expect-red 自检模式（红状态符合预期时退出码 0，意外变绿则非 0）。编码子代理的工作在修正后的新任务卡下继续，已产出的设计不受影响。；如需同一目标，准备新的任务并引用本任务作为历史 |
 
@@ -59,21 +59,22 @@
 - 2026-09-28T02:49:22.045857Z · note/lesson · 调度教训：TASK-001 首次派发的编码子代理因上下文耗尽退出，零改动（RUN-51a36a44aa3b40b99784d9949cd2d093，commands=0）。原因分析：我给单个子代理的任务包过大——要求它同时完成 (a) 通读并理解 queueStore 的 partialize/rehydrate 死分支细节、(b) 处理画布加载竞态与崩溃循环、(c) 新建一个含 4 条易错解析规则的 Node loader、(d) 写两个用例、(e) 先跑红再跑绿并记录原始输出。其中 (c) 尤其昂贵，因为 loader 的四个阻碍（@/ 别名、仅在 .ts 父模块补扩展名、必须 stub @xyflow/react 而非 react-dom、window stub）都需要反复试错才能收敛。改进措施：把 loader 基础设施与业务修复拆成两张卡——先单独交付可复用的 harness（TASK-001），再在其上做业务修复（新任务）。同时把总控已验证的探针作为起点直接提供给编写者，减少重复试错。处置依据：RECOVERY 的 interrupted 出口，已用 recover + unblock 接续原任务，修复轮使用 0、原时钟保留，未新建任务清零。
 - 2026-09-28T03:01:47.203052Z · note/lesson · 重大技术突破（来自编码子代理 #2 的遗留 spike，总控已独立运行验证并固化）：可以用 react-dom/server 的 renderToStaticMarkup 在纯 Node 中驱动**真实的 React hook** useImageGeneratorExecution，从而无需 jsdom、无需浏览器就能测试 handleGenerate 的真实入队行为。已验证输出：mounted, handle type: function；jobs after first generate: 1。这比总控原先的探针覆盖面更大——原探针只能驱动 store 方法，现在能驱动 hook 层真实逻辑。固化为 .workflow-kit/tasks/evidence/probe-dup-enqueue.mjs。
 - 2026-09-28T03:04:59.712494Z · note/lesson · 工具约束教训（总控自查发现）：任务卡 gates 不支持 expect_failure 字段。我原以为可以用它表达'这个红状态门禁预期失败'，但 workflow_runtime/project_workflow 的校验逻辑只认 program/args/cwd/required/reason/timeout_seconds，未知字段被忽略；verify 只按 exit_code==0 判 PASS，因此红状态脚本会永远 FAIL 并把任务卡死。正确做法：把'预期红'下沉到脚本自身的 --expect-red 自检模式（红状态符合预期时退出码 0，意外变绿则非 0），门禁命令本身始终要求退出码 0。教训推广：给门禁写'预期失败'这类语义前，必须先确认工具的校验与判定实现，而不是假设字段被支持。
+- 2026-09-28T03:07:49.952702Z · note/lesson · 工具用法教训：worker-result 的 unresolved_items 只要非空，finish 就会判 action_required 并把任务置为 blocked（workflow_runtime.py:1047）。它是'执行者请求管理动作'的通道，不是'给总控的设计备注'通道。总控首次 finish 时把 4 条设计注意点填进 unresolved_items，导致任务被阻塞、且因 run 已置为 blocked 而无法再次 finish（报 Only an active implementation run can finish），必须走 unblock 回到 ready 再重新 begin+finish。正确做法：worker 的设计备注写进 summary，或由总控另行 note。另注意 finish 失败会冻结 run 状态，无法原地重试。
 
 ## 最近事件
 
-- 2026-09-28T03:01:47.399580Z · note/progress · REQ-002 已从静态推断升级为可执行红状态证明（探针 probe-dup-enqueue.mjs，退出码 1 = 符合预期的红）：同一节点连续调用三次真实 handleGenerate，活动 job 数依次为 1 → 2 → 3（状态分别 running / queued,running / queued,queued,running）。即连点会创建 N 个并发任务写同一 node.data，证实 useImageGeneratorExecution.ts:62 前后无任何重复入队保护。该探针同时是可用的红→绿回归证据：修复后应恒为 1。
-- 2026-09-28T03:02:27.966090Z · note/decision · 总控改换方案（RECOVERY 要求的 replan，非机械重试）：TASK-001 连续两次派发均因编码子代理上下文耗尽失败（RUN-51a36a44 与 RUN-fd43e498，两次业务源码均零改动）。失败模式相同且候选未变，说明问题在任务粒度而非偶发。结论：把原 TASK-001 拆成两张卡——TASK-000 只交付零依赖门禁基础设施（TS 加载器 + 队列回归脚本骨架 + 红状态证据），TASK-002 只做业务修复（REQ-001 重启恢复、REQ-002 重复入队保护）并以 TASK-000 的门禁为验收。理由：加载器含 4 条易错解析规则（@/ 别名、仅对 .ts 父模块补扩展名、必须 stub @xyflow/react 而非 react-dom、window stub），试错成本高；两次失败都消耗在'既要搭基础设施又要改业务'的复合目标上。拆分后每次派发的上下文需求显著下降，且 TASK-000 的门禁一旦固定，修复任务就变成可被自动验证的小改动。原 TASK-001 不再需要，按 cancel 处置并保留其记录，不新建同 ID 任务清零。
-- 2026-09-28T03:03:10.970609Z · checkpoint · TASK-001 · 任务已取消：总控 replan：拆分任务粒度。原 TASK-001 同时承担'搭建零依赖测试基础设施'与'修复两个业务缺陷'，连续两次派发（RUN-51a36a44、RUN-fd43e498）均因编码子代理上下文耗尽失败且业务源码零改动，属任务包过大而非偶发。现拆为 TASK-004（只交付门禁基础设施与红状态证据）与新 TASK-001（只做业务修复并以上述门禁验收）。本记录保留原任务身份、两次中断现场与 0 修复轮的时钟。；下一步：如需同一目标，准备新的任务并引用本任务作为历史
-- 2026-09-28T03:03:11.010727Z · cancel · TASK-001 · 总控 replan：拆分任务粒度。原 TASK-001 同时承担'搭建零依赖测试基础设施'与'修复两个业务缺陷'，连续两次派发（RUN-51a36a44、RUN-fd43e498）均因编码子代理上下文耗尽失败且业务源码零改动，属任务包过大而非偶发。现拆为 TASK-004（只交付门禁基础设施与红状态证据）与新 TASK-001（只做业务修复并以上述门禁验收）。本记录保留原任务身份、两次中断现场与 0 修复轮的时钟。；依据：总控依据 RECOVERY 的 replan 要求改换方案（相同失败且候选未变时不得机械重试）
-- 2026-09-28T03:03:15.395015Z · prepare · TASK-004 · 任务已冻结：建立零依赖行为门禁基础设施（TS 加载器 + 队列回归脚本骨架）；范围 scripts, package.json
-- 2026-09-28T03:03:20.705628Z · checkpoint · TASK-004 · 开始执行，保留原任务身份和截止时间；下一步：完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify
-- 2026-09-28T03:04:28.298296Z · checkpoint · TASK-004 · Interrupted run recovered: 总控核对：门禁规格存在工具不支持字段（expect_failure），在 verify 阶段会把红状态门禁判为 FAIL 而使任务阻塞。总控于编码子代理开始落盘前中断其工作（已确认 scripts/ 与 package.json 均无改动，deliverable 不存在），故本次运行无候选、无副作用，可安全关闭。将重新准备带 --expect-red 自检模式的正确任务定义。；下一步：先核对已有文件及原始日志，再处理 interrupted；不要新建任务或重置预算
-- 2026-09-28T03:04:32.929356Z · checkpoint · TASK-004 · 任务已取消：门禁规格含工具不支持的 expect_failure 字段，会致红状态门禁在 verify 时被误判为 FAIL。改为脚本自身提供 --expect-red 自检模式（红状态符合预期时退出码 0，意外变绿则非 0）。编码子代理的工作在修正后的新任务卡下继续，已产出的设计不受影响。；下一步：如需同一目标，准备新的任务并引用本任务作为历史
 - 2026-09-28T03:04:32.956991Z · cancel · TASK-004 · 门禁规格含工具不支持的 expect_failure 字段，会致红状态门禁在 verify 时被误判为 FAIL。改为脚本自身提供 --expect-red 自检模式（红状态符合预期时退出码 0，意外变绿则非 0）。编码子代理的工作在修正后的新任务卡下继续，已产出的设计不受影响。；依据：总控实际读取 workflow_runtime.py 的任务定义校验与 verify 逻辑后作出的技术更正
 - 2026-09-28T03:04:42.768632Z · prepare · TASK-005 · 任务已冻结：建立零依赖行为门禁基础设施（TS 加载器 + 队列回归脚本骨架）；范围 scripts, package.json
 - 2026-09-28T03:04:49.103869Z · checkpoint · TASK-005 · 开始执行，保留原任务身份和截止时间；下一步：完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify
 - 2026-09-28T03:04:59.712494Z · note/lesson · 工具约束教训（总控自查发现）：任务卡 gates 不支持 expect_failure 字段。我原以为可以用它表达'这个红状态门禁预期失败'，但 workflow_runtime/project_workflow 的校验逻辑只认 program/args/cwd/required/reason/timeout_seconds，未知字段被忽略；verify 只按 exit_code==0 判 PASS，因此红状态脚本会永远 FAIL 并把任务卡死。正确做法：把'预期红'下沉到脚本自身的 --expect-red 自检模式（红状态符合预期时退出码 0，意外变绿则非 0），门禁命令本身始终要求退出码 0。教训推广：给门禁写'预期失败'这类语义前，必须先确认工具的校验与判定实现，而不是假设字段被支持。
+- 2026-09-28T03:06:15.663613Z · checkpoint · TASK-005 · Worker requests manager action; inspect the result；下一步：处理执行者提出的请求，再 unblock 后 begin；不要新建任务或重置预算
+- 2026-09-28T03:06:48.605261Z · checkpoint · TASK-005 · 阻塞已处置（action_required）：核对：diff --run 显示 changed_files 与 changed_this_run 均为 [package.json, scripts/queue-regression.mjs]，outside 与 protected 均为空，无越界改动；两处交付物已由总控独立运行复核（默认模式退出码 1、--expect-red 退出码 0）。候选从未生成（candidate_digest 为 null），故按默认出口回到 ready 重新 begin/finish，不消耗修复轮、保留原时钟与两次中断历史。；下一步：begin 重新实现
+- 2026-09-28T03:06:48.633900Z · unblock · TASK-005 · action_required → ready；依据：总控处置：action_required 由总控自身的 worker-result 填写方式引起，非实现缺陷。unresolved_items 非空会被工具判为'执行者请求管理动作'，但那 4 条实为总控给后续 TASK-001 的设计注意点，应写入 summary 或由总控记为 note，而不是放在 worker 的 unresolved_items 里。已把该 4 条移出并另存 .workflow-kit/tasks/evidence/task-005-unresolved-notes.json。
+- 2026-09-28T03:06:53.059024Z · checkpoint · TASK-005 · 开始执行，保留原任务身份和截止时间；沿用本任务先前的范围基线，changed_files 为本任务累计改动；下一步：完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify
+- 2026-09-28T03:07:09.208020Z · checkpoint · TASK-005 · 编码结果已记录，差异范围已核对：package.json, scripts/queue-regression.mjs；下一步：运行 verify；代码完成尚未等于验收通过
+- 2026-09-28T03:07:18.401706Z · checkpoint · TASK-005 · 预先定义的必需测试全部通过，日志已保存；下一步：审查当前候选；独立审查使用没有参与编码的新上下文
+- 2026-09-28T03:07:49.729569Z · note/progress · TASK-005 已完成实现与验证，进入独立审查。交付物：scripts/queue-regression.mjs（17155 B，零新增依赖）+ package.json 两条 script。候选 d423f77efc6d9be5d3fee23eeadb221f6f3624b0117c882025c85d445fde38ad 已冻结。两处门禁实测 PASS：typecheck（tsc --noEmit 退出码 0）与 harness-red-state（--expect-red 退出码 0，表示两个缺陷按预期复现）。总控独立复核了两种模式：默认模式退出码 1（两用例 FAIL = 未修复的红状态）、--expect-red 退出码 0。diff --run 确认 outside 与 protected 均为空。已派发未参与实现的新子代理做 independent 审查（五项核对齐全）。
+- 2026-09-28T03:07:49.952702Z · note/lesson · 工具用法教训：worker-result 的 unresolved_items 只要非空，finish 就会判 action_required 并把任务置为 blocked（workflow_runtime.py:1047）。它是'执行者请求管理动作'的通道，不是'给总控的设计备注'通道。总控首次 finish 时把 4 条设计注意点填进 unresolved_items，导致任务被阻塞、且因 run 已置为 blocked 而无法再次 finish（报 Only an active implementation run can finish），必须走 unblock 回到 ready 再重新 begin+finish。正确做法：worker 的设计备注写进 summary，或由总控另行 note。另注意 finish 失败会冻结 run 状态，无法原地重试。
 
 ## 如何继续
 

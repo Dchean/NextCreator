@@ -1,7 +1,7 @@
 <!-- project-workflow: generated view; edit task JSON instead -->
 # TASK-005 · 建立零依赖行为门禁基础设施（TS 加载器 + 队列回归脚本骨架）
 
-**状态**：running
+**状态**：review
 
 **目标**：为项目建立一份可复用的零新增依赖行为测试基础设施：一个能加载真实 src/**/*.ts 的 Node 加载器，以及在其上运行的队列回归脚本（两个用例 + 红状态自检模式）。本任务只交付基础设施与红状态证据，不修复任何业务缺陷——业务修复由后续任务在本门禁之上进行。
 
@@ -40,19 +40,26 @@
 - 首次开始：2026-09-28T03:04:49.037712Z
 - 原截止时间：2026-09-28T06:04:49.037712Z
 - 当前截止时间：2026-09-28T06:04:49.037712Z
-- 时钟：按活动时间计：已用 0 分钟 / 额度 180 分钟（等待、断网和只读门禁不计）
+- 时钟：按活动时间计：已用 1 分钟 / 额度 180 分钟（等待、断网和只读门禁不计）
 - 已用修复轮：0
 - 阻塞：无
-- 下一步：完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify
+- 下一步：审查当前候选；独立审查使用没有参与编码的新上下文
 
 ## 最近检查点
 
 - 2026-09-28T03:04:49.102881Z：开始执行，保留原任务身份和截止时间；下一步：完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify
+- 2026-09-28T03:06:15.662613Z：Worker requests manager action; inspect the result；下一步：处理执行者提出的请求，再 unblock 后 begin；不要新建任务或重置预算
+- 2026-09-28T03:06:48.604100Z：阻塞已处置（action_required）：核对：diff --run 显示 changed_files 与 changed_this_run 均为 [package.json, scripts/queue-regression.mjs]，outside 与 protected 均为空，无越界改动；两处交付物已由总控独立运行复核（默认模式退出码 1、--expect-red 退出码 0）。候选从未生成（candidate_digest 为 null），故按默认出口回到 ready 重新 begin/finish，不消耗修复轮、保留原时钟与两次中断历史。；下一步：begin 重新实现
+- 2026-09-28T03:06:53.058128Z：开始执行，保留原任务身份和截止时间；沿用本任务先前的范围基线，changed_files 为本任务累计改动；下一步：完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify
+- 2026-09-28T03:07:09.207115Z：编码结果已记录，差异范围已核对：package.json, scripts/queue-regression.mjs；下一步：运行 verify；代码完成尚未等于验收通过
+- 2026-09-28T03:07:18.400806Z：预先定义的必需测试全部通过，日志已保存；下一步：审查当前候选；独立审查使用没有参与编码的新上下文
 
 ## 原始证据
 
 [唯一状态记录](../items/TASK-005.json)
 
 - [RUN-6a3941f7d5fe40c1a9fc437a9245a2e7](../runs/RUN-6a3941f7d5fe40c1a9fc437a9245a2e7.json)
+- [RUN-8aac424a088943fda6f95b8899e1a6eb](../runs/RUN-8aac424a088943fda6f95b8899e1a6eb.json)
+- [RUN-762472b3e99f4ef983ce9a7c5394bd2a](../runs/RUN-762472b3e99f4ef983ce9a7c5394bd2a.json)
 
 卡片是自动生成的视图。Agent 修改任务记录、执行命令或保存检查点后重新生成；不手工把状态改成通过。

@@ -1,0 +1,25 @@
+==============================================================================
+生成队列回归：REQ-001（重启恢复） / REQ-002（重复入队）
+MODE: expect-red（红状态自检：两个用例都应当 FAIL）
+==============================================================================
+
+【1】用例 A：重启后遗留 queued 任务必须被推进（REQ-001）
+     实现：把包含 1 个 status=queued 任务的持久化 JSON 注入 storage stub，再首次 import queueStore，
+         走真实冷启动水合路径（persist.getItem → 反序列化 → onRehydrateStorage），随后最多等 1500ms。
+     期望：水合后该任务不再停留在 queued（进入 running / success / error / cancelled 之一）
+     实际：水合完成=true；水合后 status=queued；等待 1500ms 后 status=queued
+     说明：任务一直停在 queued，没有任何启动路径把它推进（REQ-001）
+     判定：FAIL
+
+【2】用例 B：同一节点连续点击生成不得重复入队（REQ-002）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-1")，取到公开返回的 handleGenerate，
+         对同一节点连续 await 调用 3 次，每次调用后统计 useQueueStore 中 status 为 queued/running 的 job 数。
+     期望：每次调用后活动任务数（queued + running）都不增长，即始终 ≤ 1（修复后恒为 1）
+     实际：第1/2/3 次调用后活动任务数=1/2/3；队列内 job 总数=3
+     说明：连点产生了重复任务（活动任务数峰值 3），会并发写同一节点数据（REQ-002）
+     判定：FAIL
+
+------------------------------------------------------------------------------
+汇总：PASS 0 / FAIL 2 / ERROR 0（共 2 个用例）
+=> 两个缺陷均按预期复现（红状态符合预期），退出码 0
+EXIT CODE: 0
