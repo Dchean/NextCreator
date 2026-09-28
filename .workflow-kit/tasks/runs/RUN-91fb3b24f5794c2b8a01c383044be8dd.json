@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "id": "RUN-91fb3b24f5794c2b8a01c383044be8dd",
+  "task_id": "TASK-006",
+  "kind": "implementation",
+  "outcome": "blocked",
+  "executor": {
+    "harness": "current_agent",
+    "model": null,
+    "context_id": "NEW coder subagent (fresh context): prior coder cfe0eebd was reused across domains and became overloaded; user clarified reuse rule = reuse by problem-type, not continuously. TASK-006 domain (src/stores state management) differs from the previous scripts/test-infrastructure work."
+  },
+  "started_at_utc": "2026-09-28T06:29:38.051903Z",
+  "finished_at_utc": "2026-09-28T06:43:37.604387Z",
+  "exit_code": null,
+  "timed_out": false,
+  "input_digest": "0d1e84bb9ef92149c761104cec4da4c861023db16721cdb3480b100b7325fd2e",
+  "candidate_digest": null,
+  "raw_output_refs": [],
+  "checks": [],
+  "review": {
+    "mode": null,
+    "verdict": null,
+    "report": null,
+    "candidate_digest": null
+  },
+  "estimated_cost_usd": null,
+  "scope_manifest": ".workflow-kit/tasks/evidence/RUN-91fb3b24f5794c2b8a01c383044be8dd-scope.json",
+  "baseline_manifest": ".workflow-kit/tasks/evidence/RUN-0aa58b4b10944472990efaef53e574f4-scope.json",
+  "recovery": {
+    "source": "总控核对：新编码子代理上下文耗尽退出且无收尾消息；实例 inactive；git diff -- src 为空（业务代码零改动）；RUN 记录 commands=0、finished_at_utc=null。根因诊断为总控派发错误：我要求子代理先读 scripts/queue-regression.mjs（68037 字节 / 1075 行）作为规格，加上 4 个源文件共约 112KB 的动笔前阅读量，超出其上下文预算。已改为由总控提取精简规格（约 3KB）后重新派发。故本次运行无候选、无副作用，可安全关闭。",
+    "observed_at_utc": "2026-09-28T06:43:37.307674Z",
+    "actual_process_finish_known": false,
+    "note": "finished_at marks record closure, not a fabricated process completion"
+  },
+  "failure_kind": "interrupted",
+  "failure_reason": "Interrupted run recovered: 总控核对：新编码子代理上下文耗尽退出且无收尾消息；实例 inactive；git diff -- src 为空（业务代码零改动）；RUN 记录 commands=0、finished_at_utc=null。根因诊断为总控派发错误：我要求子代理先读 scripts/queue-regression.mjs（68037 字节 / 1075 行）作为规格，加上 4 个源文件共约 112KB 的动笔前阅读量，超出其上下文预算。已改为由总控提取精简规格（约 3KB）后重新派发。故本次运行无候选、无副作用，可安全关闭。"
+}

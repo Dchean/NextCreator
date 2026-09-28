@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "id": "RUN-0aa58b4b10944472990efaef53e574f4",
+  "task_id": "TASK-006",
+  "kind": "implementation",
+  "outcome": "blocked",
+  "executor": {
+    "harness": "current_agent",
+    "model": null,
+    "context_id": "coder subagent cfe0eebd (same author as the gate; user rule permits reuse for coding; reviewer must be a fresh context)"
+  },
+  "started_at_utc": "2026-09-28T06:24:59.729276Z",
+  "finished_at_utc": "2026-09-28T06:29:12.968136Z",
+  "exit_code": null,
+  "timed_out": false,
+  "input_digest": "0d1e84bb9ef92149c761104cec4da4c861023db16721cdb3480b100b7325fd2e",
+  "candidate_digest": null,
+  "raw_output_refs": [],
+  "checks": [],
+  "review": {
+    "mode": null,
+    "verdict": null,
+    "report": null,
+    "candidate_digest": null
+  },
+  "estimated_cost_usd": null,
+  "scope_manifest": ".workflow-kit/tasks/evidence/RUN-0aa58b4b10944472990efaef53e574f4-scope.json",
+  "recovery": {
+    "source": "总控核对：用户澄清复用规则——代码编写应按问题类型复用子代理，而非连续占用同一个，以避免长上下文干扰。原编码子代理 cfe0eebd 上下文已极长（TASK-004 合并探针 + TASK-005 五轮返工），且当前 TASK-006 领域不同（状态管理修复 vs 测试基础设施）。总控已中断其工作，并核实 src/ 零改动、RUN 记录 commands=0、checks=0、finished_at_utc=null，故无候选、无副作用，可安全关闭后改派新子代理。",
+    "observed_at_utc": "2026-09-28T06:29:12.691609Z",
+    "actual_process_finish_known": false,
+    "note": "finished_at marks record closure, not a fabricated process completion"
+  },
+  "failure_kind": "interrupted",
+  "failure_reason": "Interrupted run recovered: 总控核对：用户澄清复用规则——代码编写应按问题类型复用子代理，而非连续占用同一个，以避免长上下文干扰。原编码子代理 cfe0eebd 上下文已极长（TASK-004 合并探针 + TASK-005 五轮返工），且当前 TASK-006 领域不同（状态管理修复 vs 测试基础设施）。总控已中断其工作，并核实 src/ 零改动、RUN 记录 commands=0、checks=0、finished_at_utc=null，故无候选、无副作用，可安全关闭后改派新子代理。"
+}

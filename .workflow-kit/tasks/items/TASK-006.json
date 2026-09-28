@@ -7,7 +7,7 @@
   "ui_change": false,
   "ui_contract_ref": null,
   "ui_checks": [],
-  "status": "ready",
+  "status": "running",
   "objective": "修复 REQ-001（应用重启后遗留的 queued 任务永不执行、相关节点永久显示“排队中”并禁用生成）与 REQ-002（缺少同一节点的重复入队保护），并建立一份零新增依赖的行为回归门禁，使这两项缺陷有可执行的红→绿证据。",
   "non_goals": [
     "不新建或修改测试基础设施（scripts/ 归 TASK-000，本任务只消费它）。",
@@ -174,12 +174,16 @@
     "definition_digest": "66c550643ccad2eb46fd9c2f2610c5e627f89b28cda31e70976b745e3ab18946"
   },
   "budget": {
-    "started_at_utc": null,
-    "deadline_at_utc": null,
+    "started_at_utc": "2026-09-28T06:24:59.726013Z",
+    "deadline_at_utc": "2026-09-28T09:24:59.726013Z",
     "repair_rounds_used": 0
   },
   "batch_id": "BATCH-c782387bf20543bcbc9ae0c7747650b3",
-  "run_ids": [],
+  "run_ids": [
+    "RUN-0aa58b4b10944472990efaef53e574f4",
+    "RUN-91fb3b24f5794c2b8a01c383044be8dd",
+    "RUN-aec32fac61174c848c35fe4cd52a8e32"
+  ],
   "blockers": [],
   "evidence": {
     "candidate_manifest": null,
@@ -202,5 +206,65 @@
     "src/stores/queueStore.ts",
     "src/utils/tauriStorage.ts",
     "tsconfig.json"
+  ],
+  "checkpoints": [
+    {
+      "at_utc": "2026-09-28T06:24:59.795451Z",
+      "note": "开始执行，保留原任务身份和截止时间",
+      "next_action": "完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify"
+    },
+    {
+      "at_utc": "2026-09-28T06:29:12.999843Z",
+      "note": "Interrupted run recovered: 总控核对：用户澄清复用规则——代码编写应按问题类型复用子代理，而非连续占用同一个，以避免长上下文干扰。原编码子代理 cfe0eebd 上下文已极长（TASK-004 合并探针 + TASK-005 五轮返工），且当前 TASK-006 领域不同（状态管理修复 vs 测试基础设施）。总控已中断其工作，并核实 src/ 零改动、RUN 记录 commands=0、checks=0、finished_at_utc=null，故无候选、无副作用，可安全关闭后改派新子代理。",
+      "next_action": "先核对已有文件及原始日志，再处理 interrupted；不要新建任务或重置预算"
+    },
+    {
+      "at_utc": "2026-09-28T06:29:19.164261Z",
+      "note": "阻塞已处置（interrupted）：核对：原编码子代理 cfe0eebd 上下文极长（TASK-004 合并探针 + TASK-005 五轮返工），且 TASK-006 领域不同（src/stores 状态管理修复 vs scripts 测试基础设施）。已中断其工作并确认 src/ 零改动、RUN 记录 commands=0/checks=0/finished_at_utc=null，无候选无副作用。任务定义、预算与时钟保留，改派新子代理继续。",
+      "next_action": "begin 重新实现"
+    },
+    {
+      "at_utc": "2026-09-28T06:29:38.121636Z",
+      "note": "开始执行，保留原任务身份和截止时间；沿用本任务先前的范围基线，changed_files 为本任务累计改动",
+      "next_action": "完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify"
+    },
+    {
+      "at_utc": "2026-09-28T06:43:37.639387Z",
+      "note": "Interrupted run recovered: 总控核对：新编码子代理上下文耗尽退出且无收尾消息；实例 inactive；git diff -- src 为空（业务代码零改动）；RUN 记录 commands=0、finished_at_utc=null。根因诊断为总控派发错误：我要求子代理先读 scripts/queue-regression.mjs（68037 字节 / 1075 行）作为规格，加上 4 个源文件共约 112KB 的动笔前阅读量，超出其上下文预算。已改为由总控提取精简规格（约 3KB）后重新派发。故本次运行无候选、无副作用，可安全关闭。",
+      "next_action": "先核对已有文件及原始日志，再处理 interrupted；不要新建任务或重置预算"
+    },
+    {
+      "at_utc": "2026-09-28T06:43:53.743435Z",
+      "note": "阻塞已处置（interrupted）：核对：两次失败均 src/ 零改动（git diff -- src 为空）、RUN 记录 commands=0，无候选无副作用。任务定义、预算、时钟与 allowed_paths 保留，未新建任务。",
+      "next_action": "begin 重新实现"
+    },
+    {
+      "at_utc": "2026-09-28T06:43:54.475201Z",
+      "note": "开始执行，保留原任务身份和截止时间；沿用本任务先前的范围基线，changed_files 为本任务累计改动",
+      "next_action": "完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify"
+    }
+  ],
+  "resume_phase": "implementation",
+  "dispositions": [
+    {
+      "at_utc": "2026-09-28T06:29:19.127527Z",
+      "failure_kind": "interrupted",
+      "blockers": [
+        "Interrupted run recovered: 总控核对：用户澄清复用规则——代码编写应按问题类型复用子代理，而非连续占用同一个，以避免长上下文干扰。原编码子代理 cfe0eebd 上下文已极长（TASK-004 合并探针 + TASK-005 五轮返工），且当前 TASK-006 领域不同（状态管理修复 vs 测试基础设施）。总控已中断其工作，并核实 src/ 零改动、RUN 记录 commands=0、checks=0、finished_at_utc=null，故无候选、无副作用，可安全关闭后改派新子代理。"
+      ],
+      "source": "用户澄清编码子代理的复用规则：按问题类型复用（同类型问题可再派给处理过该类型的子代理），而不是连续占用同一个子代理，以避免长上下文造成干扰。",
+      "note": "核对：原编码子代理 cfe0eebd 上下文极长（TASK-004 合并探针 + TASK-005 五轮返工），且 TASK-006 领域不同（src/stores 状态管理修复 vs scripts 测试基础设施）。已中断其工作并确认 src/ 零改动、RUN 记录 commands=0/checks=0/finished_at_utc=null，无候选无副作用。任务定义、预算与时钟保留，改派新子代理继续。",
+      "resumed_to": "ready"
+    },
+    {
+      "at_utc": "2026-09-28T06:43:53.709793Z",
+      "failure_kind": "interrupted",
+      "blockers": [
+        "Interrupted run recovered: 总控核对：新编码子代理上下文耗尽退出且无收尾消息；实例 inactive；git diff -- src 为空（业务代码零改动）；RUN 记录 commands=0、finished_at_utc=null。根因诊断为总控派发错误：我要求子代理先读 scripts/queue-regression.mjs（68037 字节 / 1075 行）作为规格，加上 4 个源文件共约 112KB 的动笔前阅读量，超出其上下文预算。已改为由总控提取精简规格（约 3KB）后重新派发。故本次运行无候选、无副作用，可安全关闭。"
+      ],
+      "source": "总控诊断并更正派发方式：前两次编码子代理均因动笔前阅读量过大而上下文耗尽（要求读 68037 字节 / 1075 行的门禁文件 + 4 个源文件约 44KB ≈ 112KB）。改为由总控提取精简规格（.workflow-kit/tasks/evidence/TASK-006-SPEC-DIGEST.md，约 3KB，含六条判据原文）后重新派发。",
+      "note": "核对：两次失败均 src/ 零改动（git diff -- src 为空）、RUN 记录 commands=0，无候选无副作用。任务定义、预算、时钟与 allowed_paths 保留，未新建任务。",
+      "resumed_to": "ready"
+    }
   ]
 }

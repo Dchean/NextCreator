@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "id": "RUN-aec32fac61174c848c35fe4cd52a8e32",
+  "task_id": "TASK-006",
+  "kind": "implementation",
+  "outcome": "running",
+  "executor": {
+    "harness": "current_agent",
+    "model": null,
+    "context_id": "coder subagent #3 (fresh context, third attempt) with manager-extracted 3KB spec digest instead of the 68KB gate file; root cause of prior two failures was excessive pre-edit reading volume (112KB), a manager dispatch error"
+  },
+  "started_at_utc": "2026-09-28T06:43:54.400709Z",
+  "finished_at_utc": null,
+  "exit_code": null,
+  "timed_out": false,
+  "input_digest": "0d1e84bb9ef92149c761104cec4da4c861023db16721cdb3480b100b7325fd2e",
+  "candidate_digest": null,
+  "raw_output_refs": [],
+  "checks": [],
+  "review": {
+    "mode": null,
+    "verdict": null,
+    "report": null,
+    "candidate_digest": null
+  },
+  "estimated_cost_usd": null,
+  "scope_manifest": ".workflow-kit/tasks/evidence/RUN-aec32fac61174c848c35fe4cd52a8e32-scope.json",
+  "baseline_manifest": ".workflow-kit/tasks/evidence/RUN-91fb3b24f5794c2b8a01c383044be8dd-scope.json"
+}
