@@ -1,8 +1,8 @@
 {
   "id": "TASK-001",
-  "title": "queueStore 重启恢复与重复入队保护（含零依赖回归门禁）",
+  "title": "修复 queueStore 重启恢复与重复入队保护（以 TASK-000 门禁验收）",
   "kind": "implementation",
-  "retry_safe": false,
+  "retry_safe": true,
   "ui_change": false,
   "ui_contract_ref": null,
   "ui_checks": [],
@@ -19,23 +19,27 @@
     ".workflow-kit/docs/ADR/ADR-0002-zero-dependency-regression-gate.md"
   ],
   "acceptance": [
-    "REQ-001：应用重启（或 store 重新水合）后，持久化下来的 queued 任务得到明确处置，不再永久停留在 queued。已确认行为按 DEC-restart-queue-resume = 自动恢复并继续生成（会产生真实 API 费用）。节点在该处置完成后不再被 data.queued 永久锁死（ImageGeneratorNode.tsx:215 的 canRun）。",
-    "REQ-001 根因处理：queueStore.ts:209-212 的 partialize 过滤掉 running，而 :213-228 的 onRehydrateStorage 只查找 running，导致该恢复分支恒不可达（已实测穷举证明）。必须在“修正 partialize 使其与恢复分支意图一致”与“按新确认行为重写恢复逻辑”之间做出自洽选择，不允许留下仍然不可达的分支。",
-    "REQ-002：同一节点已有 queued 或 running 任务时，再次触发生成不再产生并发任务；useImageGeneratorExecution.ts 的入队路径存在明确早退检查。",
-    "回归门禁（红→绿证据，硬性要求）：新增一个零新增依赖的验证脚本，用 Node 原生能力加载并驱动真实 src 代码。脚本必须同时包含两个用例——重启恢复用例与重复入队用例。作者必须实际运行并记录修复前的失败输出与修复后的通过输出；只报告最终 PASS 视为未证明。",
-    "门禁不得靠断言当前实现来通过：断言对象必须是需求描述的可观察行为（重启后 job 不停留 queued；重复触发不新增 job），而不是内部变量或私有函数调用顺序。",
-    "tsc --noEmit 保持 PASS（strict + noUnusedLocals + noUnusedParameters）。",
-    "不新增任何需要安装的依赖（不引入 vitest/jest/jsdom 等）；脚本仅用 Node 内置模块。",
-    "不改动 UI 外观与交互；不改动节点数据字段语义；不改变画布或 app-data.json 的既有字段含义。"
+    "REQ-001：应用重启（store 重新水合）后，持久化下来的 queued 任务得到明确处置，不再永久停留在 queued。已确认行为按 DEC-restart-queue-resume：自动恢复并继续生成（会产生真实 API 费用，用户已明确接受）。",
+    "REQ-001 根因处理：queueStore.ts:209-212 的 partialize 过滤掉 running，而 :213-228 的 onRehydrateStorage 只查找 running，导致该恢复分支恒不可达（已实测穷举证明）。必须使 partialize 与恢复逻辑意图自洽，硬性要求：不允许留下仍然不可达的分支。",
+    "REQ-001 竞态：恢复不得早于画布数据就绪导致任务因“节点不存在”失败（imageGenerationExecution 会返回该错误）；必须处理该顺序竞态，使缺陷不以新形式复现。",
+    "REQ-001 防崩溃循环：若应用在恢复后立即崩溃，不得无限反复重试；需有次数或状态约束。",
+    "REQ-001 节点锁死解除：处置完成后，相关节点不再被 data.queued 永久锁死（ImageGeneratorNode.tsx:215 的 canRun）。",
+    "REQ-002：同一节点已有 queued 或 running 任务时，再次触发生成不再产生并发任务。注意不得误伤批量拆分（batchCount > 1 时 useImageGeneratorExecution.ts:61-74 会连续 enqueue 多个 job）。",
+    "必须实际运行 TASK-000 交付的门禁 node --experimental-strip-types scripts/queue-regression.mjs，并记录修复后的通过输出；同时引用 TASK-000 记录的修复前失败输出，形成红→绿证据。",
+    "不得通过修改 scripts/queue-regression.mjs 的断言来使结果通过；若某断言与需求冲突，停止并报告。",
+    "保持 concurrency 钳制 1..4（queueStore.ts:112）与现有取消语义不变。",
+    "node ./node_modules/typescript/bin/tsc --noEmit 保持 PASS。不改 UI 外观与交互；不改节点数据字段语义；不改画布或 app-data.json 既有字段含义。"
   ],
   "non_goals": [
-    "不做 B 项（执行链统一、并发上限、取消语义）——属后续任务。",
-    "不做 C 项（API Key 存储）——已决定推迟到下一批，cargo 在本机不可用。",
+    "不新建或修改测试基础设施（scripts/ 归 TASK-000，本任务只消费它）。",
+    "不做 C 项（API Key 存储）——已决定推迟，cargo 在本机不可用。",
     "不引入 knip/ts-prune 等死代码检测工具（已评估为 rejected）。",
     "不合并双画布与 flowStore 的“两份真相”。",
-    "不重写现有的 5 条人工回归路径，也不替代用户验收。"
+    "不重写现有 5 条人工回归路径，也不替代用户验收。"
   ],
-  "dependencies": [],
+  "dependencies": [
+    "TASK-004"
+  ],
   "risk": {
     "level": "medium",
     "decision_ids": [
@@ -57,9 +61,7 @@
     "src/stores/queueStore.ts",
     "src/hooks/useImageGeneratorExecution.ts",
     "src/App.tsx",
-    "src/main.tsx",
-    "scripts",
-    "package.json"
+    "src/main.tsx"
   ],
   "protected_paths": [
     "src/services/imageGenerationExecution.ts",

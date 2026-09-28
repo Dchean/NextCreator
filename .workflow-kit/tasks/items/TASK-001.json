@@ -7,7 +7,7 @@
   "ui_change": false,
   "ui_contract_ref": null,
   "ui_checks": [],
-  "status": "running",
+  "status": "cancelled",
   "objective": "修复 REQ-001（应用重启后遗留的 queued 任务永不执行、相关节点永久显示“排队中”并禁用生成）与 REQ-002（缺少同一节点的重复入队保护），并建立一份零新增依赖的行为回归门禁，使这两项缺陷有可执行的红→绿证据。",
   "non_goals": [
     "不做 B 项（执行链统一、并发上限、取消语义）——属后续任务。",
@@ -216,6 +216,21 @@
       "at_utc": "2026-09-28T02:49:33.610294Z",
       "note": "开始执行，保留原任务身份和截止时间；沿用本任务先前的范围基线，changed_files 为本任务累计改动",
       "next_action": "完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify"
+    },
+    {
+      "at_utc": "2026-09-28T03:01:20.917769Z",
+      "note": "Interrupted run recovered: 总控核对：编码子代理 #2 上下文耗尽退出（无收尾消息），实例状态 inactive。现场核对：业务源码与 package.json 相对 HEAD 零改动；仅遗留一个未跟踪的临时 spike 文件 scripts/.spike-hook.mjs（5115 字节，不交付）。已运行该 spike 证实其可行（退出码 0），并据此固化为基线探针 .workflow-kit/tasks/evidence/probe-dup-enqueue.mjs，随后删除 spike 与空 scripts/ 目录。故无候选、无越界改动、无副作用，可安全关闭。",
+      "next_action": "先核对已有文件及原始日志，再处理 interrupted；不要新建任务或重置预算"
+    },
+    {
+      "at_utc": "2026-09-28T03:01:41.765894Z",
+      "note": "阻塞已处置（interrupted）：核对：编码子代理 #2 inactive；src 与 package.json 相对 HEAD 零改动；仅遗留未跟踪临时文件 scripts/.spike-hook.mjs，已运行证实可用（退出码 0）后固化为基线探针并删除。修复轮仍为 0，原时钟保留。",
+      "next_action": "begin 重新实现"
+    },
+    {
+      "at_utc": "2026-09-28T03:03:10.969664Z",
+      "note": "任务已取消：总控 replan：拆分任务粒度。原 TASK-001 同时承担'搭建零依赖测试基础设施'与'修复两个业务缺陷'，连续两次派发（RUN-51a36a44、RUN-fd43e498）均因编码子代理上下文耗尽失败且业务源码零改动，属任务包过大而非偶发。现拆为 TASK-004（只交付门禁基础设施与红状态证据）与新 TASK-001（只做业务修复并以上述门禁验收）。本记录保留原任务身份、两次中断现场与 0 修复轮的时钟。",
+      "next_action": "如需同一目标，准备新的任务并引用本任务作为历史"
     }
   ],
   "resume_phase": "implementation",
@@ -229,6 +244,22 @@
       "source": "总控决定：中断类失败，现场为零改动，按 RECOVERY 的 interrupted 出口接续原任务，不新建任务、不清零预算。",
       "note": "核对事实：(1) 编码子代理 inactive 且无收尾消息；(2) git diff HEAD 对 src/scripts/package.json/src-tauri 全空；(3) RUN 记录 commands=0、checks=0、finished_at_utc=null；(4) 无 scripts/ 目录、无 package.json script 新增、无残留临时目录。结论：可安全重放，且无任何需要撤销的越界改动。修复轮使用 0，原时钟与截止时间保留。",
       "resumed_to": "ready"
+    },
+    {
+      "at_utc": "2026-09-28T03:01:41.735132Z",
+      "failure_kind": "interrupted",
+      "blockers": [
+        "Interrupted run recovered: 总控核对：编码子代理 #2 上下文耗尽退出（无收尾消息），实例状态 inactive。现场核对：业务源码与 package.json 相对 HEAD 零改动；仅遗留一个未跟踪的临时 spike 文件 scripts/.spike-hook.mjs（5115 字节，不交付）。已运行该 spike 证实其可行（退出码 0），并据此固化为基线探针 .workflow-kit/tasks/evidence/probe-dup-enqueue.mjs，随后删除 spike 与空 scripts/ 目录。故无候选、无越界改动、无副作用，可安全关闭。"
+      ],
+      "source": "总控决定：第二次 interrupted 失败，现场业务代码零改动，按 RECOVERY 接续原任务，不新建任务、不清零预算。",
+      "note": "核对：编码子代理 #2 inactive；src 与 package.json 相对 HEAD 零改动；仅遗留未跟踪临时文件 scripts/.spike-hook.mjs，已运行证实可用（退出码 0）后固化为基线探针并删除。修复轮仍为 0，原时钟保留。",
+      "resumed_to": "ready"
+    },
+    {
+      "at_utc": "2026-09-28T03:03:10.939455Z",
+      "cancelled": true,
+      "reason": "总控 replan：拆分任务粒度。原 TASK-001 同时承担'搭建零依赖测试基础设施'与'修复两个业务缺陷'，连续两次派发（RUN-51a36a44、RUN-fd43e498）均因编码子代理上下文耗尽失败且业务源码零改动，属任务包过大而非偶发。现拆为 TASK-004（只交付门禁基础设施与红状态证据）与新 TASK-001（只做业务修复并以上述门禁验收）。本记录保留原任务身份、两次中断现场与 0 修复轮的时钟。",
+      "source": "总控依据 RECOVERY 的 replan 要求改换方案（相同失败且候选未变时不得机械重试）"
     }
   ]
 }

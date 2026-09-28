@@ -3,14 +3,14 @@
   "id": "RUN-fd43e49815f04fd1a1e5ea9c47e78ce3",
   "task_id": "TASK-001",
   "kind": "implementation",
-  "outcome": "running",
+  "outcome": "blocked",
   "executor": {
     "harness": "current_agent",
     "model": null,
     "context_id": "coder subagent #2 (fatigue-recovery redispatch after context exhaustion; manager=this session; loader approach pre-proven by manager probe)"
   },
   "started_at_utc": "2026-09-28T02:49:33.548097Z",
-  "finished_at_utc": null,
+  "finished_at_utc": "2026-09-28T03:01:20.888330Z",
   "exit_code": null,
   "timed_out": false,
   "input_digest": "6f18f19c40879b5fe9bf188ab8dbedcf1f133910d7c8e25dea2ca853afa20726",
@@ -25,5 +25,13 @@
   },
   "estimated_cost_usd": null,
   "scope_manifest": ".workflow-kit/tasks/evidence/RUN-fd43e49815f04fd1a1e5ea9c47e78ce3-scope.json",
-  "baseline_manifest": ".workflow-kit/tasks/evidence/RUN-51a36a44aa3b40b99784d9949cd2d093-scope.json"
+  "baseline_manifest": ".workflow-kit/tasks/evidence/RUN-51a36a44aa3b40b99784d9949cd2d093-scope.json",
+  "recovery": {
+    "source": "总控核对：编码子代理 #2 上下文耗尽退出（无收尾消息），实例状态 inactive。现场核对：业务源码与 package.json 相对 HEAD 零改动；仅遗留一个未跟踪的临时 spike 文件 scripts/.spike-hook.mjs（5115 字节，不交付）。已运行该 spike 证实其可行（退出码 0），并据此固化为基线探针 .workflow-kit/tasks/evidence/probe-dup-enqueue.mjs，随后删除 spike 与空 scripts/ 目录。故无候选、无越界改动、无副作用，可安全关闭。",
+    "observed_at_utc": "2026-09-28T03:01:20.649338Z",
+    "actual_process_finish_known": false,
+    "note": "finished_at marks record closure, not a fabricated process completion"
+  },
+  "failure_kind": "interrupted",
+  "failure_reason": "Interrupted run recovered: 总控核对：编码子代理 #2 上下文耗尽退出（无收尾消息），实例状态 inactive。现场核对：业务源码与 package.json 相对 HEAD 零改动；仅遗留一个未跟踪的临时 spike 文件 scripts/.spike-hook.mjs（5115 字节，不交付）。已运行该 spike 证实其可行（退出码 0），并据此固化为基线探针 .workflow-kit/tasks/evidence/probe-dup-enqueue.mjs，随后删除 spike 与空 scripts/ 目录。故无候选、无越界改动、无副作用，可安全关闭。"
 }

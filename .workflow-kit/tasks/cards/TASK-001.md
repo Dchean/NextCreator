@@ -1,7 +1,7 @@
 <!-- project-workflow: generated view; edit task JSON instead -->
 # TASK-001 · queueStore 重启恢复与重复入队保护（含零依赖回归门禁）
 
-**状态**：running
+**状态**：cancelled
 
 **目标**：修复 REQ-001（应用重启后遗留的 queued 任务永不执行、相关节点永久显示“排队中”并禁用生成）与 REQ-002（缺少同一节点的重复入队保护），并建立一份零新增依赖的行为回归门禁，使这两项缺陷有可执行的红→绿证据。
 
@@ -38,10 +38,10 @@
 - 首次开始：2026-09-28T02:34:21.100817Z
 - 原截止时间：2026-09-28T05:34:21.100817Z
 - 当前截止时间：2026-09-28T05:34:21.100817Z
-- 时钟：按活动时间计：已用 15 分钟 / 额度 180 分钟（等待、断网和只读门禁不计）
+- 时钟：按活动时间计：已用 26 分钟 / 额度 180 分钟（等待、断网和只读门禁不计）
 - 已用修复轮：0
 - 阻塞：无
-- 下一步：完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify
+- 下一步：如需同一目标，准备新的任务并引用本任务作为历史
 
 ## 最近检查点
 
@@ -49,6 +49,9 @@
 - 2026-09-28T02:49:11.798315Z：Interrupted run recovered: 总控核对：编码子代理上下文耗尽退出且未留收尾消息；已确认其实例状态 inactive，git diff HEAD -- src scripts package.json src-tauri 为空（零改动），tasks/runs 记录 commands=0、checks=0、finished_at_utc=null，无残留临时目录。故本次运行无候选、无副作用，可安全关闭。；下一步：先核对已有文件及原始日志，再处理 interrupted；不要新建任务或重置预算
 - 2026-09-28T02:49:16.888357Z：阻塞已处置（interrupted）：核对事实：(1) 编码子代理 inactive 且无收尾消息；(2) git diff HEAD 对 src/scripts/package.json/src-tauri 全空；(3) RUN 记录 commands=0、checks=0、finished_at_utc=null；(4) 无 scripts/ 目录、无 package.json script 新增、无残留临时目录。结论：可安全重放，且无任何需要撤销的越界改动。修复轮使用 0，原时钟与截止时间保留。；下一步：begin 重新实现
 - 2026-09-28T02:49:33.610294Z：开始执行，保留原任务身份和截止时间；沿用本任务先前的范围基线，changed_files 为本任务累计改动；下一步：完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify
+- 2026-09-28T03:01:20.917769Z：Interrupted run recovered: 总控核对：编码子代理 #2 上下文耗尽退出（无收尾消息），实例状态 inactive。现场核对：业务源码与 package.json 相对 HEAD 零改动；仅遗留一个未跟踪的临时 spike 文件 scripts/.spike-hook.mjs（5115 字节，不交付）。已运行该 spike 证实其可行（退出码 0），并据此固化为基线探针 .workflow-kit/tasks/evidence/probe-dup-enqueue.mjs，随后删除 spike 与空 scripts/ 目录。故无候选、无越界改动、无副作用，可安全关闭。；下一步：先核对已有文件及原始日志，再处理 interrupted；不要新建任务或重置预算
+- 2026-09-28T03:01:41.765894Z：阻塞已处置（interrupted）：核对：编码子代理 #2 inactive；src 与 package.json 相对 HEAD 零改动；仅遗留未跟踪临时文件 scripts/.spike-hook.mjs，已运行证实可用（退出码 0）后固化为基线探针并删除。修复轮仍为 0，原时钟保留。；下一步：begin 重新实现
+- 2026-09-28T03:03:10.969664Z：任务已取消：总控 replan：拆分任务粒度。原 TASK-001 同时承担'搭建零依赖测试基础设施'与'修复两个业务缺陷'，连续两次派发（RUN-51a36a44、RUN-fd43e498）均因编码子代理上下文耗尽失败且业务源码零改动，属任务包过大而非偶发。现拆为 TASK-004（只交付门禁基础设施与红状态证据）与新 TASK-001（只做业务修复并以上述门禁验收）。本记录保留原任务身份、两次中断现场与 0 修复轮的时钟。；下一步：如需同一目标，准备新的任务并引用本任务作为历史
 
 ## 原始证据
 

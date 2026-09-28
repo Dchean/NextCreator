@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "RUN-6a3941f7d5fe40c1a9fc437a9245a2e7",
+  "task_id": "TASK-005",
+  "kind": "implementation",
+  "outcome": "running",
+  "executor": {
+    "harness": "current_agent",
+    "model": null,
+    "context_id": "coder subagent cfe0eebd (continued after manager-side gate-spec correction; no files were written before interruption)"
+  },
+  "started_at_utc": "2026-09-28T03:04:49.040679Z",
+  "finished_at_utc": null,
+  "exit_code": null,
+  "timed_out": false,
+  "input_digest": "408539f1508d617d72e30ac8fc2c51e81391da3709dd9619fd785d1773e89c7f",
+  "candidate_digest": null,
+  "raw_output_refs": [],
+  "checks": [],
+  "review": {
+    "mode": null,
+    "verdict": null,
+    "report": null,
+    "candidate_digest": null
+  },
+  "estimated_cost_usd": null,
+  "scope_manifest": ".workflow-kit/tasks/evidence/RUN-6a3941f7d5fe40c1a9fc437a9245a2e7-scope.json"
+}
