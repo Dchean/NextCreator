@@ -1,7 +1,7 @@
 <!-- project-workflow: generated view; edit task JSON instead -->
 # TASK-005 · 建立零依赖行为门禁基础设施（TS 加载器 + 队列回归脚本骨架）
 
-**状态**：blocked
+**状态**：running
 
 **目标**：为项目建立一份可复用的零新增依赖行为测试基础设施：一个能加载真实 src/**/*.ts 的 Node 加载器，以及在其上运行的队列回归脚本（两个用例 + 红状态自检模式）。本任务只交付基础设施与红状态证据，不修复任何业务缺陷——业务修复由后续任务在本门禁之上进行。
 
@@ -39,22 +39,22 @@
 
 - 首次开始：2026-09-28T03:04:49.037712Z
 - 原截止时间：2026-09-28T06:04:49.037712Z
-- 当前截止时间：2026-09-28T06:04:49.037712Z
-- 时钟：按活动时间计：已用 28 分钟 / 额度 180 分钟（等待、断网和只读门禁不计）
-- 已用修复轮：3
-- 阻塞：Review requires changes; inspect the findings
-- 下一步：先核对已有文件及原始日志，再处理 review_failure；不要新建任务或重置预算
+- 当前截止时间：2026-09-28T07:34:49.037712Z
+- 时钟：按活动时间计：已用 28 分钟 / 额度 270 分钟（等待、断网和只读门禁不计）
+- 已用修复轮：4
+- 阻塞：无
+- 下一步：完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify
 
 ## 最近检查点
 
-- 2026-09-28T03:53:38.081988Z：开始执行，保留原任务身份和截止时间；沿用本任务先前的范围基线，changed_files 为本任务累计改动；下一步：完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify
-- 2026-09-28T04:03:33.991371Z：编码结果已记录，差异范围已核对：package.json, scripts/queue-regression.mjs, scripts/queue-regression.selfcheck.mjs；下一步：运行 verify；代码完成尚未等于验收通过
 - 2026-09-28T04:03:44.529643Z：预先定义的必需测试全部通过，日志已保存；下一步：审查当前候选；独立审查使用没有参与编码的新上下文
 - 2026-09-28T04:24:36.917131Z：Review requires changes; inspect the findings；下一步：先核对已有文件及原始日志，再处理 review_failure；不要新建任务或重置预算
 - 2026-09-28T04:52:32.639565Z：开始执行，保留原任务身份和截止时间；沿用本任务先前的范围基线，changed_files 为本任务累计改动；下一步：完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify
 - 2026-09-28T05:03:34.589562Z：编码结果已记录，差异范围已核对：package.json, scripts/queue-regression.mjs, scripts/queue-regression.selfcheck.mjs；下一步：运行 verify；代码完成尚未等于验收通过
 - 2026-09-28T05:03:45.276260Z：预先定义的必需测试全部通过，日志已保存；下一步：审查当前候选；独立审查使用没有参与编码的新上下文
 - 2026-09-28T05:24:56.205930Z：Review requires changes; inspect the findings；下一步：先核对已有文件及原始日志，再处理 review_failure；不要新建任务或重置预算
+- 2026-09-28T05:34:54.822718Z：依据新决定追加预算；原始时钟与失败记录保留；下一步：先核对已有成果，再按原任务范围继续
+- 2026-09-28T05:35:00.415626Z：开始执行，保留原任务身份和截止时间；沿用本任务先前的范围基线，changed_files 为本任务累计改动；下一步：完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify
 
 ## 原始证据
 
@@ -73,5 +73,6 @@
 - [RUN-ff79c96088cb4d85aa5b2fdedc871ef7](../runs/RUN-ff79c96088cb4d85aa5b2fdedc871ef7.json)
 - [RUN-4b8c27857d774893ab76b2169063ed76](../runs/RUN-4b8c27857d774893ab76b2169063ed76.json)
 - [RUN-d7ee4f7bf09f43b1b975cb6c7671ae54](../runs/RUN-d7ee4f7bf09f43b1b975cb6c7671ae54.json)
+- [RUN-65bdecd0a49b4068ae167a3d3a42a3f7](../runs/RUN-65bdecd0a49b4068ae167a3d3a42a3f7.json)
 
 卡片是自动生成的视图。Agent 修改任务记录、执行命令或保存检查点后重新生成；不手工把状态改成通过。

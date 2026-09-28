@@ -7,7 +7,7 @@
   "ui_change": false,
   "ui_contract_ref": null,
   "ui_checks": [],
-  "status": "blocked",
+  "status": "running",
   "objective": "为项目建立一份可复用的零新增依赖行为测试基础设施：一个能加载真实 src/**/*.ts 的 Node 加载器，以及在其上运行的队列回归脚本（两个用例 + 红状态自检模式）。本任务只交付基础设施与红状态证据，不修复任何业务缺陷——业务修复由后续任务在本门禁之上进行。",
   "non_goals": [
     "不修复 REQ-001 与 REQ-002——本任务只建立门禁并取得红状态证据，修复由后续任务负责。",
@@ -150,7 +150,17 @@
   "budget": {
     "started_at_utc": "2026-09-28T03:04:49.037712Z",
     "deadline_at_utc": "2026-09-28T06:04:49.037712Z",
-    "repair_rounds_used": 3
+    "repair_rounds_used": 4,
+    "extensions": [
+      {
+        "decision_id": "DEC-8273051892794bc1b0b64452b62dfab5",
+        "recorded_at_utc": "2026-09-28T05:34:54.708583Z",
+        "minutes": 90,
+        "repair_rounds": 1,
+        "previous_deadline_at_utc": "2026-09-28T06:04:49.037712Z",
+        "deadline_at_utc": "2026-09-28T07:34:49.037712Z"
+      }
+    ]
   },
   "batch_id": "BATCH-b0beab2c90244930976c328fcf1d59e2",
   "run_ids": [
@@ -166,11 +176,10 @@
     "RUN-ec6d5730f13b421999003eb5c681b89a",
     "RUN-ff79c96088cb4d85aa5b2fdedc871ef7",
     "RUN-4b8c27857d774893ab76b2169063ed76",
-    "RUN-d7ee4f7bf09f43b1b975cb6c7671ae54"
+    "RUN-d7ee4f7bf09f43b1b975cb6c7671ae54",
+    "RUN-65bdecd0a49b4068ae167a3d3a42a3f7"
   ],
-  "blockers": [
-    "Review requires changes; inspect the findings"
-  ],
+  "blockers": [],
   "evidence": {
     "candidate_manifest": ".workflow-kit/tasks/evidence/RUN-4b8c27857d774893ab76b2169063ed76-candidate.json",
     "candidate_digest": "a4c99764aa6c2e5d3be2ee15d3f31cdd40f7289a3747e24656e585b117e795fd",
@@ -284,6 +293,16 @@
       "at_utc": "2026-09-28T05:24:56.205930Z",
       "note": "Review requires changes; inspect the findings",
       "next_action": "先核对已有文件及原始日志，再处理 review_failure；不要新建任务或重置预算"
+    },
+    {
+      "at_utc": "2026-09-28T05:34:54.822718Z",
+      "note": "依据新决定追加预算；原始时钟与失败记录保留",
+      "next_action": "先核对已有成果，再按原任务范围继续"
+    },
+    {
+      "at_utc": "2026-09-28T05:35:00.415626Z",
+      "note": "开始执行，保留原任务身份和截止时间；沿用本任务先前的范围基线，changed_files 为本任务累计改动",
+      "next_action": "完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify"
     }
   ],
   "resume_phase": "review",
@@ -298,6 +317,5 @@
       "note": "核对：diff --run 显示 changed_files 与 changed_this_run 均为 [package.json, scripts/queue-regression.mjs]，outside 与 protected 均为空，无越界改动；两处交付物已由总控独立运行复核（默认模式退出码 1、--expect-red 退出码 0）。候选从未生成（candidate_digest 为 null），故按默认出口回到 ready 重新 begin/finish，不消耗修复轮、保留原时钟与两次中断历史。",
       "resumed_to": "ready"
     }
-  ],
-  "failure_kind": "review_failure"
+  ]
 }

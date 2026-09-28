@@ -399,6 +399,25 @@
         "TASK-003"
       ],
       "source": "用户回答（第 3 轮 scope_batch1 选中 B「消除重复与并发失控」）。技术支点：imageGenerationExecution.ts:34 的 withRunRecords 开关已存在，可避免改调用方。"
+    },
+    {
+      "id": "DEC-8273051892794bc1b0b64452b62dfab5",
+      "issuer": "owner",
+      "status": "accepted",
+      "source": "用户明确决定：门禁修复轮已用满 3/3 后，选择「追加额度再修一轮，只打这两条」——即补并发点击用例（不 await 上一次 handleGenerate 就再次点击）与 retry 路径入队用例，并修正自检空过项。用户实际选项原文：追加额度再修一轮，只打这两条（推荐项）。",
+      "statement": "Owner extended this task's time/repair allowance; financial limits remain in force",
+      "scope": [
+        "TASK-005"
+      ],
+      "recorded_at_utc": "2026-09-28T05:34:54.708583Z",
+      "budget_extension": {
+        "decision_id": "DEC-8273051892794bc1b0b64452b62dfab5",
+        "recorded_at_utc": "2026-09-28T05:34:54.708583Z",
+        "minutes": 90,
+        "repair_rounds": 1,
+        "previous_deadline_at_utc": "2026-09-28T06:04:49.037712Z",
+        "deadline_at_utc": "2026-09-28T07:34:49.037712Z"
+      }
     }
   ]
 }
