@@ -7,7 +7,7 @@
   "ui_change": false,
   "ui_contract_ref": null,
   "ui_checks": [],
-  "status": "blocked",
+  "status": "running",
   "objective": "为项目建立一份可复用的零新增依赖行为测试基础设施：一个能加载真实 src/**/*.ts 的 Node 加载器，以及在其上运行的队列回归脚本（两个用例 + 红状态自检模式）。本任务只交付基础设施与红状态证据，不修复任何业务缺陷——业务修复由后续任务在本门禁之上进行。",
   "non_goals": [
     "不修复 REQ-001 与 REQ-002——本任务只建立门禁并取得红状态证据，修复由后续任务负责。",
@@ -150,7 +150,7 @@
   "budget": {
     "started_at_utc": "2026-09-28T03:04:49.037712Z",
     "deadline_at_utc": "2026-09-28T06:04:49.037712Z",
-    "repair_rounds_used": 2
+    "repair_rounds_used": 3
   },
   "batch_id": "BATCH-b0beab2c90244930976c328fcf1d59e2",
   "run_ids": [
@@ -163,11 +163,10 @@
     "RUN-2440a1ec05fd42929757ae5413b3a717",
     "RUN-d9bf2b89271a433c8fac75a3d77f3a07",
     "RUN-0eebc354468a496f801deca8dc1c1c4a",
-    "RUN-ec6d5730f13b421999003eb5c681b89a"
+    "RUN-ec6d5730f13b421999003eb5c681b89a",
+    "RUN-ff79c96088cb4d85aa5b2fdedc871ef7"
   ],
-  "blockers": [
-    "Review requires changes; inspect the findings"
-  ],
+  "blockers": [],
   "evidence": {
     "candidate_manifest": ".workflow-kit/tasks/evidence/RUN-0eebc354468a496f801deca8dc1c1c4a-candidate.json",
     "candidate_digest": "27abba6fe57f16ffc649e4c025843c81d97311cdc3f0abd6b780a557a5b08128",
@@ -261,6 +260,11 @@
       "at_utc": "2026-09-28T04:24:36.917131Z",
       "note": "Review requires changes; inspect the findings",
       "next_action": "先核对已有文件及原始日志，再处理 review_failure；不要新建任务或重置预算"
+    },
+    {
+      "at_utc": "2026-09-28T04:52:32.639565Z",
+      "note": "开始执行，保留原任务身份和截止时间；沿用本任务先前的范围基线，changed_files 为本任务累计改动",
+      "next_action": "完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify"
     }
   ],
   "resume_phase": "review",
@@ -275,6 +279,5 @@
       "note": "核对：diff --run 显示 changed_files 与 changed_this_run 均为 [package.json, scripts/queue-regression.mjs]，outside 与 protected 均为空，无越界改动；两处交付物已由总控独立运行复核（默认模式退出码 1、--expect-red 退出码 0）。候选从未生成（candidate_digest 为 null），故按默认出口回到 ready 重新 begin/finish，不消耗修复轮、保留原时钟与两次中断历史。",
       "resumed_to": "ready"
     }
-  ],
-  "failure_kind": "review_failure"
+  ]
 }

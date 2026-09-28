@@ -1,6 +1,6 @@
 {
-  "id": "TASK-001",
-  "title": "修复 queueStore 重启恢复与重复入队保护（以 TASK-000 门禁验收）",
+  "id": "TASK-006",
+  "title": "修复 REQ-001 重启恢复与 REQ-002 重复入队保护（A 项收口，以 TASK-005 门禁验收）",
   "kind": "implementation",
   "retry_safe": true,
   "ui_change": false,
