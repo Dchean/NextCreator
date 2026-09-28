@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "captured_at_utc": "2026-09-28T02:34:09.600011Z",
+  "roots": [
+    ".workflow-kit/tasks/evidence/probe-queue-store.mjs",
+    "package.json",
+    "scripts",
+    "src/components/nodes/ImageGeneratorNode.tsx",
+    "src/hooks/useImageGeneratorExecution.ts",
+    "src/services/imageGenerationExecution.ts",
+    "src/stores/queueStore.ts",
+    "src/utils/tauriStorage.ts",
+    "tsconfig.json"
+  ],
+  "files": [
+    {
+      "path": ".workflow-kit/tasks/evidence/probe-queue-store.mjs",
+      "sha256": "b924009374f1d597d179fc10e301b6ee98ae61784322a7c3dbe74be55ea9366b"
+    },
+    {
+      "path": "package.json",
+      "sha256": "f699e7b09a8df704e07304f4c6c747bc1e913305f41d96d9a1db813dde1b76c7"
+    },
+    {
+      "path": "src/components/nodes/ImageGeneratorNode.tsx",
+      "sha256": "93120b482175679d8c2bc9d6bbba52d5c53004b6242a57f3f38f788b6a0d2edf"
+    },
+    {
+      "path": "src/hooks/useImageGeneratorExecution.ts",
+      "sha256": "6a076eae5b9c618c0c0c6a64e39379e8f2357486581857587c91d09dad285e18"
+    },
+    {
+      "path": "src/services/imageGenerationExecution.ts",
+      "sha256": "9546b5202dac26cee2efad1af79b3e22a3701e1ed09446ca6fb7233fdff8d800"
+    },
+    {
+      "path": "src/stores/queueStore.ts",
+      "sha256": "bfec4313dd3b25215d4ecd056427f78538cc9e8da59737f6672f7cc86adc1272"
+    },
+    {
+      "path": "src/utils/tauriStorage.ts",
+      "sha256": "09d36fb8015a5c11e324e1ade90356a4ac3fca64c662d5c38bc8e4a3d0dc7f83"
+    },
+    {
+      "path": "tsconfig.json",
+      "sha256": "dfee6e5208cc2f515d9eea89584ed986b010a6259dbe7a9b03fca5f9ab3c91d9"
+    }
+  ],
+  "missing": [
+    "scripts"
+  ],
+  "digest": "6f18f19c40879b5fe9bf188ab8dbedcf1f133910d7c8e25dea2ca853afa20726"
+}

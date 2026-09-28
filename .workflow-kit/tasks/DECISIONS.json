@@ -333,6 +333,72 @@
         },
         "schema_version": 1
       }
+    },
+    {
+      "id": "DEC-restart-queue-resume",
+      "issuer": "owner",
+      "status": "accepted",
+      "recorded_at_utc": "2026-09-28T02:32:33Z",
+      "statement": "应用重启后未完成的排队任务应自动恢复并继续生成（可能产生真实 API 费用），而不是永久停留在 queued。",
+      "scope": [
+        "REQ-001",
+        "REQ-002",
+        "TASK-001"
+      ],
+      "source": "用户回答（提问工具，选项「自动恢复并继续生成（会真实扣费）」）。该项明确改变了当前行为：现状是 partialize 过滤掉 running 且启动无人调用 pump()，导致任务永久卡在 queued；用户确认改为启动后自动继续。"
+    },
+    {
+      "id": "DEC-zero-dep-verification",
+      "issuer": "owner",
+      "status": "accepted",
+      "recorded_at_utc": "2026-09-28T02:32:33Z",
+      "statement": "允许新增 1 个零依赖验证脚本与 1 条 npm script 作为行为回归门禁，基于 Node 24 原生 registerHooks + --experimental-strip-types；不引入 vitest 等需安装的测试框架。",
+      "scope": [
+        "REQ-001",
+        "REQ-002",
+        "REQ-003",
+        "TASK-001",
+        "TASK-002"
+      ],
+      "source": "用户回答（提问工具，选项「用探针做成自动化回归脚本」与「允许零依赖验证脚本」）。总控已实测复现该方案可行（probe-queue-store.mjs 退出码 0）。"
+    },
+    {
+      "id": "DEC-dead-code-removal",
+      "issuer": "owner",
+      "status": "accepted",
+      "recorded_at_utc": "2026-09-28T02:32:33Z",
+      "statement": "删除零引用死代码 imageService.ts（312 行）与 imageCompression.ts（81 行），并清理冗余的 package-lock.json 与已废弃的 @types/uuid；不引入 knip（本批不可安装且覆盖不到本项目最有价值的死分支类型）。",
+      "scope": [
+        "REQ-003",
+        "REQ-008",
+        "TASK-002"
+      ],
+      "source": "用户回答（第 3 轮 scope_batch1 全选 A-D，其中含 D「依赖与构建收尾」）。knip 的 rejected 理由见 tasks/RESEARCH.md REF-KNIP。"
+    },
+    {
+      "id": "DEC-defer-apikey-storage",
+      "issuer": "owner",
+      "status": "accepted",
+      "recorded_at_utc": "2026-09-28T02:32:33Z",
+      "statement": "REQ-007（API Key 不再明文落盘）推迟到下一批：推荐方案 keyring 4.2.0 是 Rust crate，而本机 cargo 因 schannel TLS 凭证失败无法拉包，本批无法安装与验证。",
+      "scope": [
+        "REQ-007"
+      ],
+      "source": "用户回答（提问工具，选项「C 项推到下一批，先做 A/B/D」）。环境证据：cargo fetch 与换 CARGO_HOME 均报 SEC_E_NO_CREDENTIALS；npm 安装经 --cache 指向工作区后可用。"
+    },
+    {
+      "id": "DEC-execution-chain-unify",
+      "issuer": "owner",
+      "status": "accepted",
+      "recorded_at_utc": "2026-09-28T02:32:33Z",
+      "statement": "统一图片生成执行链与并发上限，并补全取消语义（B 项）：工作流路径复用 executeImageGeneration（利用已有的 withRunRecords 开关），并发上限改为单一来源，取消后在结果返回处复查 aborted。",
+      "scope": [
+        "REQ-004",
+        "REQ-005",
+        "REQ-006",
+        "TASK-003"
+      ],
+      "source": "用户回答（第 3 轮 scope_batch1 选中 B「消除重复与并发失控」）。技术支点：imageGenerationExecution.ts:34 的 withRunRecords 开关已存在，可避免改调用方。"
     }
   ]
 }

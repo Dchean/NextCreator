@@ -60,6 +60,32 @@
       "summary": "The project has NO automated test suite (0 test files), NO lint config, and the only CI workflow (.github/workflows/release.yml) only builds release artifacts on version tags. It does not run typecheck, lint, or tests.",
       "consequence": "The only automated protection currently available is `tsc --noEmit`. Behavior regressions in the 128-file refactor are not covered by any executable check."
     },
+    "executable_probe": {
+      "script": ".workflow-kit/tasks/evidence/probe-queue-store.mjs",
+      "command": "node --experimental-strip-types .workflow-kit/tasks/evidence/probe-queue-store.mjs",
+      "status": "PASS",
+      "exit_code": 0,
+      "purpose": "Independently verify that queueStore can be driven with zero new dependencies (Node 24 registerHooks + strip-types), and reproduce REQ-001 as a live failure rather than a static inference.",
+      "observed_output": [
+        "IMPORT OK",
+        "initial -> {\"jobs\":0,\"concurrency\":2,\"paused\":false}",
+        "enqueue -> running",
+        "after pump -> error | 节点不存在",
+        "clamp(1) -> 1",
+        "clamp(99) -> 4",
+        "simulated restart -> stale job status: queued",
+        "after 250ms WITHOUT explicit pump -> stale job status: queued",
+        "after EXPLICIT pump -> stale job status: error"
+      ],
+      "conclusions": [
+        "REQ-001 REPRODUCED AS A LIVE FAILURE: a persisted `queued` job remains `queued` indefinitely because nothing calls pump() at startup. An explicit pump() immediately transitions it to `error`, proving pump() is the missing call and that the defect is real rather than inferred.",
+        "The probe is a genuine red->green candidate: it fails (job stuck at queued) on current code and would pass once startup recovery invokes pump().",
+        "queueStore is drivable in-process with zero new dependencies: no vitest, no browser, no Tauri runtime. Required stubs are @xyflow/react (must be stubbed at that layer because react-dom's internal CJS require cannot be intercepted), @tauri-apps/* , a globalThis.window stub (tauriStorage.ts:100 top-level window.addEventListener), the @/ alias, and extensionless relative imports.",
+        "Concurrency clamping verified: setConcurrency clamps to the 1..4 range as written in queueStore.ts:112.",
+        "Note: the probe's `nodes不存在` error is expected and correct - executeImageGeneration fails because flowStore is not populated in this harness. It is not a defect."
+      ],
+      "limitation": "This probe validates store-level logic only. It does NOT prove the app's real Tauri runtime, HTTP provider calls, rendering, or the full 5-path manual regression list. `vite build` remains unverified because esbuild cannot spawn under the current sandbox."
+    },
     "toolchain": {
       "python": "3.13.14",
       "node": "v24.19.0",

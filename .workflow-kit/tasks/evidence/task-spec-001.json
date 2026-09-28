@@ -1,0 +1,140 @@
+{
+  "id": "TASK-001",
+  "title": "queueStore 重启恢复与重复入队保护（含零依赖回归门禁）",
+  "kind": "implementation",
+  "retry_safe": false,
+  "ui_change": false,
+  "ui_contract_ref": null,
+  "ui_checks": [],
+  "objective": "修复 REQ-001（应用重启后遗留的 queued 任务永不执行、相关节点永久显示“排队中”并禁用生成）与 REQ-002（缺少同一节点的重复入队保护），并建立一份零新增依赖的行为回归门禁，使这两项缺陷有可执行的红→绿证据。",
+  "requirement_refs": [
+    "REQ-001",
+    "REQ-002"
+  ],
+  "reference_ids": [
+    "REF-NODE-STRIP-TYPES"
+  ],
+  "decision_refs": [
+    ".workflow-kit/docs/ADR/ADR-0001-queue-restart-recovery.md",
+    ".workflow-kit/docs/ADR/ADR-0002-zero-dependency-regression-gate.md"
+  ],
+  "acceptance": [
+    "REQ-001：应用重启（或 store 重新水合）后，持久化下来的 queued 任务得到明确处置，不再永久停留在 queued。已确认行为按 DEC-restart-queue-resume = 自动恢复并继续生成（会产生真实 API 费用）。节点在该处置完成后不再被 data.queued 永久锁死（ImageGeneratorNode.tsx:215 的 canRun）。",
+    "REQ-001 根因处理：queueStore.ts:209-212 的 partialize 过滤掉 running，而 :213-228 的 onRehydrateStorage 只查找 running，导致该恢复分支恒不可达（已实测穷举证明）。必须在“修正 partialize 使其与恢复分支意图一致”与“按新确认行为重写恢复逻辑”之间做出自洽选择，不允许留下仍然不可达的分支。",
+    "REQ-002：同一节点已有 queued 或 running 任务时，再次触发生成不再产生并发任务；useImageGeneratorExecution.ts 的入队路径存在明确早退检查。",
+    "回归门禁（红→绿证据，硬性要求）：新增一个零新增依赖的验证脚本，用 Node 原生能力加载并驱动真实 src 代码。脚本必须同时包含两个用例——重启恢复用例与重复入队用例。作者必须实际运行并记录修复前的失败输出与修复后的通过输出；只报告最终 PASS 视为未证明。",
+    "门禁不得靠断言当前实现来通过：断言对象必须是需求描述的可观察行为（重启后 job 不停留 queued；重复触发不新增 job），而不是内部变量或私有函数调用顺序。",
+    "tsc --noEmit 保持 PASS（strict + noUnusedLocals + noUnusedParameters）。",
+    "不新增任何需要安装的依赖（不引入 vitest/jest/jsdom 等）；脚本仅用 Node 内置模块。",
+    "不改动 UI 外观与交互；不改动节点数据字段语义；不改变画布或 app-data.json 的既有字段含义。"
+  ],
+  "non_goals": [
+    "不做 B 项（执行链统一、并发上限、取消语义）——属后续任务。",
+    "不做 C 项（API Key 存储）——已决定推迟到下一批，cargo 在本机不可用。",
+    "不引入 knip/ts-prune 等死代码检测工具（已评估为 rejected）。",
+    "不合并双画布与 flowStore 的“两份真相”。",
+    "不重写现有的 5 条人工回归路径，也不替代用户验收。"
+  ],
+  "dependencies": [],
+  "risk": {
+    "level": "medium",
+    "decision_ids": [
+      "DEC-restart-queue-resume",
+      "DEC-zero-dep-verification"
+    ]
+  },
+  "snapshot_paths": [
+    "src/stores/queueStore.ts",
+    "src/hooks/useImageGeneratorExecution.ts",
+    "src/components/nodes/ImageGeneratorNode.tsx",
+    "src/services/imageGenerationExecution.ts",
+    "src/utils/tauriStorage.ts",
+    "package.json",
+    "tsconfig.json",
+    "scripts"
+  ],
+  "allowed_paths": [
+    "src/stores/queueStore.ts",
+    "src/hooks/useImageGeneratorExecution.ts",
+    "src/App.tsx",
+    "src/main.tsx",
+    "scripts",
+    "package.json"
+  ],
+  "protected_paths": [
+    "src/services/imageGenerationExecution.ts",
+    "src/utils/tauriStorage.ts",
+    "src/services/imageGeneration",
+    "src-tauri"
+  ],
+  "gates": [
+    {
+      "id": "typecheck",
+      "required": true,
+      "program": "node",
+      "args": [
+        "./node_modules/typescript/bin/tsc",
+        "--noEmit"
+      ],
+      "cwd": ".",
+      "timeout_seconds": 600
+    },
+    {
+      "id": "behavior-regression",
+      "required": true,
+      "program": "node",
+      "args": [
+        "--experimental-strip-types",
+        "scripts/queue-regression.mjs"
+      ],
+      "cwd": ".",
+      "timeout_seconds": 600
+    }
+  ],
+  "test_review": {
+    "behavior": "change",
+    "baseline": {
+      "status": "PASS",
+      "evidence_ref": ".workflow-kit/tasks/evidence/probe-queue-store.mjs",
+      "summary": "项目原本没有任何自动化测试（0 测试文件、0 lint、唯一 CI 只在 v* tag 触发且无 typecheck 步骤），因此不存在可继承的旧测试套件。基线由总控自建的两个零依赖探针确立，均已实际运行、退出码 0：(1) probe-queue-store.mjs 复现 REQ-001 —— 模拟重启遗留 queued 任务后 250ms 仍为 queued，显式调用 pump() 后立即转为 error，证明缺失的调用就是启动时的 pump()；(2) probe-partialize-deadbranch.mjs 穷举证明 partialize 恒不输出 running（输出仅 queued,success,error,cancelled），故 queueStore.ts:217-226 的 running 恢复分支不可达，这正是 REQ-001 的根因。两项探针同时确认 queueStore 可在无浏览器、无 Tauri 运行时的情况下被真实驱动。已知限制：vite build 在本会话沙箱因 esbuild spawn EPERM 无法运行，故前端构建与真实运行行为仍属未验证；cargo check 因 TLS 凭证失败未运行。"
+    },
+    "decision_ids": [
+      "DEC-restart-queue-resume",
+      "DEC-zero-dep-verification"
+    ],
+    "actions": [
+      {
+        "target": "queueStore 重启恢复行为（原 partialize 与 onRehydrateStorage 的不可达分支）",
+        "action": "replace",
+        "reason": "用户已确认行为变更：重启后未完成的任务应自动恢复并继续生成，而现状是任务永久卡在 queued。原恢复分支因 partialize 过滤 running 而恒不可达，旧行为（卡死）由用户明确决定替换。",
+        "gate_ids": [
+          "behavior-regression"
+        ]
+      },
+      {
+        "target": "重复入队保护（原 taskManager.isTaskRunning 语义，已在 750e4fd 重构中丢失）",
+        "action": "add",
+        "reason": "该保护在删除 src/services/taskManager.ts 时丢失，新需求未覆盖，需补充行为测试锁定。",
+        "gate_ids": [
+          "behavior-regression"
+        ]
+      },
+      {
+        "target": "tsc --noEmit 类型门禁",
+        "action": "keep",
+        "reason": "strict + noUnusedLocals + noUnusedParameters 全部开启且当前零诊断，是项目唯一既有的自动化保护，必须继续运行并保持 PASS。",
+        "gate_ids": [
+          "typecheck"
+        ]
+      },
+      {
+        "target": "自动化行为测试套件（原为完全缺失）",
+        "action": "add",
+        "reason": "基线证明项目不存在任何行为测试；本轮按 DEC-zero-dep-verification 补充零依赖回归门禁，使 REQ-001/REQ-002 具备红→绿可执行证据。",
+        "gate_ids": [
+          "behavior-regression"
+        ]
+      }
+    ]
+  }
+}
