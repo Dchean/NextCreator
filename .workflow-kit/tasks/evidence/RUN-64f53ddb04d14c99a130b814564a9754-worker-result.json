@@ -1,0 +1,16 @@
+{
+  "task_id": "TASK-005",
+  "run_id": "RUN-64f53ddb04d14c99a130b814564a9754",
+  "status": "ready_for_verification",
+  "summary": "修复轮 1：封堵独立审查指出的两条假绿路径。问题 1（用例 B）：主断言由'调用后瞬时活动数 counts.some(c=>c>1)'改为时间无关量 nodeJobCount()（同节点 job 数，按 nodeId 统计），并把采样扩展为入队前/入队后以记录峰值；瞬时采样未捕捉峰值时打印专门提示。问题 2（用例 A）：为种子 job 在 useFlowStore 建立对应节点（nodeId=regression-node-1，data.queued=true，复刻 useImageGeneratorExecution.ts:86-90 重启前的标记），并把判定改为 pass = jobReleased && flagCleared，期望文案明确为两句（job 不再停留 queued；节点 data.queued 被清除）。另新增默认关闭的 NC_QUEUE_MUTANT 变异自检开关（默认空集、生产运行零影响，仅替换被测对象或改写被测状态，断言代码在任何模式下不变），含三个 token：exec-instant-fail、partial-fix-job-only、full-fix。仅改动 scripts/queue-regression.mjs。",
+  "changed_files": [
+    "scripts/queue-regression.mjs"
+  ],
+  "validation_requests": [
+    "typecheck: node ./node_modules/typescript/bin/tsc --noEmit（预期退出码 0）",
+    "harness-red-state: node --experimental-strip-types scripts/queue-regression.mjs --expect-red（预期退出码 0，两个缺陷仍按预期复现）"
+  ],
+  "requested_actions": [],
+  "unresolved_items": [],
+  "blocked_reason": null
+}

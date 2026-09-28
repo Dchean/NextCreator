@@ -7,7 +7,7 @@
   "ui_change": false,
   "ui_contract_ref": null,
   "ui_checks": [],
-  "status": "review",
+  "status": "running",
   "objective": "为项目建立一份可复用的零新增依赖行为测试基础设施：一个能加载真实 src/**/*.ts 的 Node 加载器，以及在其上运行的队列回归脚本（两个用例 + 红状态自检模式）。本任务只交付基础设施与红状态证据，不修复任何业务缺陷——业务修复由后续任务在本门禁之上进行。",
   "non_goals": [
     "不修复 REQ-001 与 REQ-002——本任务只建立门禁并取得红状态证据，修复由后续任务负责。",
@@ -150,19 +150,24 @@
   "budget": {
     "started_at_utc": "2026-09-28T03:04:49.037712Z",
     "deadline_at_utc": "2026-09-28T06:04:49.037712Z",
-    "repair_rounds_used": 0
+    "repair_rounds_used": 2
   },
   "batch_id": "BATCH-b0beab2c90244930976c328fcf1d59e2",
   "run_ids": [
     "RUN-6a3941f7d5fe40c1a9fc437a9245a2e7",
     "RUN-8aac424a088943fda6f95b8899e1a6eb",
-    "RUN-762472b3e99f4ef983ce9a7c5394bd2a"
+    "RUN-762472b3e99f4ef983ce9a7c5394bd2a",
+    "RUN-33efd879e5ca40588aaad68b7af1b837",
+    "RUN-64f53ddb04d14c99a130b814564a9754",
+    "RUN-735daa0585be4acc8a71ef3605fe904d",
+    "RUN-2440a1ec05fd42929757ae5413b3a717",
+    "RUN-d9bf2b89271a433c8fac75a3d77f3a07"
   ],
   "blockers": [],
   "evidence": {
-    "candidate_manifest": ".workflow-kit/tasks/evidence/RUN-762472b3e99f4ef983ce9a7c5394bd2a-candidate.json",
-    "candidate_digest": "d423f77efc6d9be5d3fee23eeadb221f6f3624b0117c882025c85d445fde38ad",
-    "verification_run": "RUN-762472b3e99f4ef983ce9a7c5394bd2a",
+    "candidate_manifest": ".workflow-kit/tasks/evidence/RUN-735daa0585be4acc8a71ef3605fe904d-candidate.json",
+    "candidate_digest": "5d0229aa4958e01f599fdb68e72f1912f1bd8ff83e12fc4fcbb002fb15cbff25",
+    "verification_run": "RUN-735daa0585be4acc8a71ef3605fe904d",
     "review_run": null,
     "acceptance_ref": null,
     "owner_decision_ids": [],
@@ -207,9 +212,39 @@
       "at_utc": "2026-09-28T03:07:18.400806Z",
       "note": "预先定义的必需测试全部通过，日志已保存",
       "next_action": "审查当前候选；独立审查使用没有参与编码的新上下文"
+    },
+    {
+      "at_utc": "2026-09-28T03:21:49.985010Z",
+      "note": "Review requires changes; inspect the findings",
+      "next_action": "先核对已有文件及原始日志，再处理 review_failure；不要新建任务或重置预算"
+    },
+    {
+      "at_utc": "2026-09-28T03:22:29.476849Z",
+      "note": "开始执行，保留原任务身份和截止时间；沿用本任务先前的范围基线，changed_files 为本任务累计改动",
+      "next_action": "完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify"
+    },
+    {
+      "at_utc": "2026-09-28T03:28:13.800298Z",
+      "note": "编码结果已记录，差异范围已核对：scripts/queue-regression.mjs",
+      "next_action": "运行 verify；代码完成尚未等于验收通过"
+    },
+    {
+      "at_utc": "2026-09-28T03:28:24.027170Z",
+      "note": "预先定义的必需测试全部通过，日志已保存",
+      "next_action": "审查当前候选；独立审查使用没有参与编码的新上下文"
+    },
+    {
+      "at_utc": "2026-09-28T03:53:10.351024Z",
+      "note": "Review requires changes; inspect the findings",
+      "next_action": "先核对已有文件及原始日志，再处理 review_failure；不要新建任务或重置预算"
+    },
+    {
+      "at_utc": "2026-09-28T03:53:38.081988Z",
+      "note": "开始执行，保留原任务身份和截止时间；沿用本任务先前的范围基线，changed_files 为本任务累计改动",
+      "next_action": "完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify"
     }
   ],
-  "resume_phase": "implementation",
+  "resume_phase": "review",
   "dispositions": [
     {
       "at_utc": "2026-09-28T03:06:48.576256Z",

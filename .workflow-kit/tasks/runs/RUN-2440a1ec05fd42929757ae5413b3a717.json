@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "RUN-2440a1ec05fd42929757ae5413b3a717",
+  "task_id": "TASK-005",
+  "kind": "review",
+  "outcome": "blocked",
+  "executor": {
+    "harness": "current_agent",
+    "model": null,
+    "context_id": "independent reviewer subagent 466d0e5e-e569-4ff3-8bcd-a62ba6d44839 (fresh context, did not implement TASK-005; round-1 reviewer excluded because it had seen the old candidate); manager independently reproduced the batch-coverage gap and the NC_QUEUE_MUTANT forgeable-green path before recording"
+  },
+  "started_at_utc": "2026-09-28T03:53:10.271620Z",
+  "finished_at_utc": "2026-09-28T03:53:10.311709Z",
+  "exit_code": null,
+  "timed_out": false,
+  "input_digest": "408539f1508d617d72e30ac8fc2c51e81391da3709dd9619fd785d1773e89c7f",
+  "candidate_digest": "5d0229aa4958e01f599fdb68e72f1912f1bd8ff83e12fc4fcbb002fb15cbff25",
+  "raw_output_refs": [
+    ".workflow-kit/tasks/evidence/RUN-2440a1ec05fd42929757ae5413b3a717-review.json"
+  ],
+  "checks": [],
+  "review": {
+    "mode": "independent",
+    "verdict": "FAIL",
+    "report": ".workflow-kit/tasks/evidence/RUN-2440a1ec05fd42929757ae5413b3a717-review.json",
+    "candidate_digest": "5d0229aa4958e01f599fdb68e72f1912f1bd8ff83e12fc4fcbb002fb15cbff25"
+  },
+  "estimated_cost_usd": null,
+  "failure_kind": "review_failure",
+  "failure_reason": "Review requires changes; inspect the findings"
+}

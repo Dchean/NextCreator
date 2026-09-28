@@ -1,0 +1,66 @@
+{
+  "task_id": "TASK-005",
+  "candidate_digest": "5d0229aa4958e01f599fdb68e72f1912f1bd8ff83e12fc4fcbb002fb15cbff25",
+  "verification_run": "RUN-735daa0585be4acc8a71ef3605fe904d",
+  "verdict": "FAIL",
+  "summary": "第二轮独立审查由另一个未参与实现的新子代理完成（第一轮审查者不得复用，因其已见过旧候选）。返工被确认为真实有效：第一轮那两条假绿由审查者用自建镜像工程与真实源码补丁独立重建（不依赖脚本内置的 NC_QUEUE_MUTANT 钩子），可观测结果与内置变异体逐项一致，故对『变异开关构成自证循环』的质疑不成立；用例 A 的节点标记断言与用例 B 的同节点 job 计数断言都真正起作用。但仍存在一条实测可达的整体级假绿，且总控已独立复现：用例 B 的节点数据 n=1，使 getImageBatchCount 恒为 1，useImageGeneratorExecution.ts:61-74 的批量分支一次都未被执行；审查者构造『只在单图分支加去重、批量分支不动』的真实补丁后门禁给 exit 0 / PASS 2，而同一构建上 n=4 的节点 3 次点击使同节点 job 数达 12。总控独立复现结果一致：n=1 时 3 次点击得 3 个同节点 job，n=4 时得 12 个。另总控独立复现了一条误用通道：在 src 完全未修复的工程上仅设 NC_QUEUE_MUTANT=full-fix 即得退出码 0（默认模式可被一个环境变量伪造成绿色，--expect-red 不受影响仍正确报 1）。由于 TASK-001 将以本门禁作为红→绿依据，须先补批量用例并把变异体移出交付脚本，故本轮不予放行。",
+  "findings": [
+    "批量分支完全无门禁（本轮阻塞项，总控已独立复现）：用例 B 使用 getDefaultImageGeneratorData()，实测其 apiProtocol=gemini-generate-content、n=1，故 getImageBatchCount 恒为 1，永远走单图 else 分支，useImageGeneratorExecution.ts:61-74 的批量分支一次都未执行。总控独立复现（.workflow-kit/tasks/evidence/verify-finding-batchgap.mjs）：n=1 时 3 次点击 → 同节点 job 数=3；把 n 改为 4 后同代码 3 次点击 → 同节点 job 数=12。审查者进一步构造『只在单图分支加去重、批量分支不动』的真实补丁（tsc 仍 PASS），交付门禁给用例 B PASS，配合真实 REQ-001 修复后整体 exit 0 / PASS 2，即 REQ-002 在批量场景的危害完整存在却被判绿。建议：补一条批量用例，判据为『首点后同节点 job 数 == batchCount，第 2/3 次点击不再增长』；审查者实测该判据可闭合缺口（正确修复 PASS，四种缺陷形态——批量无保护、守卫误置于批量循环、store 层任意去重、任意历史 job 去重——全 FAIL）。",
+    "变异开关可伪造绿色（严重，总控已独立复现）：NC_QUEUE_MUTANT 常驻交付脚本，在 src 完全未修复的工程上仅设 NC_QUEUE_MUTANT=full-fix，默认模式即报『全部用例通过，退出码 0』。总控实测：默认模式基线退出码 1，加 full-fix 后退出码 0，而 --expect-red 不受影响仍正确退出 1。这意味着门禁的默认模式（TASK-001 将作为门禁使用的模式）可被一个环境变量伪造成绿色。建议把变异体移出交付脚本（例如拆到独立的开发期脚本，或仅在显式 --self-check 参数下启用）。",
+    "门禁无法区分正确修复与破坏性修复（审查者发现）：两种补丁（『同节点任意历史 job 判重』与『store 层去重』）均使门禁 PASS 且 tsc PASS，但实际会锁死节点重生成、并把合法 n=4 批量截断为 1 个 job。交付说明已自曝前者的批量风险，但未覆盖『store 层任意去重』这一形态。与 finding 1 同源，补批量用例后预计可一并覆盖。",
+    "用例 A 对『静默丢弃遗留 queued 任务』判 ERROR：审查者以同步删除与 setTimeout(0) 两种形态实测，方向安全（不假绿），但会把『任务跑完即出队』这类合理修复误报为基础设施异常。语义建议在 TASK-001 前明确：REQ-001 已确认的行为是自动恢复并继续生成，故不应把丢弃视为正确修复，但需在任务卡中把该预期写清，避免实施者误解。",
+    "第一轮两条假绿已确认修复（非 finding，记录结论）：用例 B 主断言改为同节点 job 数后，exec-instant-fail 场景（瞬时 0/1/1、峰值 1、同节点 job=3）由旧脚本的假绿 PASS 变为 FAIL；用例 A 增加节点 data.queued 断言后，partial-fix-job-only 场景（job→error 但标记残留）由假绿 PASS 变为 FAIL；full-fix 绿色对照两例 PASS，证明不是永假门禁。用例 A 现对两个子句都敏感（只清标记不清 job 亦 FAIL）。",
+    "NC_QUEUE_MUTANT 默认关闭属实（审查者核对通过）：代码、实跑与全仓库检索均确认未设置该变量时不注入任何变异。",
+    "红状态稳定且耗时上升（审查者核对通过）：真实工程 6 次默认运行全 exit 1、6 次 --expect-red 全 exit 0，无抖动；耗时 3.29–3.31 s（较第一轮 2.26 s 上升约 1 s，源于用例 A 新增的 1000 ms 节点标记等待窗口），远低于 600 s 门禁超时。"
+  ],
+  "review_checks": [
+    {
+      "area": "requirements",
+      "status": "FAIL",
+      "analysis": "候选 6 个文件 sha256 全部匹配；package.json 与第一轮同哈希（自 r1 未再变）。第一轮的两条假绿经独立重建确认已堵住（详见 findings 第 5 条）。但 REQ-002 的验收要求『同一节点已有 queued 或 running 任务时再次触发不再产生并发任务』，而门禁对批量路径（batchCount>1，useImageGeneratorExecution.ts:61-74）零覆盖，无法证明该需求在批量场景成立；实测在 n=4 下同一未修复代码可产生 12 个同节点 job 而被判绿。需求覆盖不完整，故 FAIL。",
+      "evidence_files": [
+        "scripts/queue-regression.mjs",
+        "package.json",
+        ".workflow-kit/tasks/evidence/verify-finding-batchgap.mjs",
+        ".workflow-kit/tasks/runs/RUN-735daa0585be4acc8a71ef3605fe904d.json"
+      ]
+    },
+    {
+      "area": "regression",
+      "status": "FAIL",
+      "analysis": "门禁敏感度经两轮独立验证：第一轮两条假绿已由真实源码补丁重建确认修复（exec-instant-fail 与 partial-fix-job-only 现均正确 FAIL），full-fix 对照证明断言可被满足。红状态稳定（6×默认 exit 1、6×--expect-red exit 0，无抖动）。不通过点有二：①批量分支零覆盖——审查者构造『只在单图分支去重』的真实补丁后门禁整体 exit 0 / PASS 2，而该构建在 n=4 下可产生 12 个同节点 job；②默认模式可被 NC_QUEUE_MUTANT=full-fix 伪造为绿色（总控独立复现：未修复 src + full-fix → 退出码 0）。该门禁是 TASK-001 的红→绿依据，上述两点会在修复后掩盖 REQ-002 的残留复发，故 FAIL。",
+      "evidence_files": [
+        "scripts/queue-regression.mjs",
+        ".workflow-kit/tasks/evidence/verify-finding-batchgap.mjs",
+        ".workflow-kit/tasks/runs/RUN-735daa0585be4acc8a71ef3605fe904d.json"
+      ]
+    },
+    {
+      "area": "failure_paths",
+      "status": "FAIL",
+      "analysis": "异常与空输入路径总体良好：不可解析导入报 ERROR 且含包名与来源可诊断；种子未进入 store → ERROR；hook 未入队 → ERROR；轮询超时返回失败而非挂死。已覆盖的异常：用例 A 现对两个子句都敏感（只清 job 不清标记亦 FAIL）；『静默丢弃遗留任务』被判 ERROR（方向安全，不假绿）。未覆盖/待明确：①批量路径的失败形态（finding 1）；②NC_QUEUE_MUTANT 构成的误用通道使默认模式可被伪造为绿色（finding 2）；③『同节点任意历史 job 判重』与『store 层任意去重』两种破坏性修复无法与正确修复区分（finding 3）。",
+      "evidence_files": [
+        "scripts/queue-regression.mjs",
+        "src/hooks/useImageGeneratorExecution.ts",
+        ".workflow-kit/tasks/evidence/verify-finding-batchgap.mjs",
+        ".workflow-kit/tasks/evidence/verify-finding-req002-falsegreen.mjs"
+      ]
+    },
+    {
+      "area": "maintainability",
+      "status": "FAIL",
+      "analysis": "断言与加载器部分维持第一轮的评价：分层清晰、四条解析规则均有『为什么』注释、root 由脚本自身位置推导不依赖 cwd、零新增依赖。但变异开关常驻交付脚本带来两项维护风险，且已被实测：①默认模式可被环境变量伪造成绿色（finding 2），未来任何人（含自动任务）误设该变量即得到假的通过结论；②断言代码与变异代码混于同一文件，读者难以区分『被测行为』与『测试基础设施行为』。审查者建议把变异体移出交付脚本（独立开发期脚本，或仅在显式 --self-check 下启用）。此外批量语义缺口（finding 1）使门禁与 useImageGeneratorExecution.ts:61-74 的真实分支存在结构性脱节，后续修改该分支不会被告警。",
+      "evidence_files": [
+        "scripts/queue-regression.mjs",
+        "src/hooks/useImageGeneratorExecution.ts"
+      ]
+    },
+    {
+      "area": "performance",
+      "status": "NOT_APPLICABLE",
+      "analysis": "本任务只新增离线测试基础设施，不进入应用运行时、不改变任何业务路径的性能特征（脚本不被 src 引用、不随应用打包），故无代表性负载可定义，不适用性能核对。门禁自身开销经审查者实测：3.29–3.31 s/次（较第一轮约 2.26 s 上升约 1 s，源于用例 A 新增的 1000 ms 节点标记等待窗口），量级稳定且远低于 600 s 门禁超时，仍适合作为提交前门禁反复运行。",
+      "evidence_files": ["scripts/queue-regression.mjs"]
+    }
+  ],
+  "ui_review": null
+}
