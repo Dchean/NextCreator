@@ -1,0 +1,77 @@
+{
+  "task_id": "TASK-005",
+  "candidate_digest": "27abba6fe57f16ffc649e4c025843c81d97311cdc3f0abd6b780a557a5b08128",
+  "verification_run": "RUN-0eebc354468a496f801deca8dc1c1c4a",
+  "verdict": "FAIL",
+  "summary": "第三轮独立审查由第三个未参与实现的新子代理完成（前两轮审查者因已见过各自轮次的候选而排除复用）。前两轮四条 finding 均被确认真实修复：用例 C 真正覆盖了批量分支（独立核对 nodeData n=4 → getImageBatchCount 返回 4，实跑确证走 useImageGeneratorExecution.ts:61-74 而非 else）；环境变量伪造通道彻底关闭（脚本 0 处 process.env，6 种 NC_QUEUE_MUTANT 取值下默认模式恒 exit 1，且反向确认 --self-check=full-fix 仍能翻成全 PASS，排除『变异机制失灵导致假通过』）；用例 A 仍同时断言 job 状态与节点 data.queued；用例 B 的同节点 job 数主断言仍敏感。审查者进一步用自建镜像工程 + 真实源码补丁（完全不使用被审脚本的 --self-check）确认正确修复 12/12 次稳定 exit 0，因此『用例 C 在真实修复后能否转绿』已被真正证明，不依赖内置 300ms 执行桩——总控此前提出的这条重点质疑被证伪。但同一独立手段发现一条新的实测可达假绿，且总控已独立复现其机制：把守卫实现为『仅 j.status === \"running\" 去重』时门禁给出 PASS 3 / exit 0，而该构建仍违反 REQ-002 验收文本。总控的双项独立复现：(1) enqueue 在同一次同步调用内就把首个 job 置为 running（.workflow-kit/tasks/evidence/verify-finding-running-only-guard.mjs），故门禁用例 B/C 只操作单节点时，『仅 running 守卫』与『queued||running 守卫』在门禁场景下结构上无法区分；(2) 并发额度被他节点占满时，同一节点可累积多个 queued job（实测 concurrency=1、节点 Z 占满后连点节点 B 两次 → 节点 B 的 job 数=2，状态 queued,queued），节点 Z 结束后 pump() 会同时派发它们。总控另核对 git dbdf3d3:src/services/taskManager.ts 确认历史 isTaskRunning 的实现字面为 return task?.status === \"running\"，即 REQ-002 原文点名的『taskManager 时代的 isTaskRunning 语义』恰为此形态——按该语义直接移植即得到门禁判绿的残缺陷构建，故这是最高概率的实现失误，而非理论缺口。另发现两条假红（用例 C 的 5000ms 结算窗口在真实生成耗时下会误判正确修复；用例 B/C 把渲染期快照传给 hook，使基于节点 data 快照的守卫被误判）。鉴于这是第三轮 FAIL 且修复轮已达 2/3，总控按 RECOVERY 的 replan 要求停止机械加固并向用户提交路线选择，未自行决定下一步。",
+  "findings": [
+    "新的实测可达假绿（本轮阻塞项，审查者以自建镜像工程的真实源码补丁复现，未使用被审脚本任何 --self-check 开关；总控已独立复现其机制）：守卫实现为『仅 j.status === \"running\" 去重』时，三个用例全 PASS、exit 0；但该构建违反 REQ-002 验收文本『同一节点已有 queued 或 running 任务时，再次触发不再产生并发任务』。可达场景：并发上限 2（queueStore.ts:58 默认值）被节点 A 占满时点击节点 B，节点 B 任务停在 queued；再点节点 B，只看 running 的守卫放行，节点 B 出现 2 个 queued job；节点 A 结束后 pump() 补位，二者被同时派发（审查者以 pump 置位的 startedAt 计数为独立证据：2/2 被真正派发）。总控独立验证机制：enqueue 后同一次同步调用内该 job 状态即为 running（故门禁单节点用例无法区分两种守卫）；且 concurrency=1 被节点 Z 占满时，『仅 running 守卫』下连点节点 B 两次得 2 个 queued job。该形态为最高概率失误：REQ-002 原文写『taskManager 时代的 isTaskRunning 语义未迁移』，而总控核对 git dbdf3d3:src/services/taskManager.ts 确认 isTaskRunning 的实现字面为 return task?.status === \"running\"。对照实测：改为『queued || running』（符合验收文本）判 PASS 正确；改为『仅 queued』则用例 B 正确判 FAIL（同节点 job=2）。门禁无法区分完整修复与该偏缺陷修复。建议补一条用例：令并发额度被他节点占满后连点同一节点，断言同节点 queued 数不增长。",
+    "同类假绿：全局单飞守卫（不按 nodeId 区分，任何节点有活动 job 即拒绝入队）亦被判 PASS 3 / exit 0。该形态字面满足 REQ-002 的『同一节点』表述，但会禁止不同节点并发生成，与 queueStore 的并发控制设计（concurrency 1..4、默认 2，QueuePanel.tsx:151 可调）冲突。用例 B/C 均只使用单个目标节点，结构上无法暴露跨节点被误伤。",
+    "假红（中等，可复现）：用例 C 第 ③ 条『该批结束后再点一次仍产生完整一批』依赖该批在 waitFor(..., 5000) 内全部结束（queue-regression.mjs:549）。审查者以参数化真实补丁实测边界：正确修复下每 job 耗时 ≤2400ms 时 exit 0 / PASS 3；≥2500ms 时用例 C 判 FAIL，说明语为『该批 5000ms 内未结束，第 ③ 条无法评估』，整体 exit 1。真实生成远慢于桩，故同一份正确修复仅因执行耗时就可能被判红，且该失败计为 FAIL 而非 ERROR，会被误读为业务缺陷未修。建议改判 ERROR。",
+    "假红（中等）：用例 B 与用例 C 把渲染期快照传给 hook——renderToStaticMarkup 只调用一次 Probe（queue-regression.mjs:382、:512），useImageGeneratorExecution 收到的 data 始终是最初的 useFlowStore.getState().nodes[0].data，hook 内部 updateNodeData 不会回流到该快照。审查者以真实补丁实测：守卫写成 if (data.queued) return（即 ImageGeneratorNode.tsx:174/215 的 canRun 所依赖、ImageGeneratorInspector.tsx:646-648 同样依赖的现成标记）时，用例 B 与 C 判 FAIL。该形态在真实应用里经 updateNodeData → flowStore → 重渲染后可见而可能成立，故这是一条未在交付说明中标注的假红边界；建议在注释中显式声明覆盖边界（本用例只覆盖基于 queueStore 真实状态的守卫）。",
+    "审核通过项（记录结论）：① 用例 C 前提独立成立且能判出第二轮 finding 1 的缺陷形态（『只修单图分支』补丁被正确判 FAIL）；② 环境变量通道关闭且反向确认排除变异失灵；③ 未发现残留后门（无文件存在性依赖、无随机因素、--self-check 未知值安全退化为默认模式、root 由脚本位置推导）；④ 用例 A 双子句仍有效（『只置 job 为 error 不清标记』的真实补丁被正确判 FAIL）；⑤ 外部桩的 getImageBatchCount 与真实实现同语义；⑥ 前两轮脚本无法逐字节 diff（仓库未保留 r1/r2 副本，按 sha256 全盘检索 f43a309f/65224540 无命中），故『是否弱化既有断言』只能做语义核对——证据边界已如实记录。",
+    "绿色对照真实性经独立证实（总控此前提出的重点质疑被证伪）：审查者以自建镜像 + 真实 src 补丁（水合处置 queued 任务 + 清节点标记；getImageBatchCount 之前加 queued||running 守卫），未经任何 --self-check，门禁 exit 0 / PASS 3，连跑 12 次稳定。故『真实修复能否转绿』已被真正证明，不依赖内置执行桩。敏感度矩阵（全部真实源码补丁）：baseline FAIL×3、批量 off-by-one FAIL、守卫在批量循环内 FAIL、store 层任意去重 FAIL、store 层仅活动去重 FAIL、任意历史 job 去重 FAIL、只修单图分支 FAIL、用例 A 半吊子 FAIL、仅 queued 守卫 FAIL、仅 running 守卫 PASS、全局单飞守卫 PASS。",
+    "低 severity：自检套件耗时 42.4s（14/14、exit 0），因串行拉起 12 次门禁子进程；非缺陷，已与日常门禁（3.31–3.37s）分列于 package.json。",
+    "低 severity / 非本任务责任：git status 显示 .zcode/plans/plan-sess_00f5c7b7-8b7b-4379-b681-fcb4fab63ed6.md 被删除。审查者比对 .workflow-kit/tasks/evidence/baseline-onboarding.json 的 vcs.working_tree 字段，确认该删除在 workflow-kit 接入时即已存在，非本轮编码引入；本轮 changed_files 恰为三个交付文件。与总控此前的独立核对结论一致（该文件不在本包任何提交中）。"
+  ],
+  "review_checks": [
+    {
+      "area": "requirements",
+      "status": "FAIL",
+      "analysis": "候选 8 个文件 sha256 与 RUN-0eebc354468a496f801deca8dc1c1c4a-candidate.json 逐项一致。逐条核对验收：脚本可运行且退出码语义正确（默认 exit 1 / --expect-red exit 0）；--expect-red 语义正确（注入 full-fix 时报『预期红但实际绿 3 个』并 exit 1）；两种模式原始输出已记录且复跑一致；驱动真实 src 未复制被测逻辑；断言对象为 store 公开状态与 hook 公开返回值；三个技术要点落地；tsc 独立复跑 exit 0；零新增依赖（dependencies/devDependencies 与 HEAD 逐字符相同，scripts 仅新增 3 条）；未改业务源码与三个基线探针。不通过点：REQ-002 验收文本要求『已有 queued 或 running 时再次触发不再产生并发任务』，而门禁对『仅按 running 判定』的偏缺陷修复判绿，需求覆盖不完整；另有跨节点误伤（全局单飞守卫）同样判绿。用例 C 的前提与判据强度经独立重建确认有效，故第二轮 finding 1 不重复计为未修。",
+      "evidence_files": [
+        "scripts/queue-regression.mjs",
+        "scripts/queue-regression.selfcheck.mjs",
+        "package.json",
+        "src/hooks/useImageGeneratorExecution.ts",
+        "src/stores/queueStore.ts",
+        ".workflow-kit/tasks/runs/RUN-0eebc354468a496f801deca8dc1c1c4a.json",
+        ".workflow-kit/tasks/evidence/verify-finding-running-only-guard.mjs"
+      ]
+    },
+    {
+      "area": "regression",
+      "status": "FAIL",
+      "analysis": "红状态稳定：默认模式连跑 5 次恒 exit 1（PASS 0/FAIL 3/ERROR 0），--expect-red 连跑 5 次恒 exit 0，耗时 3311–3365ms，无抖动。断言敏感性经自建镜像 + 真实源码补丁（不经 --self-check）独立验证：既有保护未被弱化，用例 A 对两个子句都敏感，用例 B 的同节点 job 数主断言在『首 await 前即失败』补丁下判 FAIL（瞬时采样 0/1/1、峰值 1，仅该断言暴露缺陷），用例 C 对批量截断/无保护/历史去重均敏感；绿色对照可达（真实修复 12/12 次 exit 0）。不通过点：门禁无法区分完整修复与『仅按 running 判定』的偏缺陷修复（均 exit 0 / PASS 3），而后者遗留 REQ-002 明确要求消除的并发写同一 node.data；全局单飞守卫同样判 PASS。该门禁是 TASK-001 的红→绿依据，此灵敏度缺口会在修复后掩盖 REQ-002 的残留复发。总控已独立复现该机制的两个环节（enqueue 同步置 running；额度占满时同节点累积 queued）。",
+      "evidence_files": [
+        "scripts/queue-regression.mjs",
+        "src/hooks/useImageGeneratorExecution.ts",
+        "src/stores/queueStore.ts",
+        ".workflow-kit/tasks/evidence/verify-finding-running-only-guard.mjs",
+        ".workflow-kit/tasks/runs/RUN-0eebc354468a496f801deca8dc1c1c4a.json"
+      ]
+    },
+    {
+      "area": "failure_paths",
+      "status": "FAIL",
+      "analysis": "异常与空输入路径总体良好：异常被 try/catch 归 ERROR 且 exit 非 0；种子未进 store → 用例 A 判 ERROR；hook 未入队 → 用例 B/C 判 ERROR；用例 C 另设两条前提核对（getImageBatchCount 返回值、首点后活动数>0）并显式判 ERROR 而非猜测 PASS/FAIL，方向安全；轮询超时返回失败而非挂死。已覆盖的失败形态经真实补丁验证充分（批量 off-by-one、守卫误置循环内、store 层任意/仅活动去重、任意历史 job 去重、只修单图分支、用例 A 半吊子修复，全部正确 FAIL）。未覆盖/新发现：①『同一节点已有 queued 任务时再次触发』这一 REQ-002 明列的失败形态无门禁覆盖——用例 B/C 首点后该节点总有 running job（pump 同步置位，总控已实测），使守卫是否覆盖 queued 无法被区分；②跨节点误伤（全局单飞）无覆盖；③用例 C 耗时超窗被计为 FAIL 而非 ERROR，会把正确修复误报为业务缺陷（实测边界 2400ms→2500ms）；④基于节点 data 快照的守卫被误判 FAIL。",
+      "evidence_files": [
+        "scripts/queue-regression.mjs",
+        "src/hooks/useImageGeneratorExecution.ts",
+        "src/stores/queueStore.ts",
+        ".workflow-kit/tasks/evidence/verify-finding-running-only-guard.mjs"
+      ]
+    },
+    {
+      "area": "maintainability",
+      "status": "PASS",
+      "analysis": "变异开关从环境变量改为显式 CLI 参数（queue-regression.mjs:69-76）后误用风险实质降低：不提供任何环境变量入口，默认模式结论不可被 env 改变（实测 6 种取值 + 4 个同类变量名）；未知或残缺的 --self-check 值（bogus、无 =）安全退化为默认模式并 exit 1，不会静默启用变异。职责划分清晰：scripts/queue-regression.mjs 是唯一交付门禁，变异体只在其显式参数下生效且只改『被测对象』不改断言；scripts/queue-regression.selfcheck.mjs 明确定位为『不是交付门禁本身』，只读回门禁的退出码与 --report-json 结构化报告，不复制断言逻辑，--report-json 默认不写文件故不影响门禁行为；package.json 三条 script 分别对应门禁、红状态、自检，边界明确。自检套件不构成自证循环：它验证的是门禁的可观察输入输出契约（退出码 + 每用例判定 + env 独立性 + CLI 开关仍生效），而『CLI 开关仍生效』一条正是为排除『独立性因开关失灵而假通过』而设，已独立复现成立。分层与注释维持前轮评价：四条解析规则均说明『为什么』，root 由脚本位置推导不依赖 cwd，零新增依赖。残余维护风险：断言与变异代码仍同处一个 38781 B 文件（已被显式参数与文件头不变量说明隔离）；用例 B/C 只渲染一次致 data 为渲染期快照这一隐式约束未在注释中说明，是 finding 4 假红的根因。",
+      "evidence_files": [
+        "scripts/queue-regression.mjs",
+        "scripts/queue-regression.selfcheck.mjs",
+        "package.json"
+      ]
+    },
+    {
+      "area": "performance",
+      "status": "NOT_APPLICABLE",
+      "analysis": "本任务只新增离线测试基础设施，不进入应用运行时、不被 src 引用、不随应用打包，不改变任何业务路径的性能特征，故无代表性负载可定义，本轮不适用性能核对。对门禁自身开销做了实测以确认其可作为提交前门禁反复运行：默认模式 3311/3314/3314/3314/3365ms、--expect-red 同量级，稳定且远低于 600s 门禁超时；用例 C 新增一轮 waitFor（最多 5000ms，实测提前返回）使单次耗时与第二轮基本持平；自检套件因串行拉起 12 次门禁子进程需 42.4s，但属按需运行的开发期套件，不属门禁路径（package.json 已单列 regression:queue:selfcheck）。",
+      "evidence_files": [
+        "scripts/queue-regression.mjs",
+        "scripts/queue-regression.selfcheck.mjs",
+        "package.json"
+      ]
+    }
+  ],
+  "ui_review": null
+}

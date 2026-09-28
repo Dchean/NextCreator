@@ -9,17 +9,17 @@
 
 目标：为 NextCreator（可视化节点 AI 内容生成工作流桌面工具）建立可维护、稳定的继续演进基础，支持持续增加新节点与 AI 能力；本轮先做评估，不预设重构。
 
-当前阶段：**回归与审查**
+当前阶段：**分步实施**
 
-阶段目标：以需求、失败路径、适用界面检查、维护性和性能证据核对当前组合候选
+阶段目标：落实已确认的完整范围，逐步交付并保持已验收行为：重启后遗留的 queued 任务永不执行，节点持续显示“排队中”并禁用生成。queueStore.ts:209-212 持久化了 queued 但 :213-228 只修 running；pump() 全项目仅 3 处调用，启动时无人调用。；缺少同一节点的重复入队保护（taskManager 时代的 isTaskRunning 语义未迁移）。useImageGeneratorExecution.ts:62 前无早退检查，连点会创建多个 job 并发写同一 node.data。；删除零引用死代码：imageService.ts（312 行）与 imageCompression.ts（81 行）共 393 行，全项目零外部 importer，而 tsc 在 noUnusedLocals 开启下仍 PASS，证明现有门禁抓不到整模块死代码。
 
 | 阶段 | 目标 | 状态 |
 | --- | --- | --- |
 | 需求与目标 | 明确目标、已有 Bug、新功能、其他要求、质量目标和执行边界 | 已完成 |
 | 分析与方案 | 记录参考、原始基线状态与限制，说明维护、稳定和性能取舍，并确认路线 | 已完成 |
 | 界面预览 | 验证关键流程、整体设计和控件完整状态，确认后沿用前端实现 | 不适用 |
-| 分步实施 | 落实已确认的完整范围，逐步交付并保持已验收行为：重启后遗留的 queued 任务永不执行，节点持续显示“排队中”并禁用生成。queueStore.ts:209-212 持久化了 queued 但 :213-228 只修 running；pump() 全项目仅 3 处调用，启动时无人调用。；缺少同一节点的重复入队保护（taskManager 时代的 isTaskRunning 语义未迁移）。useImageGeneratorExecution.ts:62 前无早退检查，连点会创建多个 job 并发写同一 node.data。；删除零引用死代码：imageService.ts（312 行）与 imageCompression.ts（81 行）共 393 行，全项目零外部 importer，而 tsc 在 noUnusedLocals 开启下仍 PASS，证明现有门禁抓不到整模块死代码。 | 分批推进 |
-| 回归与审查 | 以需求、失败路径、适用界面检查、维护性和性能证据核对当前组合候选 | 当前 |
+| 分步实施 | 落实已确认的完整范围，逐步交付并保持已验收行为：重启后遗留的 queued 任务永不执行，节点持续显示“排队中”并禁用生成。queueStore.ts:209-212 持久化了 queued 但 :213-228 只修 running；pump() 全项目仅 3 处调用，启动时无人调用。；缺少同一节点的重复入队保护（taskManager 时代的 isTaskRunning 语义未迁移）。useImageGeneratorExecution.ts:62 前无早退检查，连点会创建多个 job 并发写同一 node.data。；删除零引用死代码：imageService.ts（312 行）与 imageCompression.ts（81 行）共 393 行，全项目零外部 importer，而 tsc 在 noUnusedLocals 开启下仍 PASS，证明现有门禁抓不到整模块死代码。 | 当前 |
+| 回归与审查 | 以需求、失败路径、适用界面检查、维护性和性能证据核对当前组合候选 | 分批推进 |
 | 验收与交付 | 核对完整范围，交付可运行成果、使用说明及适用的恢复办法 | 待推进 |
 
 **完整验收目标**：第一批 A：queueStore 启动恢复（重启后遗留 queued 任务能正确处置，节点不再卡在“排队中”）；恢复同一节点重复入队保护；删除 393 行零引用死代码（imageService.ts 312 行 + imageCompression.ts 81 行）后 tsc 仍 PASS。；第一批 B：建立全局单一并发上限（不再出现 queueStore 2 × workflowEngine 3 各自为政）；nodeExecutor 的图片生成路径复用 executeImageGeneration 实现，消除最大一处重复；取消语义补全（在途返回后复查 aborted）。；第一批 C：API Key 不再以明文形式落盘，并配套旧数据迁移（用户已授权改数据格式）。；第一批 D：清理冗余依赖与构建产物（双锁文件、已废弃的 @types/uuid），不影响运行行为。；每项以真实命令验证（tsc + 适用的人工回归路径），并由未参与实现的新子代理独立审查后交用户验收。
@@ -28,11 +28,11 @@
 
 **性能安排**：用户反馈规模不大但曾感觉卡顿；已识别的三处性能可疑点均属未经测量的静态推断，本轮 A-D 四项改造不改变渲染与数据规模，无代表性负载可定义，故本轮不建立性能基准。REQ-009 记为待办，待用户确认可接受场景与目标后另行测量，不做无证据的优化。
 
-已建任务 3 项：已验收 0，待验收 0，阻塞 0。
+已建任务 3 项：已验收 0，待验收 0，阻塞 1。
 
 | 任务 | 状态 | 目标 / 下一步 |
 | --- | --- | --- |
-| [TASK-005 · 建立零依赖行为门禁基础设施（TS 加载器 + 队列回归脚本骨架）](<../tasks/cards/TASK-005.md>) | 审查中 | 预先定义的必需测试全部通过，日志已保存；审查当前候选；独立审查使用没有参与编码的新上下文 |
+| [TASK-005 · 建立零依赖行为门禁基础设施（TS 加载器 + 队列回归脚本骨架）](<../tasks/cards/TASK-005.md>) | 阻塞 | Review requires changes; inspect the findings；先核对已有文件及原始日志，再处理 review_failure；不要新建任务或重置预算 |
 | [TASK-001 · queueStore 重启恢复与重复入队保护（含零依赖回归门禁）](<../tasks/cards/TASK-001.md>) | 已取消 | 任务已取消：总控 replan：拆分任务粒度。原 TASK-001 同时承担'搭建零依赖测试基础设施'与'修复两个业务缺陷'，连续两次派发（RUN-51a36a44、RUN-fd43e498）均因编码子代理上下文耗尽失败且业务源码零改动，属任务包过大而非偶发。现拆为 TASK-004（只交付门禁基础设施与红状态证据）与新 TASK-001（只做业务修复并以上述门禁验收）。本记录保留原任务身份、两次中断现场与 0 修复轮的时钟。；如需同一目标，准备新的任务并引用本任务作为历史 |
 | [TASK-004 · 建立零依赖行为门禁基础设施（TS 加载器 + 队列回归脚本骨架）](<../tasks/cards/TASK-004.md>) | 已取消 | 任务已取消：门禁规格含工具不支持的 expect_failure 字段，会致红状态门禁在 verify 时被误判为 FAIL。改为脚本自身提供 --expect-red 自检模式（红状态符合预期时退出码 0，意外变绿则非 0）。编码子代理的工作在修正后的新任务卡下继续，已产出的设计不受影响。；如需同一目标，准备新的任务并引用本任务作为历史 |
 
@@ -40,7 +40,7 @@
 
 **本轮暂缓**：用户反馈曾经“有卡顿的感觉”，但自称使用规模不大。静态阅读发现三处可疑点（flowStore.ts:482-490 每次 updateNodeData 全量重建 nodes；App.tsx:167-186 800ms 防抖整画布深拷贝 + canvasStore.partialize 遍历全部画布全部节点；config/prompts/ 5700+ 行静态文案全进主 bundle 且无 manualChunks），均未在真实运行中测量。；参考成熟产品做功能与 UI 优化（用户已提出，但要求先列计划、以问答确认后再实施）。；结构性问题（双画布两份真相、flowStore 巨型化、imageGeneratorConfig.ts 双向依赖）已被证据证实存在，但用户选择渐进路线且本轮不合并。
 
-**阻塞**：无已记录阻塞
+**阻塞**：Review requires changes; inspect the findings
 
 **下一步**：结合当前任务、验收与实际文件确定下一步
 
@@ -66,7 +66,6 @@
 
 ## 最近事件
 
-- 2026-09-28T03:21:49.986068Z · checkpoint · TASK-005 · Review requires changes; inspect the findings；下一步：先核对已有文件及原始日志，再处理 review_failure；不要新建任务或重置预算
 - 2026-09-28T03:22:09.571544Z · note/decision · TASK-005 独立审查结论 FAIL，不予放行（review_failure，review run RUN-33efd879e5ca40588aaad68b7af1b837，mode=independent，审查者=未参与实现的子代理 288b57de）。关键：总控未采信单方结论，对两条 critical finding 各自独立构造最小复现并复现成功——(1) verify-finding-req002-falsegreen.mjs：拦截 imageGenerationExecution 使其在首个 await 前即失败后，瞬时采样 counts=0/1/1、totalJobs=3、同节点 job 数=3，交付脚本却判 PASS，即缺陷完整存在而门禁给绿；(2) verify-finding-req001-nodeflag.mjs：job 被处置为 error 但节点 data.queued 仍为 true 时，交付脚本用例 A 判 PASS，用户仍会看到按钮禁用与排队中。决定：先修补门禁再进入 TASK-001 修复，因为 TASK-001 的全部红到绿证据都建立在此门禁上；若门禁可假绿，修复后无法证明 REQ-002 未残留、也无法证明 REQ-001 的节点锁死已解除。诚实记录：审查者同时确认基础设施本体真实可用（真实驱动 queueStore 与 hook、两模式退出码正确、自检经变异体实测有效、连跑稳定、零新增依赖、无越界、tsc PASS），故这是方向正确但判绿条件不严，不是全盘失败。
 - 2026-09-28T03:22:29.477848Z · checkpoint · TASK-005 · 开始执行，保留原任务身份和截止时间；沿用本任务先前的范围基线，changed_files 为本任务累计改动；下一步：完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify
 - 2026-09-28T03:28:13.801478Z · checkpoint · TASK-005 · 编码结果已记录，差异范围已核对：scripts/queue-regression.mjs；下一步：运行 verify；代码完成尚未等于验收通过
@@ -78,6 +77,7 @@
 - 2026-09-28T04:03:33.992423Z · checkpoint · TASK-005 · 编码结果已记录，差异范围已核对：package.json, scripts/queue-regression.mjs, scripts/queue-regression.selfcheck.mjs；下一步：运行 verify；代码完成尚未等于验收通过
 - 2026-09-28T04:03:44.530575Z · checkpoint · TASK-005 · 预先定义的必需测试全部通过，日志已保存；下一步：审查当前候选；独立审查使用没有参与编码的新上下文
 - 2026-09-28T04:04:06.704429Z · note/progress · TASK-005 修复轮 2 完成并经总控独立复核（候选 27abba6fe57f16ffc649e4c025843c81d97311cdc3f0abd6b780a557a5b08128，验证 run RUN-0eebc354468a496f801deca8dc1c1c4a）。总控实测确认两条 finding 均已封堵： (1) 批量门禁：新增用例 C（batchCount=4），三种破坏性修复形态 guard-inside-batch-loop / store-dedupe-any / any-history-dedupe 均退出码 1（正确判 FAIL），full-fix 绿色对照经 CLI 退出码 0（断言可达，非永假门禁）。 (2) 环境变量伪造通道关闭：主门禁对 process.env 零读取（grep 确认仅 3 处注释提及，无代码读取）；总控实测 NC_QUEUE_MUTANT=full-fix 下默认模式退出码由修复前的 0 变为 1。自检套件 queue-regression.selfcheck.mjs 实测 14/14 项符合预期、退出码 0，且含反向确认（--self-check=full-fix 仍能翻绿，排除变异机制彻底失灵导致假通过这一替代解释）。 另复核：默认模式退出码 1、--expect-red 退出码 0、tsc 退出码 0；package.json 仅新增 3 条 script（依赖未动，零新增依赖）；diff --run 显示 outside 与 protected 均为空。 已派发第三个全新审查者（前两轮审查者因已见过各自轮次的候选而排除复用）。修复轮已用 2 / 上限 3。
+- 2026-09-28T04:24:36.918227Z · checkpoint · TASK-005 · Review requires changes; inspect the findings；下一步：先核对已有文件及原始日志，再处理 review_failure；不要新建任务或重置预算
 
 ## 如何继续
 
