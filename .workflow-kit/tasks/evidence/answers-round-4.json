@@ -1,0 +1,182 @@
+{
+  "scope": {
+    "acceptance": [
+      "第一批 A：queueStore 启动恢复（重启后遗留 queued 任务能正确处置，节点不再卡在“排队中”）；恢复同一节点重复入队保护；删除 393 行零引用死代码（imageService.ts 312 行 + imageCompression.ts 81 行）后 tsc 仍 PASS。",
+      "第一批 B：建立全局单一并发上限（不再出现 queueStore 2 × workflowEngine 3 各自为政）；nodeExecutor 的图片生成路径复用 executeImageGeneration 实现，消除最大一处重复；取消语义补全（在途返回后复查 aborted）。",
+      "第一批 C：API Key 不再以明文形式落盘，并配套旧数据迁移（用户已授权改数据格式）。",
+      "第一批 D：清理冗余依赖与构建产物（双锁文件、已废弃的 @types/uuid），不影响运行行为。",
+      "每项以真实命令验证（tsc + 适用的人工回归路径），并由未参与实现的新子代理独立审查后交用户验收。"
+    ],
+    "non_goals": [
+      "本轮不做双画布“两份真相”的合并（5 个写入者、不可分割的跨文件改动，需先有测试网）。",
+      "本轮不拆分 flowStore（1674 行）与 imageGeneratorConfig.ts（534 行）。",
+      "本轮不做功能与 UI 优化；该项留待后续单独讨论计划后再定。",
+      "本轮不引入完整测试框架（用户未选“引入最小测试网”路线）。",
+      "不做发布、不改认证或计费方式、不推送版本 tag。"
+    ]
+  },
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "kind": "bug",
+      "description": "重启后遗留的 queued 任务永不执行，节点持续显示“排队中”并禁用生成。queueStore.ts:209-212 持久化了 queued 但 :213-228 只修 running；pump() 全项目仅 3 处调用，启动时无人调用。",
+      "in_scope": true,
+      "acceptance": "重启应用后遗留 queued 任务得到明确处置（恢复执行或明确标记为可重试的失败），相关节点不再永久显示“排队中”。"
+    },
+    {
+      "id": "REQ-002",
+      "kind": "bug",
+      "description": "缺少同一节点的重复入队保护（taskManager 时代的 isTaskRunning 语义未迁移）。useImageGeneratorExecution.ts:62 前无早退检查，连点会创建多个 job 并发写同一 node.data。",
+      "in_scope": true,
+      "acceptance": "同一节点已有 queued/running 任务时，再次触发不再产生并发任务；节点数据不被并发覆盖。"
+    },
+    {
+      "id": "REQ-003",
+      "kind": "improvement",
+      "description": "删除零引用死代码：imageService.ts（312 行）与 imageCompression.ts（81 行）共 393 行，全项目零外部 importer，而 tsc 在 noUnusedLocals 开启下仍 PASS，证明现有门禁抓不到整模块死代码。",
+      "in_scope": true,
+      "acceptance": "删除后 tsc --noEmit 仍 PASS，且图片生成、模型列表相关路径按人工回归清单无行为变化。"
+    },
+    {
+      "id": "REQ-004",
+      "kind": "improvement",
+      "description": "执行链重复：手动路径 queueStore→imageGenerationExecution.ts（470 行）与工作流路径 workflowEngine:435→nodeExecutor.ts:390（159 行）不共享实现，后者缺 runRecords/取消/批量/缩略图。已有 imageGenerationExecution.ts:34 的 withRunRecords 开关使复用可不改调用方。",
+      "in_scope": true,
+      "acceptance": "工作流路径的图片生成复用同一实现；工作流运行时的结果呈现与原有行为一致，且不再出现两份流程逻辑。"
+    },
+    {
+      "id": "REQ-005",
+      "kind": "improvement",
+      "description": "并发无全局背压：queueStore.ts:58 concurrency=2 与 workflowEngine.ts:46 maxParallelNodes=3 互不知情，最多 5 路并发打同一 API Key。",
+      "in_scope": true,
+      "acceptance": "存在单一可查询的并发上限，两条路径共同遵守；超限请求被排队而非同时发出。"
+    },
+    {
+      "id": "REQ-006",
+      "kind": "improvement",
+      "description": "取消不彻底：gemini.ts:136 与 gptImage.ts:175 仅在发起前检查 aborted，invoke 无 signal 透传，取消无法阻止在途请求继续（也无法阻止计费）。",
+      "in_scope": true,
+      "acceptance": "取消后能阻止已返回的结果落盘与状态写入；对无法真正中止在途请求的限制给出明确说明，不宣称已中止。"
+    },
+    {
+      "id": "REQ-007",
+      "kind": "constraint",
+      "description": "API Key 明文落盘：settingsStore.ts:164 将含 apiKey 的 settings.providers 全量持久化到 app-data.json，全项目零加密。用户已授权改变数据格式并配套迁移。",
+      "in_scope": true,
+      "acceptance": "API Key 不再以可直接读取的明文形式存放于 app-data.json；旧配置能在升级后自动迁移且供应商仍可用；不把密钥写入任何文档、日志或任务文件。"
+    },
+    {
+      "id": "REQ-008",
+      "kind": "improvement",
+      "description": "依赖与构建收尾：bun.lock 与 package-lock.json 双锁文件并存（CI 与实际构建用 bun，package-lock.json 无人使用）；@types/uuid 已废弃且 uuid v13 自带类型。",
+      "in_scope": true,
+      "acceptance": "锁文件不再重复且与 CI 实际使用的包管理器一致；移除多余依赖后 tsc 与安装均正常。"
+    },
+    {
+      "id": "REQ-009",
+      "kind": "improvement",
+      "description": "用户反馈曾经“有卡顿的感觉”，但自称使用规模不大。静态阅读发现三处可疑点（flowStore.ts:482-490 每次 updateNodeData 全量重建 nodes；App.tsx:167-186 800ms 防抖整画布深拷贝 + canvasStore.partialize 遍历全部画布全部节点；config/prompts/ 5700+ 行静态文案全进主 bundle 且无 manualChunks），均未在真实运行中测量。",
+      "in_scope": false,
+      "acceptance": "待办：先测量再优化，需用户确认可接受的卡顿场景与目标后才建立负载基准。本轮不实现。"
+    },
+    {
+      "id": "REQ-010",
+      "kind": "feature",
+      "description": "参考成熟产品做功能与 UI 优化（用户已提出，但要求先列计划、以问答确认后再实施）。",
+      "in_scope": false,
+      "acceptance": "待办：先产出竞品比对与逐项计划（含收益、代价、验收），经用户逐项确认后再立任务。本轮不实施。"
+    },
+    {
+      "id": "REQ-011",
+      "kind": "constraint",
+      "description": "结构性问题（双画布两份真相、flowStore 巨型化、imageGeneratorConfig.ts 双向依赖）已被证据证实存在，但用户选择渐进路线且本轮不合并。",
+      "in_scope": false,
+      "acceptance": "待办：在引入最小测试网保护后再评估，不静默丢弃。"
+    }
+  ],
+  "quality": {
+    "priority": "quality_first",
+    "maintainability": "目标：同一业务流程只保留一份执行实现；service 层不再反向依赖 components；删除全部零引用死代码。可核对方式：grep 确认单一实现入口、tsc --noEmit PASS、审查者核对无新增重复。",
+    "stability": "目标：消除已确认的用户可见缺陷（REQ-001、REQ-002），使取消语义与并发边界可预期。可核对方式：按人工回归清单逐条复现（手动生成 / 工作流 / LLM / 批量 / 重启后队列），记录实际命令与观察结果。",
+    "performance": {
+      "mode": "not_applicable",
+      "workload": "",
+      "targets": [],
+      "rationale": "用户反馈规模不大但曾感觉卡顿；已识别的三处性能可疑点均属未经测量的静态推断，本轮 A-D 四项改造不改变渲染与数据规模，无代表性负载可定义，故本轮不建立性能基准。REQ-009 记为待办，待用户确认可接受场景与目标后另行测量，不做无证据的优化。"
+    }
+  },
+  "delivery": {
+    "target": "仅在本机开发与运行（用户选择）：改动后用本机 tauri dev / 本机构建验证，用户本机自用；不准备发布产物。",
+    "external_services": "production",
+    "data_boundary": "本应用为用户本人使用的桌面工具，直连用户自己配置的付费 AI 供应商（Gemini / OpenAI 兼容 / Claude 协议）并使用用户自己的 API Key，调用会产生真实费用；另有 GitHub Releases 更新检查。边界：(1) 改造与验证不得引入未经用户授权的付费调用与批量跑量；(2) 不读取、不回显、不写入任何密钥到文档、日志、任务卡或交接包，涉及密钥存储的改造只处理存储方式本身并配套迁移；(3) 不改变认证方式、不更换供应商或计费路径；(4) 需要真实联网调用验证时先取得用户明确同意，并限定次数。"
+  },
+  "ui": {
+    "mode": "existing",
+    "style_intent": "沿用现有 UI：保持 React 19 + Tailwind CSS 4 + daisyUI 5 主题、现有节点/检查器/面板的视觉与交互不变。本轮为内部修复与去重，不改变界面外观与交互；受影响控件仅做回归检查。功能与 UI 优化计划留待后续单独讨论。",
+    "target_devices": ["Windows 桌面（Tauri 2）", "macOS 桌面（Tauri 2，仓库已有构建工作流）"]
+  },
+  "budget": {
+    "max_repair_rounds": 3,
+    "max_task_wall_minutes": 180,
+    "max_tasks_per_batch": 3,
+    "max_concurrent_workers": 1,
+    "batch_rollover": "ask",
+    "clock": "active"
+  },
+  "financial": {
+    "mode": "none",
+    "amount_usd": null
+  },
+  "recovery": {
+    "network_backoff_seconds": [5, 15],
+    "max_cli_call_seconds": 600
+  },
+  "capabilities": {
+    "file_read_write": true,
+    "terminal": true,
+    "process_control": true,
+    "independent_context": true
+  },
+  "confirmations": {
+    "compatibility": {
+      "status": "confirmed",
+      "answer": "允许改数据格式（需迁移）。",
+      "source": "用户回答（本轮提问工具）：compatibility2 = 允许改数据格式（需迁移）。已在摘要中说明该选择会使画布数据与 app-data.json 可能调整，需配套迁移旧数据。"
+    },
+    "refactor_decision": {
+      "status": "confirmed",
+      "answer": "渐进重构：先局部修补与去重（推荐项）",
+      "source": "用户回答（本轮提问工具）：refactor_decision = 渐进重构：先局部修补与去重。"
+    },
+    "scope": {
+      "status": "confirmed",
+      "answer": "第一批包含 A（三项高收益低风险）、B（消除重复与并发失控）、C（API Key 不再明文落盘）、D（依赖与构建收尾）四项全部。",
+      "source": "用户回答（本轮提问工具）：scope_batch1 多选 = A、B、C、D 全选。"
+    },
+    "quality": {
+      "status": "confirmed",
+      "answer": "规模不大，但是之前使用的时候有卡顿的感觉。",
+      "source": "用户回答（本轮提问工具）：quality_scale 自定义补充原文「规模不大，但是之前使用的时候有跌卡顿的感觉」（“跌”为输入笔误，按“有卡顿的感觉”理解）。本轮按无代表性负载处理性能，并记为待办。"
+    },
+    "ui": {
+      "status": "confirmed",
+      "answer": "先做 A-D 内部修复，UI 计划稍后单独讨论（推荐项）。",
+      "source": "用户回答（本轮提问工具）：ui_plan = 先做 A-D 内部修复，UI 计划稍后单独讨论。故 ui.mode=existing，沿用现有界面不改变外观。"
+    },
+    "delivery": {
+      "status": "confirmed",
+      "answer": "只在本机开发与运行（推荐项）。",
+      "source": "用户回答（本轮提问工具）：delivery = 只在本机开发与运行。"
+    },
+    "services": {
+      "status": "confirmed",
+      "answer": "本应用直连用户自己的付费 AI 供应商（Gemini / OpenAI 兼容 / Claude 协议）并使用用户自己的 API Key，产生真实费用；仅限本机自用。",
+      "source": "依据用户已确认的 delivery=只在本机开发与运行 与项目既有事实（settingsStore 中配置 providers 与 apiKey、README 明确支持 Gemini/OpenAI 等协议）。数据边界已写入 delivery.data_boundary；密钥不写入任何文档或日志。"
+    },
+    "budget": {
+      "status": "confirmed",
+      "answer": "用推荐默认值，超出就停下来问我（推荐项）：单任务最多 3 轮修复、180 分钟活动时间、每批 3 个任务、单写入者、不自动续批。",
+      "source": "用户回答（本轮提问工具）：budget_limits = 用推荐默认值，超出就停下来问我。"
+    }
+  }
+}

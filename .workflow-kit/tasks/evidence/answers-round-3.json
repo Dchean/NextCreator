@@ -1,0 +1,32 @@
+{
+  "refactor": {
+    "decision": "incremental"
+  },
+  "execution": {
+    "mode": "agent_only",
+    "coder": "current_agent",
+    "reviewer": "current_agent",
+    "review_mode": "independent_required",
+    "worker_argv": [],
+    "reviewer_argv": [],
+    "model": null,
+    "allow_non_git": false
+  },
+  "confirmations": {
+    "refactor_decision": {
+      "status": "confirmed",
+      "answer": "渐进重构：先局部修补与去重（推荐项）",
+      "source": "用户回答（本轮提问工具）：refactor_decision = 渐进重构：先局部修补与去重。对应已展示的证据与四条路线选项。"
+    },
+    "execution": {
+      "status": "confirmed",
+      "answer": "不调用编码 CLI。当前 Agent 作为项目总控只负责任务派发，代码编写与审计均派发给单独的子代理；编写过同类项目的子代理可继续承接编写，但审计必须新开子代理；编写子代理若无法继续，则派发新的子代理编写。",
+      "source": "用户补充原文：「你作为项目总控，只负责任务派发，代码编写和审计派发给单独的子代理，如果子代理编写过同类型的项目，可以继续派发给他代码编写，但是审计必须新开子代理，代码编写的子代理如果不能继续编写，则派发新的子代理进行编写」"
+    },
+    "review": {
+      "status": "confirmed",
+      "answer": "审查由未参与该任务实现的新子代理上下文完成（同模型、独立上下文），即独立审查；总控只调度与记录，不自己实现也不自己审查。",
+      "source": "用户补充原文：「审计必须新开子代理」。与 execution 同一段回答，属用户明确要求。"
+    }
+  }
+}

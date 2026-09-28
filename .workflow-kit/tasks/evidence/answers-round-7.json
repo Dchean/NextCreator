@@ -1,0 +1,45 @@
+{
+  "legacy_review": {
+    "reviewed_paths": [
+      "README.md（项目说明、功能清单、快速开始、技术栈、AGPL-3.0 许可证）",
+      "package.json（依赖、脚本 dev/build/preview/tauri、版本 0.2.6、license AGPL-3.0）",
+      "src-tauri/Cargo.toml（Rust 依赖与精确锁版本）",
+      "tsconfig.json（strict + noUnusedLocals + noUnusedParameters + noFallthroughCasesInSwitch）",
+      ".github/workflows/release.yml（唯一 CI：仅在推 v* tag 或手动触发时构建三平台发布包）",
+      ".gitignore（node_modules、dist、.ace-tool/ 等）",
+      "git 历史（88 个提交；近两次重构提交 61d2bcc→dbdf3d3→750e4fd）",
+      "git 远程配置（两个远程的 fetch/push URL 与凭据助手名称，未读取任何密钥内容）"
+    ],
+    "preserved_constraints": [
+      "AGPL-3.0 许可证与 LICENSE 全文不变；package.json 的 license 字段保持 AGPL-3.0。",
+      "用户本地数据（画布数据与 app-data.json）在改造后必须仍可打开；允许改变格式但必须配套迁移，不得静默丢弃。",
+      "已配置的供应商、模型与认证方式不被自动更换；不改变计费路径。",
+      "现有节点类型（图片生成、图片输入、LLM 内容、提示词、文件上传）与连线行为保留。",
+      "现有 UI 视觉与交互保留：React 19 + Tailwind CSS 4 + daisyUI 5 主题沿用，本轮为内部修复，不改界面外观。",
+      "既有版本号与发布工作流（release.yml）不被本轮改动；不推 v* tag、不触发发布。",
+      "未提交改动与既有文档保留：本次接入只新增工作流文件与规则入口，不改动业务代码与既有文档内容（AGENTS.md / CLAUDE.md 为本轮新建的规则入口，原先不存在，无原文被覆盖）。"
+    ],
+    "task_disposition": "项目此前没有 workflow-kit 的旧任务队列或旧任务目录（binding.legacy_sources 为空，接入前不存在 AGENTS.md / CLAUDE.md / tasks/ 等本包记录），因此没有需要迁移或结清的旧任务、旧预算或旧证据。唯一的历史遗留是仓库中已跟踪的 .zcode/plans/plan-sess_00f5c7b7-8b7b-4379-b681-fcb4fab63ed6.md，它当前处于“已删除未暂存”状态；该文件属于其它工具的规划产物而非本包记录，本轮不恢复、不删除提交，保留原状由用户后续决定。本次接入新建 .workflow-kit/ 独立布局，根入口 WORKFLOW-KIT.md，与既有文件并存，不移动、不覆盖、不删除任何原有业务文件。",
+    "workflow_resolution": "当前用户明确选择的流程为 workflow-kit，本次接入已由 bootstrap 写入并核验 integration.connected=true（layout=isolated、入口 WORKFLOW-KIT.md、状态文件 .workflow-kit/tasks/PROJECT.json、绑定 .workflow-kit/binding.json）。角色结论：当前主会话担任 manager（总控），只负责任务定义、派发、验证编排与记录，不自己编写业务代码、不自己审查；coder 与 reviewer 均由宿主中独立的子代理上下文承担（等同于本包 HOSTS 中的 current_agent，因为不调用外部编码 CLI）。用户要求：编写过同类项目的子代理可继续承接编写，但审查必须新开未参与实现的子代理，编写子代理若无法继续则由新的子代理接手编写。review_mode=independent_required。旧文档中的标题、历史阶段或旧 CLI 分工不决定本次身份；本项目原本也没有此类旧规则文件（除 README 与 CI 外无 AGENTS/CLAUDE 等入口）。",
+    "unresolved_conflicts": []
+  },
+  "authority": {
+    "documentation": true,
+    "baseline": true,
+    "code": true,
+    "dependencies": true,
+    "ci": false,
+    "commit": "allowed",
+    "push": "allowed",
+    "pull_request": "ask",
+    "merge": "ask",
+    "release": "ask"
+  },
+  "confirmations": {
+    "authority": {
+      "status": "confirmed",
+      "answer": "允许本地提交并可推送到用户自己的仓库；允许增删依赖（C 项密钥存储所需）；不授权 CI 改动；不授权发布、PR、合并。推送目标固定为 NextCreator 远程（https://github.com/Dchean/NextCreator.git），禁止推送到 origin（MoonWeSif/NextCreator，他人的上游）。",
+      "source": "用户回答（本轮提问工具）：authority_deps = 允许增删依赖（C 项密钥存储所需）；push_target = 只推到我自己的 NextCreator 仓库（推荐项）；authority_git 补充原文「这是clone下来别人的仓库，可以推送到远程的我的仓库，本地储存的token已有远程空仓库的NextCreator的权限」。据此 push=allowed 且限定 --remote NextCreator。"
+    }
+  }
+}

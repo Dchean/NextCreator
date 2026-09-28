@@ -1,0 +1,32 @@
+{
+  "goal": "为 NextCreator（可视化节点 AI 内容生成工作流桌面工具）建立可维护、稳定的继续演进基础，支持持续增加新节点与 AI 能力；本轮先做评估，不预设重构。",
+  "audience": "主要作者本人使用（个人工具），近期方向是继续增加功能。",
+  "refactor": {
+    "intent": "assess"
+  },
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "kind": "improvement",
+      "description": "先由 Agent 对现有代码库做只读排查，列出可疑缺陷、缺失的保护与风险点，再由用户确认哪些构成真实需求。",
+      "in_scope": true,
+      "acceptance": "产出一份带 文件:行号 证据的排查清单，逐条说明影响与最小有效改法，交用户确认范围。"
+    }
+  ],
+  "compatibility": {
+    "preserve": "现有用户数据与画布/画廊文件格式、已配置的供应商与模型设置、已确认的 UI 与交互行为；未提交改动与旧有文档保留。",
+    "note": "待 Agent 基线核对后补充具体的兼容清单。"
+  },
+  "confirmations": {
+    "refactor_intent": {
+      "status": "confirmed",
+      "answer": "先评估，再由我选择路线",
+      "source": "用户回答（本轮提问工具）：refactor_intent = 先评估，再由我选择路线；对应「你希望先评估再由你选方案、先解决具体问题，还是已经决定重构？」"
+    },
+    "goal": {
+      "status": "confirmed",
+      "answer": "主要自己用，继续加功能",
+      "source": "用户回答（本轮提问工具）：goal = 主要自己用，继续加功能；重点在继续扩展节点与 AI 能力，重构只为让后续加法更顺。"
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "package": "workflow-kit",
+  "layout": "isolated",
+  "installed_at_utc": "2026-09-28T01:56:47.965169Z",
+  "source": "用户指令：请按 D:\\workflow-kit/START.md，为本项目接入并使用 workflow-kit；我授权新增工作流文件和规则入口，保留原文、旧任务、业务代码及未提交修改。",
+  "host_hint": "DeepSeek Harness (DSH Desktop)",
+  "entry": "WORKFLOW-KIT.md",
+  "project_file": ".workflow-kit/tasks/PROJECT.json",
+  "helper": ".workflow-kit/scripts/project_workflow.py",
+  "tool_digest": "b21acfc9d26ae16f4d42c166eb9d1c43322691528c70a32bcef8987f7346b4e0",
+  "kit_release": "2026-09-21.1",
+  "entry_digests": {
+    "AGENTS.md": "87c273b5cc511b3b57b5a55a35189d1b6a4178038ee07749ee1c39bab359a5c0",
+    "CLAUDE.md": "87c273b5cc511b3b57b5a55a35189d1b6a4178038ee07749ee1c39bab359a5c0"
+  },
+  "managed_files": {
+    ".workflow-kit/tasks/templates/BATCH.json": "0556c9f40fff9ac45e9753781bf1f3600cad395e0eb73b2d6bf276166b19db6c",
+    ".workflow-kit/tasks/templates/BRIEF.json": "dd541cc33dbafd03624cf28924e4af6a6b99658c19278db580f3fdccb9d08966",
+    ".workflow-kit/tasks/templates/DECISION.json": "80200afed0d644989bfca347588b94f27e4f0974e2f795805d95d16760d36b42",
+    ".workflow-kit/tasks/templates/RESEARCH.json": "d98d9fffaf975be249c778e4dcde5d77651f3721b220caeee34d2a1a79f8767b",
+    ".workflow-kit/tasks/templates/RUN.json": "c6d25b23eaec7a7668bffbba70114c414a2e8766561c245d8d3f8d10ddb2ff01",
+    ".workflow-kit/tasks/templates/TASK-SPEC.json": "fdd6f1180170fe76897903f227f1e11da7da58caca531b35757890eaeb2060cc",
+    ".workflow-kit/tasks/templates/TASK.json": "5dd17b9d9dc574a02b89657a21853def0c3d22358a2fc53d45e063666d4fd1ee",
+    ".workflow-kit/WORKFLOW.md": "96cc813ae98a9fe88e486b8e325f1d5c47a0e540cf794313be2791f4e776b5bb",
+    ".workflow-kit/docs/workflow/contracts/empty-mcp.json": "372a7f8c1e988f58480012e741582e13bb1c9c2b2611432f365ae132f519cfe5",
+    ".workflow-kit/docs/workflow/contracts/review-result.schema.json": "998057f70750bc745c40ca4363fa297e17a8d5e3bf689cd41ffed9227d7c4e6e",
+    ".workflow-kit/docs/workflow/contracts/worker-result.schema.json": "f1718b4115644753b7abb15b03543468b9a5450a98f298ddb7d50f6f60c27858",
+    ".workflow-kit/docs/workflow/prompts/REVIEW.md": "10f47fa440ee7b6d66bdc4b0cfa4a95ca22a175b1f47ee57794275eca4c057aa",
+    ".workflow-kit/docs/workflow/prompts/WORKER.md": "0c32fdaae2e2a9e7095dfbcf2aa3f579055875182a284edcdc8f029bf68e4ef6",
+    ".workflow-kit/scripts/project_workflow.py": "83c2821998aeb6fc929b04f4b86e0e33067a4c955748d70fb30b12f76ab89951",
+    ".workflow-kit/scripts/workflow_runtime.py": "eda22f5fe3583ffe7b663f25ddc2e5d0a8d92b99d7198ef76f4b5a73bf1715c1",
+    ".workflow-kit/scripts/workflow_bootstrap.py": "d758b98d1768f0ca96cad8f2bfba6306a127204515ef8275d9006c50020d0de9",
+    ".workflow-kit/scripts/workflow_intake.py": "023dc703dfc013796175afd6a196b63116eba35a8d8070cad36399ac88c30525",
+    ".workflow-kit/scripts/workflow_progress.py": "cd772614cdb6f251cc3586255ad65050111dcc1f5a6433873bb52832e0150f1e",
+    "WORKFLOW-KIT.md": "8e31b85bf17571df36e418f07cbf021c04ab4e42099d71507b63749e5aab5f49"
+  },
+  "legacy_sources": [],
+  "note": "File consistency is verifiable; this is not proof of model compliance or application authorization."
+}

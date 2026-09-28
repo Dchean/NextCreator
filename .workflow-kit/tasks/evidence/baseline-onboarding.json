@@ -1,0 +1,73 @@
+{
+  "baseline": {
+    "recorded_at_utc": "captured during workflow-kit onboarding session",
+    "project": "NextCreator",
+    "root": "D:\\NextCreator",
+    "vcs": {
+      "branch": "main",
+      "head": "750e4fd",
+      "head_date": "2026-09-28 07:06:36 +0800",
+      "total_commits": 88,
+      "working_tree": "clean apart from: (a) one tracked plan file deleted and unstaged ('.zcode/plans/plan-sess_00f5c7b7-8b7b-4379-b681-fcb4fab63ed6.md'), (b) workflow-kit integration files newly added (AGENTS.md, CLAUDE.md, WORKFLOW-KIT.md, .workflow-kit/).",
+      "correction_note": "The commit SUBJECT of 750e4fd is itself a raw file-name list, so it visually resembles git status output. It was initially misread as a large set of uncommitted changes. Verified fact: the large refactor is COMMITTED, not pending."
+    },
+    "scale": {
+      "ts_tsx_rs_lines": 29497,
+      "src_files": 108,
+      "test_files": 0,
+      "rust_src_files": ["dalle.rs", "gemini.rs", "lib.rs", "llm.rs", "main.rs", "models.rs", "storage.rs"]
+    },
+    "recent_refactors": [
+      {
+        "commit": "61d2bcc..dbdf3d3",
+        "shortstat": "68 files changed, 8153 insertions(+), 3208 deletions(-)"
+      },
+      {
+        "commit": "dbdf3d3..750e4fd",
+        "shortstat": "128 files changed, 7745 insertions(+), 24177 deletions(-)",
+        "nature": "Removed whole feature modules: video generation, PPT assembler/content nodes, text removal (Rust + TS), taskManager, dalle/flux providers. Added: queueStore, GalleryView, QueuePanel, modelListService, imageGenerationExecution, canvasCompat, assetImgSelfHeal, imagePathRewrite, generatorHandles, PromptSourceRow, ImageViewerToolbar, ConfirmDialog, models.rs."
+      }
+    ],
+    "checks_run": [
+      {
+        "id": "typecheck",
+        "command": "node .\\node_modules\\typescript\\bin\\tsc --noEmit",
+        "cwd": "D:\\NextCreator",
+        "status": "PASS",
+        "exit_code": 0,
+        "note": "tsconfig has strict, noUnusedLocals, noUnusedParameters, noFallthroughCasesInSwitch all enabled. Zero diagnostics on current HEAD."
+      },
+      {
+        "id": "frontend-build",
+        "command": "node .\\node_modules\\vite\\bin\\vite.js build",
+        "cwd": "D:\\NextCreator",
+        "status": "BLOCKED",
+        "exit_code": 1,
+        "note": "esbuild config bundling fails with 'spawn EPERM'. This is the DSH sandbox restriction on spawning child processes with piped stdio, not a project defect. Not yet confirmed to build in an unsandboxed shell.",
+        "retry_guidance": "Re-run outside the file sandbox / with full access to obtain a real build result."
+      },
+      {
+        "id": "rust-check",
+        "command": "cargo check --message-format short",
+        "cwd": "D:\\NextCreator\\src-tauri",
+        "status": "BLOCKED",
+        "exit_code": 101,
+        "note": "crates.io index unreachable: 'schannel: AcquireCredentialsHandle failed: SEC_E_NO_CREDENTIALS'. `cargo check --offline` also fails: 'no matching package named `image` found' in the local registry cache. Rust baseline not obtainable in this environment.",
+        "retry_guidance": "Needs network access with working TLS credentials, or a pre-populated cargo vendor/registry cache."
+      }
+    ],
+    "verification_gap": {
+      "summary": "The project has NO automated test suite (0 test files), NO lint config, and the only CI workflow (.github/workflows/release.yml) only builds release artifacts on version tags. It does not run typecheck, lint, or tests.",
+      "consequence": "The only automated protection currently available is `tsc --noEmit`. Behavior regressions in the 128-file refactor are not covered by any executable check."
+    },
+    "toolchain": {
+      "python": "3.13.14",
+      "node": "v24.19.0",
+      "bun": "NOT INSTALLED (package.json/README reference bun, but only node/npm available)",
+      "cargo": "1.98.0",
+      "rustc": "1.98.0",
+      "coding_clis_detected": ["codex (C:\\Users\\A\\AppData\\Roaming\\npm\\codex.ps1)", "claude (C:\\Users\\A\\AppData\\Roaming\\npm\\claude.ps1)"],
+      "coding_clis_absent": ["gemini", "cursor-agent", "aider", "copilot", "opencode", "qwen"]
+    }
+  }
+}
