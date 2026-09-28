@@ -1,0 +1,28 @@
+TASK-006 第一部分（REQ-001）完成并经总控独立复核；同时记录一个总控自身的验证陷阱
+
+## 第一部分结果（REQ-001 重启恢复）
+
+编码者 2c4ee3dc（RUN-b993e0a8bf114540b928219a986f65a7）修改且仅修改 src/stores/queueStore.ts（256 → 332 行）。总控独立复核（非采信自述）：
+- 默认门禁：用例 A **FAIL → PASS**（为本次首个真实业务改动），B/C/D/E/F 仍 FAIL —— 与「只做 REQ-001、不碰 REQ-002」的派发范围完全一致。EXIT=1（由 5 条 REQ-002 用例驱动，属预期）。
+- tsc --noEmit：EXIT=0。
+- 用例 A 的实际输出（证据行）：`水合完成=true；水合后 job.status=error、节点 data.queued=false；等待后 job.status=error、节点 data.queued=false`。即任务不再是 queued 终态，且节点 data.queued 被清除 —— 两条判据都真的满足，不是靠放宽断言通过。
+
+实现要点（总控核对代码确认）：partialize 保持 `status !== "running"`，恢复目标改为严格对应 `status === "queued"`（isRecoverableJob），从而持久化意图与恢复逻辑自洽、死分支消失；恢复落在 store 层 onRehydrateStorage 内；先清节点 queued 标记再等画布就绪（canvasStore._hasHydrated，总控已确认该字段真实存在于 canvasStore.ts:28 并在 :159 置真）；最后调用 pump()。防崩溃循环用三道闸：recoveryStarted 单次闩、恢复不重试不重新入队、终态不再匹配 isRecoverableJob。
+编码者另做了一处总控未在需求中列出的加固：updateNodeQueuedState 的两个浮动动态 import 补 `.catch(() => undefined)`，理由是恢复在无人值守的启动期调用它，import 失败会成为未处理 rejection → 进程崩溃 → 重启 → 再恢复，正是需求 7 针对的崩溃循环。总控认为该加固合理（happy path 行为不变，flowStore.updateNodeData 是同步 set），予以保留。
+
+编码者主动报告的遗留项（非本任务验收范围，记录为「决定」而非疏漏）：若整个画布行被软删除，任务会永远停在 queued，因为既有 pump() 在 paused 为真时拒绝派发（属既有语义）；以及若供应商请求本身挂起，任务会停在 running（既有行为，本次未改变）。
+
+## 总控自身的验证陷阱（重要教训，第二次同类）
+
+总控在编码者**仍在编辑**时读取了工作树，得到 diffstat `82 insertions(+), 12 deletions(-)`，并据此以为实现是「82 行改动」。编码者完成后复测，实际为 `107 7 31`（numstat：107 增 / 31 删），文件 332 行。即：**总控第一次读到的是中途快照，不是最终产物**；编码者随后又加了 25 行（含上述 .catch 加固与注释）。
+
+后果与规避：如果总控在中途就宣布「已复核通过」，会把一个非最终状态当作验收对象 —— 这正是本项目反复出现的「假绿」类错误的另一种形态（时间维度上的假绿，而非断言维度）。规避原则：**验收必须在子代理确认结束、且工作树静止之后进行**；对仍在运行的子代理，中途读到的任何 diff/行数/门禁结果都只能当作进度信号，不能作为证据。本次总控已重新在最终树上复跑门禁与 tsc，结论一致（A PASS、EXIT=1、tsc EXIT=0）。
+
+关联：这已是总控第二次因「时间/采样」问题险些产生错误结论。第一次是此前用不存在的自检键名 guard-global-single-flight 得到退出码 1 便误报「判红成功」（已由脚本的键名白名单永久防住）。两次都说明：**退出码与单次采样本身不构成证据，必须绑定到确定的输入与确定的时间点。**
+
+## 另一项可复用改进
+
+总控此前用 PowerShell `*>` 重定向门禁输出，实际得到 **UTF-16LE**（BOM \xff\xfe）文件，按 UTF-8 读会出现 785 个替换字符 —— 这也是「以为自己看到了输出」的同类陷阱。现已改为用 Node 捕获原始字节并以 UTF-8 落盘（.workflow-kit/tasks/evidence/BASELINE-gate-red-TASK-006.txt，5870 B、0 乱码、0/6 PASS、exit 1），并配了解析脚本 .workflow-kit/tasks/evidence/parse-gate.py（兼容 UTF-8/UTF-16/BOM），用于逐用例判读。
+
+## 下一步
+派发第二部分（REQ-002 重复入队守卫），范围锁定为 queueStore.enqueue 内同步守卫，明确禁止触碰第一部分的恢复代码，并要求用例 A 保持 PASS。
