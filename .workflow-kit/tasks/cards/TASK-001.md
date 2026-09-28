@@ -1,7 +1,7 @@
 <!-- project-workflow: generated view; edit task JSON instead -->
 # TASK-001 · queueStore 重启恢复与重复入队保护（含零依赖回归门禁）
 
-**状态**：ready
+**状态**：running
 
 **目标**：修复 REQ-001（应用重启后遗留的 queued 任务永不执行、相关节点永久显示“排队中”并禁用生成）与 REQ-002（缺少同一节点的重复入队保护），并建立一份零新增依赖的行为回归门禁，使这两项缺陷有可执行的红→绿证据。
 
@@ -35,20 +35,26 @@
 
 ## 执行与恢复
 
-- 首次开始：None
-- 原截止时间：None
-- 当前截止时间：None
-- 时钟：未开始
+- 首次开始：2026-09-28T02:34:21.100817Z
+- 原截止时间：2026-09-28T05:34:21.100817Z
+- 当前截止时间：2026-09-28T05:34:21.100817Z
+- 时钟：按活动时间计：已用 15 分钟 / 额度 180 分钟（等待、断网和只读门禁不计）
 - 已用修复轮：0
 - 阻塞：无
-- 下一步：执行 start/next 获取可继续的动作
+- 下一步：完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify
 
 ## 最近检查点
 
+- 2026-09-28T02:34:21.166035Z：开始执行，保留原任务身份和截止时间；下一步：完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify
+- 2026-09-28T02:49:11.798315Z：Interrupted run recovered: 总控核对：编码子代理上下文耗尽退出且未留收尾消息；已确认其实例状态 inactive，git diff HEAD -- src scripts package.json src-tauri 为空（零改动），tasks/runs 记录 commands=0、checks=0、finished_at_utc=null，无残留临时目录。故本次运行无候选、无副作用，可安全关闭。；下一步：先核对已有文件及原始日志，再处理 interrupted；不要新建任务或重置预算
+- 2026-09-28T02:49:16.888357Z：阻塞已处置（interrupted）：核对事实：(1) 编码子代理 inactive 且无收尾消息；(2) git diff HEAD 对 src/scripts/package.json/src-tauri 全空；(3) RUN 记录 commands=0、checks=0、finished_at_utc=null；(4) 无 scripts/ 目录、无 package.json script 新增、无残留临时目录。结论：可安全重放，且无任何需要撤销的越界改动。修复轮使用 0，原时钟与截止时间保留。；下一步：begin 重新实现
+- 2026-09-28T02:49:33.610294Z：开始执行，保留原任务身份和截止时间；沿用本任务先前的范围基线，changed_files 为本任务累计改动；下一步：完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify
 
 ## 原始证据
 
 [唯一状态记录](../items/TASK-001.json)
 
+- [RUN-51a36a44aa3b40b99784d9949cd2d093](../runs/RUN-51a36a44aa3b40b99784d9949cd2d093.json)
+- [RUN-fd43e49815f04fd1a1e5ea9c47e78ce3](../runs/RUN-fd43e49815f04fd1a1e5ea9c47e78ce3.json)
 
 卡片是自动生成的视图。Agent 修改任务记录、执行命令或保存检查点后重新生成；不手工把状态改成通过。

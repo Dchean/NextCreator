@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "id": "RUN-fd43e49815f04fd1a1e5ea9c47e78ce3",
+  "task_id": "TASK-001",
+  "kind": "implementation",
+  "outcome": "running",
+  "executor": {
+    "harness": "current_agent",
+    "model": null,
+    "context_id": "coder subagent #2 (fatigue-recovery redispatch after context exhaustion; manager=this session; loader approach pre-proven by manager probe)"
+  },
+  "started_at_utc": "2026-09-28T02:49:33.548097Z",
+  "finished_at_utc": null,
+  "exit_code": null,
+  "timed_out": false,
+  "input_digest": "6f18f19c40879b5fe9bf188ab8dbedcf1f133910d7c8e25dea2ca853afa20726",
+  "candidate_digest": null,
+  "raw_output_refs": [],
+  "checks": [],
+  "review": {
+    "mode": null,
+    "verdict": null,
+    "report": null,
+    "candidate_digest": null
+  },
+  "estimated_cost_usd": null,
+  "scope_manifest": ".workflow-kit/tasks/evidence/RUN-fd43e49815f04fd1a1e5ea9c47e78ce3-scope.json",
+  "baseline_manifest": ".workflow-kit/tasks/evidence/RUN-51a36a44aa3b40b99784d9949cd2d093-scope.json"
+}

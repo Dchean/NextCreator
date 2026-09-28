@@ -28,7 +28,7 @@
 
 | 任务 | 状态 | 目标 / 下一步 |
 | --- | --- | --- |
-| [TASK-001 · queueStore 重启恢复与重复入队保护（含零依赖回归门禁）](<cards/TASK-001.md>) | 待执行 | 修复 REQ-001（应用重启后遗留的 queued 任务永不执行、相关节点永久显示“排队中”并禁用生成）与 REQ-002（缺少同一节点的重复入队保护），并建立一份零新增依赖的行为回归门禁，使这两项缺陷有可执行的红→绿证据。 |
+| [TASK-001 · queueStore 重启恢复与重复入队保护（含零依赖回归门禁）](<cards/TASK-001.md>) | 进行中 | 开始执行，保留原任务身份和截止时间；沿用本任务先前的范围基线，changed_files 为本任务累计改动；完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify |
 
 **已确认但尚未拆分的需求**：删除零引用死代码：imageService.ts（312 行）与 imageCompression.ts（81 行）共 393 行，全项目零外部 importer，而 tsc 在 noUnusedLocals 开启下仍 PASS，证明现有门禁抓不到整模块死代码。；执行链重复：手动路径 queueStore→imageGenerationExecution.ts（470 行）与工作流路径 workflowEngine:435→nodeExecutor.ts:390（159 行）不共享实现，后者缺 runRecords/取消/批量/缩略图。已有 imageGenerationExecution.ts:34 的 withRunRecords 开关使复用可不改调用方。；并发无全局背压：queueStore.ts:58 concurrency=2 与 workflowEngine.ts:46 maxParallelNodes=3 互不知情，最多 5 路并发打同一 API Key。；取消不彻底：gemini.ts:136 与 gptImage.ts:175 仅在发起前检查 aborted，invoke 无 signal 透传，取消无法阻止在途请求继续（也无法阻止计费）。；API Key 明文落盘：settingsStore.ts:164 将含 apiKey 的 settings.providers 全量持久化到 app-data.json，全项目零加密。用户已授权改变数据格式并配套迁移。；依赖与构建收尾：bun.lock 与 package-lock.json 双锁文件并存（CI 与实际构建用 bun，package-lock.json 无人使用）；@types/uuid 已废弃且 uuid v13 自带类型。
 
