@@ -1,0 +1,14 @@
+﻿[setup] coldstart：不预置 flowStore.nodes（真实重启时 flowStore 是空的、不持久化）
+[after-canvas-hydration] canvasStore._hasHydrated=true activeCanvasId=canvas-active-1 flowStore.nodes.length=0
+
+=== 恢复之后（模拟 App.tsx setNodes 之前）===
+job.status = error   error = 节点不存在
+canvasStore 里该节点的 data.queued = false   ← 落盘的那一份
+flowStore   里该节点的 data.queued = undefined   ← 没水合时不存在
+
+=== 模拟 App.tsx setNodes（画布加载完成，用户看到节点）===
+flowStore 节点 data.queued = false
+ImageGeneratorNode.canRun（简化） = true
+
+RESULT: 节点可用（REQ-001 已修复）
+

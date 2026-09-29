@@ -7,7 +7,7 @@
   "ui_change": false,
   "ui_contract_ref": null,
   "ui_checks": [],
-  "status": "verified",
+  "status": "done",
   "objective": "修复 REQ-001（应用重启后遗留的 queued 任务永不执行、相关节点永久显示“排队中”并禁用生成）与 REQ-002（缺少同一节点的重复入队保护），并建立一份零新增依赖的行为回归门禁，使这两项缺陷有可执行的红→绿证据。",
   "non_goals": [
     "不新建或修改测试基础设施（scripts/ 归 TASK-000，本任务只消费它）。",
@@ -262,17 +262,24 @@
     "RUN-08ea6aa5677c461495265159cf50dec2",
     "RUN-3ae83f35e6044115b0347c269ec2d43c",
     "RUN-abbaf27af8614605a132bc76cb7b4aae",
-    "RUN-0410f4e5577240b2946212af8c4bc7e5"
+    "RUN-0410f4e5577240b2946212af8c4bc7e5",
+    "RUN-984b00f86895447a94a45d2f3488a772",
+    "RUN-88fc6a6ea0e34b3bb36d5b9799a88dc7",
+    "RUN-387cc0d7d9d94e5394546cb331baeb0a",
+    "RUN-4f082949457846f1bdfc53b9ef9972b0",
+    "RUN-2e6fce8353c942eca003fe510b2d3387"
   ],
   "blockers": [],
   "evidence": {
-    "candidate_manifest": ".workflow-kit/tasks/evidence/RUN-abbaf27af8614605a132bc76cb7b4aae-candidate.json",
-    "candidate_digest": "a0272c52bb47acfa2cfb8424bb65209bd0dd89e04f594b43b0e416b072c70805",
-    "verification_run": "RUN-abbaf27af8614605a132bc76cb7b4aae",
-    "review_run": "RUN-0410f4e5577240b2946212af8c4bc7e5",
-    "acceptance_ref": null,
-    "owner_decision_ids": [],
-    "merge_ref": null
+    "candidate_manifest": ".workflow-kit/tasks/evidence/RUN-4f082949457846f1bdfc53b9ef9972b0-candidate.json",
+    "candidate_digest": "26b2276c97ef992c1c35881f1025010f5ebe9153466a30a13348a122760f499b",
+    "verification_run": "RUN-4f082949457846f1bdfc53b9ef9972b0",
+    "review_run": "RUN-2e6fce8353c942eca003fe510b2d3387",
+    "acceptance_ref": ".workflow-kit/tasks/evidence/DEC-d87feeca5ee34c42a23a2538bc0aaa53-acceptance.json",
+    "owner_decision_ids": [
+      "DEC-d87feeca5ee34c42a23a2538bc0aaa53"
+    ],
+    "merge_ref": "not_applicable：改动仍在工作区未提交（TASK-002 的 5 条路径）；提交/推送/tag 属独立批准项，待用户指示"
   },
   "snapshot_paths": [
     ".workflow-kit/tasks/evidence/probe-queue-store.mjs",
@@ -677,6 +684,46 @@
       "at_utc": "2026-09-29T01:13:24.844474Z",
       "note": "当前候选的测试与审查通过（independent）",
       "next_action": "继续已授权任务；所属功能完成后请用户验收"
+    },
+    {
+      "at_utc": "2026-09-29T06:09:54.483179Z",
+      "note": "CDP 实机验收 7/7 场景全部通过（用户指令：实机验收交由你cdp实机检测；总控执行）。环境：cargo release 构建（含 HEAD 全部修复，dist 重建后重新嵌入）+ vite devUrl + WebView2 CDP 9222，测试画布隔离用户数据（app-data.json 预先备份、测试后已恢复）。逐场景证据存 .workflow-kit/tasks/evidence/TASK-006-manual-verify/（00-17 共 17 张截图+记录）：S1 连点3次→仅1任务(节点解锁)；S2 Gemini n=4 两轮各完整4个(队列面板示 1/4..4/4,不因历史任务锁死)；S3 暂停态三连点→仅1个queued(截图08)、恢复后仅执行该1个；S4 error任务重试按钮连点3次→仅1个新活动任务(14→15)；S5 强杀进程重启→遗留queued自动恢复并真实执行(有startedAt/finishedAt+502错误信息)、节点解锁、无崩溃循环；S6 暂停→排队→加节点→取消→Ctrl+Z/Ctrl+Y→陈旧排队标记零复活(nodeQueued=false,截图13/14)；S7 被拒点击toast确认(哨兵80ms轮询:点击后70ms出现文案「该节点仍有任务在排队中，本次点击未生效（可等待完成或用队列面板取消）」持续约3秒、total恒53零新增；同上下文400ms复验在场)。S5(d)节点不存在的变体未构造，如实记录。测试期间任务失败均为本地网关502(用户自身配置,无外部费用)。新发现(独立于本任务):dev profile构建的WebView2浏览器进程启动即崩(msedge.dll 0x80000003,窗口白屏);release构建与已安装v0.2.6正常——已用release完成全部验收,该问题留待后续任务排查。用户数据已恢复原状(备份回写,EBWebView配置目录同步恢复),测试供应商/画布2/任务记录全部清除。",
+      "next_action": "以用户委托原话执行 accept TASK-006；TASK-002 仍待用户验收决定；TASK-002 的 5 处未提交改动待用户指示提交/推送"
+    },
+    {
+      "at_utc": "2026-09-29T06:10:38.954142Z",
+      "note": "预先定义的必需测试全部通过，日志已保存",
+      "next_action": "审查当前候选；独立审查使用没有参与编码的新上下文"
+    },
+    {
+      "at_utc": "2026-09-29T06:36:41.497058Z",
+      "note": "Review requires changes; inspect the findings",
+      "next_action": "先核对已有文件及原始日志，再处理 review_failure；不要新建任务或重置预算"
+    },
+    {
+      "at_utc": "2026-09-29T06:39:33.928008Z",
+      "note": "阻塞已处置（review_failure）：verification RUN-984b00f8（两门禁 PASS）与候选 26b2276c 完好未动；待 r13 独立确认审查（findings 应为空——3 条记录性事项已分别落为 evidence 文件或属简报口径）后记录 review 并 accept",
+      "next_action": "begin 重新实现"
+    },
+    {
+      "at_utc": "2026-09-29T06:40:17.892220Z",
+      "note": "开始执行，保留原任务身份和截止时间",
+      "next_action": "完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify"
+    },
+    {
+      "at_utc": "2026-09-29T06:40:32.666409Z",
+      "note": "编码结果已记录，差异范围已核对：无文件变化",
+      "next_action": "运行 verify；代码完成尚未等于验收通过"
+    },
+    {
+      "at_utc": "2026-09-29T06:40:45.557182Z",
+      "note": "预先定义的必需测试全部通过，日志已保存",
+      "next_action": "审查当前候选；独立审查使用没有参与编码的新上下文"
+    },
+    {
+      "at_utc": "2026-09-29T07:00:57.040359Z",
+      "note": "当前候选的测试与审查通过（independent）",
+      "next_action": "继续已授权任务；所属功能完成后请用户验收"
     }
   ],
   "resume_phase": "review",
@@ -789,6 +836,16 @@
       ],
       "source": "Manager ownership declared (mechanism now established from the tool source: observed_changes defaults to since=task, comparing against the TASK cumulative baseline via run.baseline_manifest, which predates this manager-authored file; the run-level comparison shows the checklist hash MATCHES its run baseline, which is why declaring ownership is the documented remedy rather than an unexplained flag). .workflow-kit/docs/TASK-006-MANUAL-VERIFICATION.md is MANAGER-authored - the human verification checklist required by user decision verify_mode_006 and delivered under user choice r7_delivery. No business code; not part of the coder candidate. Worker in RUN-b8fb023eed4b4153982600d8d1eea207 changed ONLY src/stores/queueStore.ts. The file is committed (dd4084b). Candidate: src/stores/queueStore.ts sha256 c73745b6019b8cda, 998 lines.",
       "note": "Manager-authored checklist vs task-cumulative baseline; candidate is queueStore.ts only.",
+      "resumed_to": "ready"
+    },
+    {
+      "at_utc": "2026-09-29T06:39:33.851113Z",
+      "failure_kind": "review_failure",
+      "blockers": [
+        "Review requires changes; inspect the findings"
+      ],
+      "source": "r12 确认审查的 3 条 finding 均为记录性且已处置：①RESULT.md 缺失——总控已创建 TASK-006-MANUAL-VERIFICATION-RESULT.md；②截图 19vs17、③快照口径 10vs113 均为总控简报计数/表述错误，不属被审对象缺陷。审查者本人因 provider 故障无法唤醒更新报告（Start Plan busy 重试耗尽），按第 10 轮先例新开 r13 确认审查",
+      "note": "verification RUN-984b00f8（两门禁 PASS）与候选 26b2276c 完好未动；待 r13 独立确认审查（findings 应为空——3 条记录性事项已分别落为 evidence 文件或属简报口径）后记录 review 并 accept",
       "resumed_to": "ready"
     }
   ]

@@ -1,0 +1,25 @@
+﻿### delay=0  EXIT=0
+delay(ms) | job.status   | job.error        | canvas.queued | flow.queued | 执行器看到的节点 | 结论
+----------------------------------------------------------------------------------------------------------------------
+0         | success      | -                | false         | false       | true             | 节点可用
+
+### delay=50  EXIT=0
+delay(ms) | job.status   | job.error        | canvas.queued | flow.queued | 执行器看到的节点 | 结论
+----------------------------------------------------------------------------------------------------------------------
+50        | success      | -                | false         | false       | true             | 节点可用
+
+### delay=300  EXIT=0
+delay(ms) | job.status   | job.error        | canvas.queued | flow.queued | 执行器看到的节点 | 结论
+----------------------------------------------------------------------------------------------------------------------
+300       | success      | -                | false         | false       | true             | 节点可用
+
+### delay=590  EXIT=0
+delay(ms) | job.status   | job.error        | canvas.queued | flow.queued | 执行器看到的节点 | 结论
+----------------------------------------------------------------------------------------------------------------------
+590       | success      | -                | false         | false       | true             | 节点可用
+
+### delay=900  EXIT=0
+delay(ms) | job.status   | job.error        | canvas.queued | flow.queued | 执行器看到的节点 | 结论
+----------------------------------------------------------------------------------------------------------------------
+900       | error        | 节点不存在            | false         | false       | false            | 节点可用
+

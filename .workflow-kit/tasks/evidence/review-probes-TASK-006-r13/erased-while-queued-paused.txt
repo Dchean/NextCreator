@@ -1,0 +1,23 @@
+﻿步骤 1：画布 A 上让 X 起一个短任务（将触发 finally），让 Y 起一个长任务占住另一个额度
+  队列=gen-y@canvas-a:running, gen-x@canvas-a:running
+
+步骤 2：切到画布 B（复制画布，同名节点 X），在其上点生成 → B 的 job 排队（两个额度都被占）
+  队列=gen-x@canvas-b:queued, gen-y@canvas-a:running, gen-x@canvas-a:running
+  B 的 job=queued
+
+步骤 3：用户点 QueuePanel 的“暂停”（暂停期间空出的额度不会被派发 → B 的 job 稳定停在 queued）
+  paused=true
+  此刻标记：flowStore.queued=true  isQueued=true  canRun=false（false=正确显示“排队中”、按钮禁用）
+
+步骤 4：画布 A 的 X 任务自然结束 —— 走本轮新增的 pump.finally 复核 (canvas-a, gen-x)
+  队列=gen-x@canvas-b:queued, gen-y@canvas-a:running, gen-x@canvas-a:success
+  画布 B 的 job 仍停在 queued=true（status=queued）
+  标记：flowStore.queued=true  isQueued=true  canRun=false
+  canvasStore[B].queued=undefined（会被 App.tsx:154 setNodes 载回 flowStore，并随画布落盘）
+
+RESULT: 未复现。
+
+步骤 5：该状态下再点一次生成 —— 验证“点击被静默丢弃”（不变式注释声称要避免的症状）
+  job 数 3 → 3（新增 0）  点击后 flowStore.queued=true
+  → 按钮可点（canRun=false）但任务未入队：用户看不到任何“排队中”反馈，点击被 REQ-002 守卫静默丢弃。
+

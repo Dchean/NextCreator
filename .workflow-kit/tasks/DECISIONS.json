@@ -524,6 +524,22 @@
         "previous_deadline_at_utc": "2026-09-28T22:52:17.197077Z",
         "deadline_at_utc": "2026-10-01T00:15:54.452842Z"
       }
+    },
+    {
+      "id": "DEC-d87feeca5ee34c42a23a2538bc0aaa53",
+      "issuer": "owner",
+      "status": "accepted",
+      "source": "用户本轮指令原文：「你实测验收，实机的也由你负责」——用户将实机验收与验收判断一并委托给总控。总控执行：① TASK-006 实机验收 6/6 场景 PASS（release 应用 + 真实 CDP 鼠标/键盘；S1 连点3次仅1任务、S2 批量4且批后不锁死、S3 暂停态连点仅1个queued、S5 真实强杀重启后遗留queued降为0且节点解锁、S7 被拒点击toast且零增长；证据 .workflow-kit/tasks/evidence/TASK-006-LIVE-ACCEPTANCE-2026-09-29-PM.md + live-report.json + 7张截图）；② TASK-002 验收判据逐条实测（3个文件确认删除、全仓零引用、package.json 已无 @types/uuid、tsc exit 0、门禁 6/6 PASS exit 0）；③ 总控复跑门禁与 tsc 均 exit 0。真实用户数据跑前备份跑后逐字节还原（sha256 824a7e33… 前后一致）。",
+      "statement": "Owner accepted the listed candidate versions and their continuations",
+      "scope": [
+        "TASK-006",
+        "TASK-002"
+      ],
+      "recorded_at_utc": "2026-09-29T09:20:21.387708Z",
+      "candidates": {
+        "TASK-006": "26b2276c97ef992c1c35881f1025010f5ebe9153466a30a13348a122760f499b",
+        "TASK-002": "fa249870c21d03b430686feaaa149a150ee83e888c8c09c5c13e2699bb2db23a"
+      }
     }
   ]
 }

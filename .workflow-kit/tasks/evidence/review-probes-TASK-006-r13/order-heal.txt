@@ -1,0 +1,11 @@
+﻿顺序 B：import queueStore 之前 flowStore 已有该节点（data.queued=true）
+
+执行器判定：运行（写 queued:false）
+job.status=success
+flowStore   data.queued=false
+canvasStore data.queued=false
+ImageGeneratorNode.canRun=true
+
+结论：顺序 B 下可自愈（恢复先清 flowStore，App 的防抖再把画布同步干净）。
+      → 该缺陷是**时序相关**：冷启动的真实顺序（canvasStore 先水合、恢复先派发）落在锁死分支。
+

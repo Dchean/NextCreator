@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "id": "RUN-2e6fce8353c942eca003fe510b2d3387",
+  "task_id": "TASK-006",
+  "kind": "review",
+  "outcome": "completed",
+  "executor": {
+    "harness": "current_agent",
+    "model": null,
+    "context_id": "reviewer-subagent-TASK-006-r13-fresh-context"
+  },
+  "started_at_utc": "2026-09-29T07:00:56.627859Z",
+  "finished_at_utc": "2026-09-29T07:00:56.712120Z",
+  "exit_code": 0,
+  "timed_out": false,
+  "input_digest": "0d1e84bb9ef92149c761104cec4da4c861023db16721cdb3480b100b7325fd2e",
+  "candidate_digest": "26b2276c97ef992c1c35881f1025010f5ebe9153466a30a13348a122760f499b",
+  "raw_output_refs": [
+    ".workflow-kit/tasks/evidence/RUN-2e6fce8353c942eca003fe510b2d3387-review.json"
+  ],
+  "checks": [],
+  "review": {
+    "mode": "independent",
+    "verdict": "PASS",
+    "report": ".workflow-kit/tasks/evidence/RUN-2e6fce8353c942eca003fe510b2d3387-review.json",
+    "candidate_digest": "26b2276c97ef992c1c35881f1025010f5ebe9153466a30a13348a122760f499b",
+    "quality_digest": "dcf1c6c99008fe79e03e910ea0471f7d83a79ba727ba2e5be56a1c3a1cf0534d"
+  },
+  "estimated_cost_usd": null
+}

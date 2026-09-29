@@ -1,0 +1,1336 @@
+﻿== 1) 真实门禁基线（业务缺陷未修复）==
+==============================================================================
+生成队列回归：REQ-001（重启恢复） / REQ-002（重复入队 + 批量分支 + 并发点击 + 重试）
+MODE: default（默认：断言修复后应有的行为）
+NOTE: 本次为真实门禁运行；脚本不读取任何环境变量，结论不可被环境变量改变。
+==============================================================================
+
+【1】用例 A：重启后遗留 queued 任务必须被处置且节点不再显示排队中（REQ-001）
+     实现：把包含 1 个 status=queued 任务的持久化 JSON 注入 storage stub，在 flowStore 中建立同 nodeId 的节点
+         （其 data.queued=true，即重启前 useImageGeneratorExecution 写下的排队标记），再首次 import queueStore，
+         走真实冷启动水合路径（persist.getItem → 反序列化 → onRehydrateStorage），随后最多等 1500ms。
+     期望：① 该 job 不再停留在 queued；② 对应节点 data.queued 被清除（falsy），不再永久显示"排队中"
+     实际：水合完成=true；水合后 job.status=error、节点 data.queued=false；等待后 job.status=error、节点 data.queued=false
+     判定：PASS
+
+【2】用例 B：同一节点连续点击生成不得重复入队（REQ-002）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-1")，取到公开返回的 handleGenerate，
+         对同一节点连续 await 调用 3 次；统计该节点的 job 总数（时间无关量）与全程峰值活动数。
+     期望：3 次连点后同节点 job 数恒为 1，且全程活动任务数（queued + running）峰值不超过 1
+     实际：同节点(gen-1) job 数=1；队列内 job 总数=1；瞬时活动数（每次调用后）=1/1/1；全程活动数峰值=1
+     判定：PASS
+
+【3】用例 C：批量（n=4）必须完整拆分且连点不增长（REQ-002 批量分支）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-batch")，节点数据 n=4（gemini 协议 → batchCount=4，
+         走 useImageGeneratorExecution.ts:61-74 的批量分支）；连点 3 次后等该批全部结束，再点第 4 次。
+     期望：① 首点后同节点 job 数 == 4（整批完整拆分）；② 第 2/3 次点击后不再增长；③ 该批结束后再点一次仍能产生新的完整一批
+     实际：batchCount=4；首点后同节点 job 数=4；连点后=4/4/4；该批结束=true；结束后再点一次新增=4（累计 8）
+     判定：PASS
+
+【4】用例 D：该节点已有 queued（非 running）任务时也不得重复入队（REQ-002）
+     实现：concurrency=1，先用**另一节点** Z 的 running job 占满额度；再对节点 B 用 renderToStaticMarkup 挂载真实
+         useImageGeneratorExecution 并连点 3 次；断言 B 的 queued 数（时间无关量）。
+     期望：① 首点后节点 B 的 queued 数 == 1（不得被其他节点的占用连带拒绝）；② 第 2/3 次点击后不再增长
+     实际：额度占位：节点 gen-slot-z running=1 / concurrency=1；节点 gen-queued-b queued 数：首点后=1，连点后=1/1/1；B 的 running 数=0（应恒为 0）
+     判定：PASS
+
+【5】用例 E：并发点击（不 await 上一次调用）不得重复入队（REQ-002）
+     实现：连续触发 3 次 handleGenerate() 但**不 await**（收集 promise 后一起 await），并在输入解析路径注入 60ms
+         延迟以拉长"守卫通过后、尚未入队"的窗口（贴近真实 IPC 往返）；断言同节点 job 数。
+     期望：3 次重叠点击后同节点 job 数 == 1（时间无关量）
+     实际：3 次重叠点击（不 await）后同节点(gen-concurrent) job 数=1
+     判定：PASS
+
+【6】用例 F：重试（QueuePanel 入口）不得让同节点并发任务增长（REQ-002）
+     实现：直接调用 useQueueStore.getState().retry(id)（QueuePanel.tsx:221 的真实入口）连续重试 3 次；
+         断言同节点 job 数与活动任务数不增长（retry 不经过 handleGenerate，入口级守卫拦不住）。
+     期望：连续重试只应产生 1 个新任务，不得让同节点的并发任务累积增长
+     实际：重试前：同节点 job 数=1（活动 0）；连续 retry 3 次后：同节点 job 数=2（活动 1），本次新增=1
+     判定：PASS
+
+------------------------------------------------------------------------------
+汇总：PASS 6 / FAIL 0 / ERROR 0（共 6 个用例）
+=> 全部用例通过，退出码 0
+EXIT CODE: 0
+  [NG]  默认模式在未修复的源码上必须 FAIL（退出码 1，6 个用例全部判 FAIL）
+          exit=0，PASS 6 / FAIL 0 / ERROR 0
+==============================================================================
+生成队列回归：REQ-001（重启恢复） / REQ-002（重复入队 + 批量分支 + 并发点击 + 重试）
+MODE: expect-red（红状态自检：用例都应当 FAIL）
+==============================================================================
+
+【1】用例 A：重启后遗留 queued 任务必须被处置且节点不再显示排队中（REQ-001）
+     实现：把包含 1 个 status=queued 任务的持久化 JSON 注入 storage stub，在 flowStore 中建立同 nodeId 的节点
+         （其 data.queued=true，即重启前 useImageGeneratorExecution 写下的排队标记），再首次 import queueStore，
+         走真实冷启动水合路径（persist.getItem → 反序列化 → onRehydrateStorage），随后最多等 1500ms。
+     期望：① 该 job 不再停留在 queued；② 对应节点 data.queued 被清除（falsy），不再永久显示"排队中"
+     实际：水合完成=true；水合后 job.status=error、节点 data.queued=false；等待后 job.status=error、节点 data.queued=false
+     判定：PASS
+
+【2】用例 B：同一节点连续点击生成不得重复入队（REQ-002）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-1")，取到公开返回的 handleGenerate，
+         对同一节点连续 await 调用 3 次；统计该节点的 job 总数（时间无关量）与全程峰值活动数。
+     期望：3 次连点后同节点 job 数恒为 1，且全程活动任务数（queued + running）峰值不超过 1
+     实际：同节点(gen-1) job 数=1；队列内 job 总数=1；瞬时活动数（每次调用后）=1/1/1；全程活动数峰值=1
+     判定：PASS
+
+【3】用例 C：批量（n=4）必须完整拆分且连点不增长（REQ-002 批量分支）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-batch")，节点数据 n=4（gemini 协议 → batchCount=4，
+         走 useImageGeneratorExecution.ts:61-74 的批量分支）；连点 3 次后等该批全部结束，再点第 4 次。
+     期望：① 首点后同节点 job 数 == 4（整批完整拆分）；② 第 2/3 次点击后不再增长；③ 该批结束后再点一次仍能产生新的完整一批
+     实际：batchCount=4；首点后同节点 job 数=4；连点后=4/4/4；该批结束=true；结束后再点一次新增=4（累计 8）
+     判定：PASS
+
+【4】用例 D：该节点已有 queued（非 running）任务时也不得重复入队（REQ-002）
+     实现：concurrency=1，先用**另一节点** Z 的 running job 占满额度；再对节点 B 用 renderToStaticMarkup 挂载真实
+         useImageGeneratorExecution 并连点 3 次；断言 B 的 queued 数（时间无关量）。
+     期望：① 首点后节点 B 的 queued 数 == 1（不得被其他节点的占用连带拒绝）；② 第 2/3 次点击后不再增长
+     实际：额度占位：节点 gen-slot-z running=1 / concurrency=1；节点 gen-queued-b queued 数：首点后=1，连点后=1/1/1；B 的 running 数=0（应恒为 0）
+     判定：PASS
+
+【5】用例 E：并发点击（不 await 上一次调用）不得重复入队（REQ-002）
+     实现：连续触发 3 次 handleGenerate() 但**不 await**（收集 promise 后一起 await），并在输入解析路径注入 60ms
+         延迟以拉长"守卫通过后、尚未入队"的窗口（贴近真实 IPC 往返）；断言同节点 job 数。
+     期望：3 次重叠点击后同节点 job 数 == 1（时间无关量）
+     实际：3 次重叠点击（不 await）后同节点(gen-concurrent) job 数=1
+     判定：PASS
+
+【6】用例 F：重试（QueuePanel 入口）不得让同节点并发任务增长（REQ-002）
+     实现：直接调用 useQueueStore.getState().retry(id)（QueuePanel.tsx:221 的真实入口）连续重试 3 次；
+         断言同节点 job 数与活动任务数不增长（retry 不经过 handleGenerate，入口级守卫拦不住）。
+     期望：连续重试只应产生 1 个新任务，不得让同节点的并发任务累积增长
+     实际：重试前：同节点 job 数=1（活动 0）；连续 retry 3 次后：同节点 job 数=2（活动 1），本次新增=1
+     判定：PASS
+
+------------------------------------------------------------------------------
+汇总：PASS 6 / FAIL 0 / ERROR 0（共 6 个用例）
+预期红但实际绿 6 个：用例 A：重启后遗留 queued 任务必须被处置且节点不再显示排队中（REQ-001）；用例 B：同一节点连续点击生成不得重复入队（REQ-002）；用例 C：批量（n=4）必须完整拆分且连点不增长（REQ-002 批量分支）；用例 D：该节点已有 queued（非 running）任务时也不得重复入队（REQ-002）；用例 E：并发点击（不 await 上一次调用）不得重复入队（REQ-002）；用例 F：重试（QueuePanel 入口）不得让同节点并发任务增长（REQ-002）
+=> 缺陷可能已被修复，红状态不再成立，退出码 1
+EXIT CODE: 1
+  [NG]  --expect-red 在未修复的源码上必须退出码 0（红状态符合预期）
+          exit=1，PASS 6 / FAIL 0 / ERROR 0
+
+== 2) 环境变量独立性（默认门禁不得被 env 改变）==
+==============================================================================
+生成队列回归：REQ-001（重启恢复） / REQ-002（重复入队 + 批量分支 + 并发点击 + 重试）
+MODE: default（默认：断言修复后应有的行为）
+NOTE: 本次为真实门禁运行；脚本不读取任何环境变量，结论不可被环境变量改变。
+==============================================================================
+
+【1】用例 A：重启后遗留 queued 任务必须被处置且节点不再显示排队中（REQ-001）
+     实现：把包含 1 个 status=queued 任务的持久化 JSON 注入 storage stub，在 flowStore 中建立同 nodeId 的节点
+         （其 data.queued=true，即重启前 useImageGeneratorExecution 写下的排队标记），再首次 import queueStore，
+         走真实冷启动水合路径（persist.getItem → 反序列化 → onRehydrateStorage），随后最多等 1500ms。
+     期望：① 该 job 不再停留在 queued；② 对应节点 data.queued 被清除（falsy），不再永久显示"排队中"
+     实际：水合完成=true；水合后 job.status=error、节点 data.queued=false；等待后 job.status=error、节点 data.queued=false
+     判定：PASS
+
+【2】用例 B：同一节点连续点击生成不得重复入队（REQ-002）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-1")，取到公开返回的 handleGenerate，
+         对同一节点连续 await 调用 3 次；统计该节点的 job 总数（时间无关量）与全程峰值活动数。
+     期望：3 次连点后同节点 job 数恒为 1，且全程活动任务数（queued + running）峰值不超过 1
+     实际：同节点(gen-1) job 数=1；队列内 job 总数=1；瞬时活动数（每次调用后）=1/1/1；全程活动数峰值=1
+     判定：PASS
+
+【3】用例 C：批量（n=4）必须完整拆分且连点不增长（REQ-002 批量分支）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-batch")，节点数据 n=4（gemini 协议 → batchCount=4，
+         走 useImageGeneratorExecution.ts:61-74 的批量分支）；连点 3 次后等该批全部结束，再点第 4 次。
+     期望：① 首点后同节点 job 数 == 4（整批完整拆分）；② 第 2/3 次点击后不再增长；③ 该批结束后再点一次仍能产生新的完整一批
+     实际：batchCount=4；首点后同节点 job 数=4；连点后=4/4/4；该批结束=true；结束后再点一次新增=4（累计 8）
+     判定：PASS
+
+【4】用例 D：该节点已有 queued（非 running）任务时也不得重复入队（REQ-002）
+     实现：concurrency=1，先用**另一节点** Z 的 running job 占满额度；再对节点 B 用 renderToStaticMarkup 挂载真实
+         useImageGeneratorExecution 并连点 3 次；断言 B 的 queued 数（时间无关量）。
+     期望：① 首点后节点 B 的 queued 数 == 1（不得被其他节点的占用连带拒绝）；② 第 2/3 次点击后不再增长
+     实际：额度占位：节点 gen-slot-z running=1 / concurrency=1；节点 gen-queued-b queued 数：首点后=1，连点后=1/1/1；B 的 running 数=0（应恒为 0）
+     判定：PASS
+
+【5】用例 E：并发点击（不 await 上一次调用）不得重复入队（REQ-002）
+     实现：连续触发 3 次 handleGenerate() 但**不 await**（收集 promise 后一起 await），并在输入解析路径注入 60ms
+         延迟以拉长"守卫通过后、尚未入队"的窗口（贴近真实 IPC 往返）；断言同节点 job 数。
+     期望：3 次重叠点击后同节点 job 数 == 1（时间无关量）
+     实际：3 次重叠点击（不 await）后同节点(gen-concurrent) job 数=1
+     判定：PASS
+
+【6】用例 F：重试（QueuePanel 入口）不得让同节点并发任务增长（REQ-002）
+     实现：直接调用 useQueueStore.getState().retry(id)（QueuePanel.tsx:221 的真实入口）连续重试 3 次；
+         断言同节点 job 数与活动任务数不增长（retry 不经过 handleGenerate，入口级守卫拦不住）。
+     期望：连续重试只应产生 1 个新任务，不得让同节点的并发任务累积增长
+     实际：重试前：同节点 job 数=1（活动 0）；连续 retry 3 次后：同节点 job 数=2（活动 1），本次新增=1
+     判定：PASS
+
+------------------------------------------------------------------------------
+汇总：PASS 6 / FAIL 0 / ERROR 0（共 6 个用例）
+=> 全部用例通过，退出码 0
+EXIT CODE: 0
+  [OK]  NC_QUEUE_MUTANT=full-fix 时默认模式结论不变
+          exit=0，PASS 6 / FAIL 0 / ERROR 0；用例判定=PASS/PASS/PASS/PASS/PASS/PASS（基线 PASS/PASS/PASS/PASS/PASS/PASS）
+==============================================================================
+生成队列回归：REQ-001（重启恢复） / REQ-002（重复入队 + 批量分支 + 并发点击 + 重试）
+MODE: default（默认：断言修复后应有的行为）
+NOTE: 本次为真实门禁运行；脚本不读取任何环境变量，结论不可被环境变量改变。
+==============================================================================
+
+【1】用例 A：重启后遗留 queued 任务必须被处置且节点不再显示排队中（REQ-001）
+     实现：把包含 1 个 status=queued 任务的持久化 JSON 注入 storage stub，在 flowStore 中建立同 nodeId 的节点
+         （其 data.queued=true，即重启前 useImageGeneratorExecution 写下的排队标记），再首次 import queueStore，
+         走真实冷启动水合路径（persist.getItem → 反序列化 → onRehydrateStorage），随后最多等 1500ms。
+     期望：① 该 job 不再停留在 queued；② 对应节点 data.queued 被清除（falsy），不再永久显示"排队中"
+     实际：水合完成=true；水合后 job.status=error、节点 data.queued=false；等待后 job.status=error、节点 data.queued=false
+     判定：PASS
+
+【2】用例 B：同一节点连续点击生成不得重复入队（REQ-002）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-1")，取到公开返回的 handleGenerate，
+         对同一节点连续 await 调用 3 次；统计该节点的 job 总数（时间无关量）与全程峰值活动数。
+     期望：3 次连点后同节点 job 数恒为 1，且全程活动任务数（queued + running）峰值不超过 1
+     实际：同节点(gen-1) job 数=1；队列内 job 总数=1；瞬时活动数（每次调用后）=1/1/1；全程活动数峰值=1
+     判定：PASS
+
+【3】用例 C：批量（n=4）必须完整拆分且连点不增长（REQ-002 批量分支）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-batch")，节点数据 n=4（gemini 协议 → batchCount=4，
+         走 useImageGeneratorExecution.ts:61-74 的批量分支）；连点 3 次后等该批全部结束，再点第 4 次。
+     期望：① 首点后同节点 job 数 == 4（整批完整拆分）；② 第 2/3 次点击后不再增长；③ 该批结束后再点一次仍能产生新的完整一批
+     实际：batchCount=4；首点后同节点 job 数=4；连点后=4/4/4；该批结束=true；结束后再点一次新增=4（累计 8）
+     判定：PASS
+
+【4】用例 D：该节点已有 queued（非 running）任务时也不得重复入队（REQ-002）
+     实现：concurrency=1，先用**另一节点** Z 的 running job 占满额度；再对节点 B 用 renderToStaticMarkup 挂载真实
+         useImageGeneratorExecution 并连点 3 次；断言 B 的 queued 数（时间无关量）。
+     期望：① 首点后节点 B 的 queued 数 == 1（不得被其他节点的占用连带拒绝）；② 第 2/3 次点击后不再增长
+     实际：额度占位：节点 gen-slot-z running=1 / concurrency=1；节点 gen-queued-b queued 数：首点后=1，连点后=1/1/1；B 的 running 数=0（应恒为 0）
+     判定：PASS
+
+【5】用例 E：并发点击（不 await 上一次调用）不得重复入队（REQ-002）
+     实现：连续触发 3 次 handleGenerate() 但**不 await**（收集 promise 后一起 await），并在输入解析路径注入 60ms
+         延迟以拉长"守卫通过后、尚未入队"的窗口（贴近真实 IPC 往返）；断言同节点 job 数。
+     期望：3 次重叠点击后同节点 job 数 == 1（时间无关量）
+     实际：3 次重叠点击（不 await）后同节点(gen-concurrent) job 数=1
+     判定：PASS
+
+【6】用例 F：重试（QueuePanel 入口）不得让同节点并发任务增长（REQ-002）
+     实现：直接调用 useQueueStore.getState().retry(id)（QueuePanel.tsx:221 的真实入口）连续重试 3 次；
+         断言同节点 job 数与活动任务数不增长（retry 不经过 handleGenerate，入口级守卫拦不住）。
+     期望：连续重试只应产生 1 个新任务，不得让同节点的并发任务累积增长
+     实际：重试前：同节点 job 数=1（活动 0）；连续 retry 3 次后：同节点 job 数=2（活动 1），本次新增=1
+     判定：PASS
+
+------------------------------------------------------------------------------
+汇总：PASS 6 / FAIL 0 / ERROR 0（共 6 个用例）
+=> 全部用例通过，退出码 0
+EXIT CODE: 0
+  [OK]  NC_QUEUE_MUTANT=exec-instant-fail 时默认模式结论不变
+          exit=0，PASS 6 / FAIL 0 / ERROR 0；用例判定=PASS/PASS/PASS/PASS/PASS/PASS（基线 PASS/PASS/PASS/PASS/PASS/PASS）
+==============================================================================
+生成队列回归：REQ-001（重启恢复） / REQ-002（重复入队 + 批量分支 + 并发点击 + 重试）
+MODE: default（默认：断言修复后应有的行为）
+NOTE: 本次为真实门禁运行；脚本不读取任何环境变量，结论不可被环境变量改变。
+==============================================================================
+
+【1】用例 A：重启后遗留 queued 任务必须被处置且节点不再显示排队中（REQ-001）
+     实现：把包含 1 个 status=queued 任务的持久化 JSON 注入 storage stub，在 flowStore 中建立同 nodeId 的节点
+         （其 data.queued=true，即重启前 useImageGeneratorExecution 写下的排队标记），再首次 import queueStore，
+         走真实冷启动水合路径（persist.getItem → 反序列化 → onRehydrateStorage），随后最多等 1500ms。
+     期望：① 该 job 不再停留在 queued；② 对应节点 data.queued 被清除（falsy），不再永久显示"排队中"
+     实际：水合完成=true；水合后 job.status=error、节点 data.queued=false；等待后 job.status=error、节点 data.queued=false
+     判定：PASS
+
+【2】用例 B：同一节点连续点击生成不得重复入队（REQ-002）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-1")，取到公开返回的 handleGenerate，
+         对同一节点连续 await 调用 3 次；统计该节点的 job 总数（时间无关量）与全程峰值活动数。
+     期望：3 次连点后同节点 job 数恒为 1，且全程活动任务数（queued + running）峰值不超过 1
+     实际：同节点(gen-1) job 数=1；队列内 job 总数=1；瞬时活动数（每次调用后）=1/1/1；全程活动数峰值=1
+     判定：PASS
+
+【3】用例 C：批量（n=4）必须完整拆分且连点不增长（REQ-002 批量分支）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-batch")，节点数据 n=4（gemini 协议 → batchCount=4，
+         走 useImageGeneratorExecution.ts:61-74 的批量分支）；连点 3 次后等该批全部结束，再点第 4 次。
+     期望：① 首点后同节点 job 数 == 4（整批完整拆分）；② 第 2/3 次点击后不再增长；③ 该批结束后再点一次仍能产生新的完整一批
+     实际：batchCount=4；首点后同节点 job 数=4；连点后=4/4/4；该批结束=true；结束后再点一次新增=4（累计 8）
+     判定：PASS
+
+【4】用例 D：该节点已有 queued（非 running）任务时也不得重复入队（REQ-002）
+     实现：concurrency=1，先用**另一节点** Z 的 running job 占满额度；再对节点 B 用 renderToStaticMarkup 挂载真实
+         useImageGeneratorExecution 并连点 3 次；断言 B 的 queued 数（时间无关量）。
+     期望：① 首点后节点 B 的 queued 数 == 1（不得被其他节点的占用连带拒绝）；② 第 2/3 次点击后不再增长
+     实际：额度占位：节点 gen-slot-z running=1 / concurrency=1；节点 gen-queued-b queued 数：首点后=1，连点后=1/1/1；B 的 running 数=0（应恒为 0）
+     判定：PASS
+
+【5】用例 E：并发点击（不 await 上一次调用）不得重复入队（REQ-002）
+     实现：连续触发 3 次 handleGenerate() 但**不 await**（收集 promise 后一起 await），并在输入解析路径注入 60ms
+         延迟以拉长"守卫通过后、尚未入队"的窗口（贴近真实 IPC 往返）；断言同节点 job 数。
+     期望：3 次重叠点击后同节点 job 数 == 1（时间无关量）
+     实际：3 次重叠点击（不 await）后同节点(gen-concurrent) job 数=1
+     判定：PASS
+
+【6】用例 F：重试（QueuePanel 入口）不得让同节点并发任务增长（REQ-002）
+     实现：直接调用 useQueueStore.getState().retry(id)（QueuePanel.tsx:221 的真实入口）连续重试 3 次；
+         断言同节点 job 数与活动任务数不增长（retry 不经过 handleGenerate，入口级守卫拦不住）。
+     期望：连续重试只应产生 1 个新任务，不得让同节点的并发任务累积增长
+     实际：重试前：同节点 job 数=1（活动 0）；连续 retry 3 次后：同节点 job 数=2（活动 1），本次新增=1
+     判定：PASS
+
+------------------------------------------------------------------------------
+汇总：PASS 6 / FAIL 0 / ERROR 0（共 6 个用例）
+=> 全部用例通过，退出码 0
+EXIT CODE: 0
+  [OK]  NC_QUEUE_MUTANT=1 时默认模式结论不变
+          exit=0，PASS 6 / FAIL 0 / ERROR 0；用例判定=PASS/PASS/PASS/PASS/PASS/PASS（基线 PASS/PASS/PASS/PASS/PASS/PASS）
+==============================================================================
+生成队列回归：REQ-001（重启恢复） / REQ-002（重复入队 + 批量分支 + 并发点击 + 重试）
+MODE: default（默认：断言修复后应有的行为）
+NOTE: 本次为真实门禁运行；脚本不读取任何环境变量，结论不可被环境变量改变。
+==============================================================================
+
+【1】用例 A：重启后遗留 queued 任务必须被处置且节点不再显示排队中（REQ-001）
+     实现：把包含 1 个 status=queued 任务的持久化 JSON 注入 storage stub，在 flowStore 中建立同 nodeId 的节点
+         （其 data.queued=true，即重启前 useImageGeneratorExecution 写下的排队标记），再首次 import queueStore，
+         走真实冷启动水合路径（persist.getItem → 反序列化 → onRehydrateStorage），随后最多等 1500ms。
+     期望：① 该 job 不再停留在 queued；② 对应节点 data.queued 被清除（falsy），不再永久显示"排队中"
+     实际：水合完成=true；水合后 job.status=error、节点 data.queued=false；等待后 job.status=error、节点 data.queued=false
+     判定：PASS
+
+【2】用例 B：同一节点连续点击生成不得重复入队（REQ-002）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-1")，取到公开返回的 handleGenerate，
+         对同一节点连续 await 调用 3 次；统计该节点的 job 总数（时间无关量）与全程峰值活动数。
+     期望：3 次连点后同节点 job 数恒为 1，且全程活动任务数（queued + running）峰值不超过 1
+     实际：同节点(gen-1) job 数=1；队列内 job 总数=1；瞬时活动数（每次调用后）=1/1/1；全程活动数峰值=1
+     判定：PASS
+
+【3】用例 C：批量（n=4）必须完整拆分且连点不增长（REQ-002 批量分支）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-batch")，节点数据 n=4（gemini 协议 → batchCount=4，
+         走 useImageGeneratorExecution.ts:61-74 的批量分支）；连点 3 次后等该批全部结束，再点第 4 次。
+     期望：① 首点后同节点 job 数 == 4（整批完整拆分）；② 第 2/3 次点击后不再增长；③ 该批结束后再点一次仍能产生新的完整一批
+     实际：batchCount=4；首点后同节点 job 数=4；连点后=4/4/4；该批结束=true；结束后再点一次新增=4（累计 8）
+     判定：PASS
+
+【4】用例 D：该节点已有 queued（非 running）任务时也不得重复入队（REQ-002）
+     实现：concurrency=1，先用**另一节点** Z 的 running job 占满额度；再对节点 B 用 renderToStaticMarkup 挂载真实
+         useImageGeneratorExecution 并连点 3 次；断言 B 的 queued 数（时间无关量）。
+     期望：① 首点后节点 B 的 queued 数 == 1（不得被其他节点的占用连带拒绝）；② 第 2/3 次点击后不再增长
+     实际：额度占位：节点 gen-slot-z running=1 / concurrency=1；节点 gen-queued-b queued 数：首点后=1，连点后=1/1/1；B 的 running 数=0（应恒为 0）
+     判定：PASS
+
+【5】用例 E：并发点击（不 await 上一次调用）不得重复入队（REQ-002）
+     实现：连续触发 3 次 handleGenerate() 但**不 await**（收集 promise 后一起 await），并在输入解析路径注入 60ms
+         延迟以拉长"守卫通过后、尚未入队"的窗口（贴近真实 IPC 往返）；断言同节点 job 数。
+     期望：3 次重叠点击后同节点 job 数 == 1（时间无关量）
+     实际：3 次重叠点击（不 await）后同节点(gen-concurrent) job 数=1
+     判定：PASS
+
+【6】用例 F：重试（QueuePanel 入口）不得让同节点并发任务增长（REQ-002）
+     实现：直接调用 useQueueStore.getState().retry(id)（QueuePanel.tsx:221 的真实入口）连续重试 3 次；
+         断言同节点 job 数与活动任务数不增长（retry 不经过 handleGenerate，入口级守卫拦不住）。
+     期望：连续重试只应产生 1 个新任务，不得让同节点的并发任务累积增长
+     实际：重试前：同节点 job 数=1（活动 0）；连续 retry 3 次后：同节点 job 数=2（活动 1），本次新增=1
+     判定：PASS
+
+------------------------------------------------------------------------------
+汇总：PASS 6 / FAIL 0 / ERROR 0（共 6 个用例）
+=> 全部用例通过，退出码 0
+EXIT CODE: 0
+  [OK]  NC_QUEUE_MUTANT=true 时默认模式结论不变
+          exit=0，PASS 6 / FAIL 0 / ERROR 0；用例判定=PASS/PASS/PASS/PASS/PASS/PASS（基线 PASS/PASS/PASS/PASS/PASS/PASS）
+==============================================================================
+生成队列回归：REQ-001（重启恢复） / REQ-002（重复入队 + 批量分支 + 并发点击 + 重试）
+MODE: default（默认：断言修复后应有的行为）
+NOTE: 本次为真实门禁运行；脚本不读取任何环境变量，结论不可被环境变量改变。
+==============================================================================
+
+【1】用例 A：重启后遗留 queued 任务必须被处置且节点不再显示排队中（REQ-001）
+     实现：把包含 1 个 status=queued 任务的持久化 JSON 注入 storage stub，在 flowStore 中建立同 nodeId 的节点
+         （其 data.queued=true，即重启前 useImageGeneratorExecution 写下的排队标记），再首次 import queueStore，
+         走真实冷启动水合路径（persist.getItem → 反序列化 → onRehydrateStorage），随后最多等 1500ms。
+     期望：① 该 job 不再停留在 queued；② 对应节点 data.queued 被清除（falsy），不再永久显示"排队中"
+     实际：水合完成=true；水合后 job.status=error、节点 data.queued=false；等待后 job.status=error、节点 data.queued=false
+     判定：PASS
+
+【2】用例 B：同一节点连续点击生成不得重复入队（REQ-002）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-1")，取到公开返回的 handleGenerate，
+         对同一节点连续 await 调用 3 次；统计该节点的 job 总数（时间无关量）与全程峰值活动数。
+     期望：3 次连点后同节点 job 数恒为 1，且全程活动任务数（queued + running）峰值不超过 1
+     实际：同节点(gen-1) job 数=1；队列内 job 总数=1；瞬时活动数（每次调用后）=1/1/1；全程活动数峰值=1
+     判定：PASS
+
+【3】用例 C：批量（n=4）必须完整拆分且连点不增长（REQ-002 批量分支）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-batch")，节点数据 n=4（gemini 协议 → batchCount=4，
+         走 useImageGeneratorExecution.ts:61-74 的批量分支）；连点 3 次后等该批全部结束，再点第 4 次。
+     期望：① 首点后同节点 job 数 == 4（整批完整拆分）；② 第 2/3 次点击后不再增长；③ 该批结束后再点一次仍能产生新的完整一批
+     实际：batchCount=4；首点后同节点 job 数=4；连点后=4/4/4；该批结束=true；结束后再点一次新增=4（累计 8）
+     判定：PASS
+
+【4】用例 D：该节点已有 queued（非 running）任务时也不得重复入队（REQ-002）
+     实现：concurrency=1，先用**另一节点** Z 的 running job 占满额度；再对节点 B 用 renderToStaticMarkup 挂载真实
+         useImageGeneratorExecution 并连点 3 次；断言 B 的 queued 数（时间无关量）。
+     期望：① 首点后节点 B 的 queued 数 == 1（不得被其他节点的占用连带拒绝）；② 第 2/3 次点击后不再增长
+     实际：额度占位：节点 gen-slot-z running=1 / concurrency=1；节点 gen-queued-b queued 数：首点后=1，连点后=1/1/1；B 的 running 数=0（应恒为 0）
+     判定：PASS
+
+【5】用例 E：并发点击（不 await 上一次调用）不得重复入队（REQ-002）
+     实现：连续触发 3 次 handleGenerate() 但**不 await**（收集 promise 后一起 await），并在输入解析路径注入 60ms
+         延迟以拉长"守卫通过后、尚未入队"的窗口（贴近真实 IPC 往返）；断言同节点 job 数。
+     期望：3 次重叠点击后同节点 job 数 == 1（时间无关量）
+     实际：3 次重叠点击（不 await）后同节点(gen-concurrent) job 数=1
+     判定：PASS
+
+【6】用例 F：重试（QueuePanel 入口）不得让同节点并发任务增长（REQ-002）
+     实现：直接调用 useQueueStore.getState().retry(id)（QueuePanel.tsx:221 的真实入口）连续重试 3 次；
+         断言同节点 job 数与活动任务数不增长（retry 不经过 handleGenerate，入口级守卫拦不住）。
+     期望：连续重试只应产生 1 个新任务，不得让同节点的并发任务累积增长
+     实际：重试前：同节点 job 数=1（活动 0）；连续 retry 3 次后：同节点 job 数=2（活动 1），本次新增=1
+     判定：PASS
+
+------------------------------------------------------------------------------
+汇总：PASS 6 / FAIL 0 / ERROR 0（共 6 个用例）
+=> 全部用例通过，退出码 0
+EXIT CODE: 0
+  [OK]  NC_QUEUE_MUTANT=full-fix,exec-instant-fail 时默认模式结论不变
+          exit=0，PASS 6 / FAIL 0 / ERROR 0；用例判定=PASS/PASS/PASS/PASS/PASS/PASS（基线 PASS/PASS/PASS/PASS/PASS/PASS）
+
+== 3) 变异开关仍可经 CLI 生效（否则第 2 条会因开关失灵而假通过）==
+==============================================================================
+生成队列回归：REQ-001（重启恢复） / REQ-002（重复入队 + 批量分支 + 并发点击 + 重试）
+MODE: default（默认：断言修复后应有的行为）
+SELF-CHECK: full-fix（变异自检：被测行为被人为改造，仅用于验证断言强度，不代表真实结论）
+==============================================================================
+
+SELF-CHECK 注入：enqueue 守卫（rule=full-fix(store-layer, click-scoped)）
+
+SELF-CHECK 注入统计：已整批拒绝 16 次入队（节点 gen-retry 已有活动任务）
+
+【1】用例 A：重启后遗留 queued 任务必须被处置且节点不再显示排队中（REQ-001）
+     实现：把包含 1 个 status=queued 任务的持久化 JSON 注入 storage stub，在 flowStore 中建立同 nodeId 的节点
+         （其 data.queued=true，即重启前 useImageGeneratorExecution 写下的排队标记），再首次 import queueStore，
+         走真实冷启动水合路径（persist.getItem → 反序列化 → onRehydrateStorage），随后最多等 1500ms。
+     期望：① 该 job 不再停留在 queued；② 对应节点 data.queued 被清除（falsy），不再永久显示"排队中"
+     实际：水合完成=true；水合后 job.status=running、节点 data.queued=false；等待后 job.status=error、节点 data.queued=false
+     判定：PASS
+
+【2】用例 B：同一节点连续点击生成不得重复入队（REQ-002）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-1")，取到公开返回的 handleGenerate，
+         对同一节点连续 await 调用 3 次；统计该节点的 job 总数（时间无关量）与全程峰值活动数。
+     期望：3 次连点后同节点 job 数恒为 1，且全程活动任务数（queued + running）峰值不超过 1
+     实际：同节点(gen-1) job 数=1；队列内 job 总数=1；瞬时活动数（每次调用后）=1/1/1；全程活动数峰值=1
+     判定：PASS
+
+【3】用例 C：批量（n=4）必须完整拆分且连点不增长（REQ-002 批量分支）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-batch")，节点数据 n=4（gemini 协议 → batchCount=4，
+         走 useImageGeneratorExecution.ts:61-74 的批量分支）；连点 3 次后等该批全部结束，再点第 4 次。
+     期望：① 首点后同节点 job 数 == 4（整批完整拆分）；② 第 2/3 次点击后不再增长；③ 该批结束后再点一次仍能产生新的完整一批
+     实际：batchCount=4；首点后同节点 job 数=4；连点后=4/4/4；该批结束=true；结束后再点一次新增=4（累计 8）
+     判定：PASS
+
+【4】用例 D：该节点已有 queued（非 running）任务时也不得重复入队（REQ-002）
+     实现：concurrency=1，先用**另一节点** Z 的 running job 占满额度；再对节点 B 用 renderToStaticMarkup 挂载真实
+         useImageGeneratorExecution 并连点 3 次；断言 B 的 queued 数（时间无关量）。
+     期望：① 首点后节点 B 的 queued 数 == 1（不得被其他节点的占用连带拒绝）；② 第 2/3 次点击后不再增长
+     实际：额度占位：节点 gen-slot-z running=1 / concurrency=1；节点 gen-queued-b queued 数：首点后=1，连点后=1/1/1；B 的 running 数=0（应恒为 0）
+     判定：PASS
+
+【5】用例 E：并发点击（不 await 上一次调用）不得重复入队（REQ-002）
+     实现：连续触发 3 次 handleGenerate() 但**不 await**（收集 promise 后一起 await），并在输入解析路径注入 60ms
+         延迟以拉长"守卫通过后、尚未入队"的窗口（贴近真实 IPC 往返）；断言同节点 job 数。
+     期望：3 次重叠点击后同节点 job 数 == 1（时间无关量）
+     实际：3 次重叠点击（不 await）后同节点(gen-concurrent) job 数=1
+     判定：PASS
+
+【6】用例 F：重试（QueuePanel 入口）不得让同节点并发任务增长（REQ-002）
+     实现：直接调用 useQueueStore.getState().retry(id)（QueuePanel.tsx:221 的真实入口）连续重试 3 次；
+         断言同节点 job 数与活动任务数不增长（retry 不经过 handleGenerate，入口级守卫拦不住）。
+     期望：连续重试只应产生 1 个新任务，不得让同节点的并发任务累积增长
+     实际：重试前：同节点 job 数=1（活动 0）；连续 retry 3 次后：同节点 job 数=2（活动 1），本次新增=1
+     判定：PASS
+
+------------------------------------------------------------------------------
+汇总：PASS 6 / FAIL 0 / ERROR 0（共 6 个用例）
+=> 全部用例通过，退出码 0
+EXIT CODE: 0
+  [OK]  --self-check=full-fix 必须让门禁转为全 PASS（退出码 0，6 个用例全 PASS）
+          exit=0，PASS 6 / FAIL 0 / ERROR 0
+
+== 4) 缺陷形态必须被判 FAIL ==
+==============================================================================
+生成队列回归：REQ-001（重启恢复） / REQ-002（重复入队 + 批量分支 + 并发点击 + 重试）
+MODE: default（默认：断言修复后应有的行为）
+SELF-CHECK: guard-inside-batch-loop（变异自检：被测行为被人为改造，仅用于验证断言强度，不代表真实结论）
+==============================================================================
+
+SELF-CHECK 注入：enqueue 守卫（rule=active）
+
+SELF-CHECK 注入统计：已拒绝 22 次入队（rule=active，节点 gen-retry）
+
+【1】用例 A：重启后遗留 queued 任务必须被处置且节点不再显示排队中（REQ-001）
+     实现：把包含 1 个 status=queued 任务的持久化 JSON 注入 storage stub，在 flowStore 中建立同 nodeId 的节点
+         （其 data.queued=true，即重启前 useImageGeneratorExecution 写下的排队标记），再首次 import queueStore，
+         走真实冷启动水合路径（persist.getItem → 反序列化 → onRehydrateStorage），随后最多等 1500ms。
+     期望：① 该 job 不再停留在 queued；② 对应节点 data.queued 被清除（falsy），不再永久显示"排队中"
+     实际：水合完成=true；水合后 job.status=error、节点 data.queued=false；等待后 job.status=error、节点 data.queued=false
+     判定：PASS
+
+【2】用例 B：同一节点连续点击生成不得重复入队（REQ-002）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-1")，取到公开返回的 handleGenerate，
+         对同一节点连续 await 调用 3 次；统计该节点的 job 总数（时间无关量）与全程峰值活动数。
+     期望：3 次连点后同节点 job 数恒为 1，且全程活动任务数（queued + running）峰值不超过 1
+     实际：同节点(gen-1) job 数=1；队列内 job 总数=1；瞬时活动数（每次调用后）=1/1/1；全程活动数峰值=1
+     判定：PASS
+
+【3】用例 C：批量（n=4）必须完整拆分且连点不增长（REQ-002 批量分支）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-batch")，节点数据 n=4（gemini 协议 → batchCount=4，
+         走 useImageGeneratorExecution.ts:61-74 的批量分支）；连点 3 次后等该批全部结束，再点第 4 次。
+     期望：① 首点后同节点 job 数 == 4（整批完整拆分）；② 第 2/3 次点击后不再增长；③ 该批结束后再点一次仍能产生新的完整一批
+     实际：batchCount=4；首点后同节点 job 数=1；连点后=1/1/1；该批结束=true；结束后再点一次新增=1（累计 2）
+     说明：未满足：首点只产生 1 个 job，应为完整的 4 个（批量拆分被截断：守卫误置于批量循环内/store 层任意去重）；该批结束后再点一次只新增 1 个 job，应为 4 个（去重锁死了节点重生成）（REQ-002 批量分支）
+     判定：FAIL
+
+【4】用例 D：该节点已有 queued（非 running）任务时也不得重复入队（REQ-002）
+     实现：concurrency=1，先用**另一节点** Z 的 running job 占满额度；再对节点 B 用 renderToStaticMarkup 挂载真实
+         useImageGeneratorExecution 并连点 3 次；断言 B 的 queued 数（时间无关量）。
+     期望：① 首点后节点 B 的 queued 数 == 1（不得被其他节点的占用连带拒绝）；② 第 2/3 次点击后不再增长
+     实际：额度占位：节点 gen-slot-z running=1 / concurrency=1；节点 gen-queued-b queued 数：首点后=1，连点后=1/1/1；B 的 running 数=0（应恒为 0）
+     判定：PASS
+
+【5】用例 E：并发点击（不 await 上一次调用）不得重复入队（REQ-002）
+     实现：连续触发 3 次 handleGenerate() 但**不 await**（收集 promise 后一起 await），并在输入解析路径注入 60ms
+         延迟以拉长"守卫通过后、尚未入队"的窗口（贴近真实 IPC 往返）；断言同节点 job 数。
+     期望：3 次重叠点击后同节点 job 数 == 1（时间无关量）
+     实际：3 次重叠点击（不 await）后同节点(gen-concurrent) job 数=1
+     判定：PASS
+
+【6】用例 F：重试（QueuePanel 入口）不得让同节点并发任务增长（REQ-002）
+     实现：直接调用 useQueueStore.getState().retry(id)（QueuePanel.tsx:221 的真实入口）连续重试 3 次；
+         断言同节点 job 数与活动任务数不增长（retry 不经过 handleGenerate，入口级守卫拦不住）。
+     期望：连续重试只应产生 1 个新任务，不得让同节点的并发任务累积增长
+     实际：重试前：同节点 job 数=1（活动 0）；连续 retry 3 次后：同节点 job 数=2（活动 1），本次新增=1
+     判定：PASS
+
+------------------------------------------------------------------------------
+汇总：PASS 5 / FAIL 1 / ERROR 0（共 6 个用例）
+=> 存在未满足的期望：这表示业务缺陷尚未修复（红状态），退出码 1
+EXIT CODE: 1
+  [OK]  store 层守卫（批量分支同语义） → 必须 FAIL
+          exit=1，PASS 5 / FAIL 1 / ERROR 0
+==============================================================================
+生成队列回归：REQ-001（重启恢复） / REQ-002（重复入队 + 批量分支 + 并发点击 + 重试）
+MODE: default（默认：断言修复后应有的行为）
+SELF-CHECK: store-dedupe-any（变异自检：被测行为被人为改造，仅用于验证断言强度，不代表真实结论）
+==============================================================================
+
+SELF-CHECK 注入：enqueue 守卫（rule=any）
+
+SELF-CHECK 注入统计：已拒绝 24 次入队（rule=any，节点 gen-retry）
+
+【1】用例 A：重启后遗留 queued 任务必须被处置且节点不再显示排队中（REQ-001）
+     实现：把包含 1 个 status=queued 任务的持久化 JSON 注入 storage stub，在 flowStore 中建立同 nodeId 的节点
+         （其 data.queued=true，即重启前 useImageGeneratorExecution 写下的排队标记），再首次 import queueStore，
+         走真实冷启动水合路径（persist.getItem → 反序列化 → onRehydrateStorage），随后最多等 1500ms。
+     期望：① 该 job 不再停留在 queued；② 对应节点 data.queued 被清除（falsy），不再永久显示"排队中"
+     实际：水合完成=true；水合后 job.status=error、节点 data.queued=false；等待后 job.status=error、节点 data.queued=false
+     判定：PASS
+
+【2】用例 B：同一节点连续点击生成不得重复入队（REQ-002）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-1")，取到公开返回的 handleGenerate，
+         对同一节点连续 await 调用 3 次；统计该节点的 job 总数（时间无关量）与全程峰值活动数。
+     期望：3 次连点后同节点 job 数恒为 1，且全程活动任务数（queued + running）峰值不超过 1
+     实际：同节点(gen-1) job 数=1；队列内 job 总数=1；瞬时活动数（每次调用后）=1/1/1；全程活动数峰值=1
+     判定：PASS
+
+【3】用例 C：批量（n=4）必须完整拆分且连点不增长（REQ-002 批量分支）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-batch")，节点数据 n=4（gemini 协议 → batchCount=4，
+         走 useImageGeneratorExecution.ts:61-74 的批量分支）；连点 3 次后等该批全部结束，再点第 4 次。
+     期望：① 首点后同节点 job 数 == 4（整批完整拆分）；② 第 2/3 次点击后不再增长；③ 该批结束后再点一次仍能产生新的完整一批
+     实际：batchCount=4；首点后同节点 job 数=1；连点后=1/1/1；该批结束=true；结束后再点一次新增=0（累计 1）
+     说明：未满足：首点只产生 1 个 job，应为完整的 4 个（批量拆分被截断：守卫误置于批量循环内/store 层任意去重）；该批结束后再点一次只新增 0 个 job，应为 4 个（去重锁死了节点重生成）（REQ-002 批量分支）
+     判定：FAIL
+
+【4】用例 D：该节点已有 queued（非 running）任务时也不得重复入队（REQ-002）
+     实现：concurrency=1，先用**另一节点** Z 的 running job 占满额度；再对节点 B 用 renderToStaticMarkup 挂载真实
+         useImageGeneratorExecution 并连点 3 次；断言 B 的 queued 数（时间无关量）。
+     期望：① 首点后节点 B 的 queued 数 == 1（不得被其他节点的占用连带拒绝）；② 第 2/3 次点击后不再增长
+     实际：额度占位：节点 gen-slot-z running=1 / concurrency=1；节点 gen-queued-b queued 数：首点后=1，连点后=1/1/1；B 的 running 数=0（应恒为 0）
+     判定：PASS
+
+【5】用例 E：并发点击（不 await 上一次调用）不得重复入队（REQ-002）
+     实现：连续触发 3 次 handleGenerate() 但**不 await**（收集 promise 后一起 await），并在输入解析路径注入 60ms
+         延迟以拉长"守卫通过后、尚未入队"的窗口（贴近真实 IPC 往返）；断言同节点 job 数。
+     期望：3 次重叠点击后同节点 job 数 == 1（时间无关量）
+     实际：3 次重叠点击（不 await）后同节点(gen-concurrent) job 数=1
+     判定：PASS
+
+【6】用例 F：重试（QueuePanel 入口）不得让同节点并发任务增长（REQ-002）
+     实现：直接调用 useQueueStore.getState().retry(id)（QueuePanel.tsx:221 的真实入口）连续重试 3 次；
+         断言同节点 job 数与活动任务数不增长（retry 不经过 handleGenerate，入口级守卫拦不住）。
+     期望：连续重试只应产生 1 个新任务，不得让同节点的并发任务累积增长
+     实际：重试前同节点 job 数=1（活动 0）；连续重试 3 次后=1，且原任务仍为 error 状态
+     说明：重试被守卫整个吞掉：连续重试 3 次既没有产生新任务、也没有把原任务重新排队，用户在 QueuePanel 点"重试"不会有任何反应（去重只能针对活动任务，不能按历史 job 锁死重试）（REQ-002）
+     判定：FAIL
+
+------------------------------------------------------------------------------
+汇总：PASS 4 / FAIL 2 / ERROR 0（共 6 个用例）
+=> 存在未满足的期望：这表示业务缺陷尚未修复（红状态），退出码 1
+EXIT CODE: 1
+  [OK]  store 层按 nodeId 任意去重（批量被截断 + retry 被吞） → 必须 FAIL
+          exit=1，PASS 4 / FAIL 2 / ERROR 0
+==============================================================================
+生成队列回归：REQ-001（重启恢复） / REQ-002（重复入队 + 批量分支 + 并发点击 + 重试）
+MODE: default（默认：断言修复后应有的行为）
+SELF-CHECK: any-history-dedupe（变异自检：被测行为被人为改造，仅用于验证断言强度，不代表真实结论）
+==============================================================================
+
+SELF-CHECK 注入：enqueue 守卫（rule=any）
+
+SELF-CHECK 注入统计：已拒绝 24 次入队（rule=any，节点 gen-retry）
+
+【1】用例 A：重启后遗留 queued 任务必须被处置且节点不再显示排队中（REQ-001）
+     实现：把包含 1 个 status=queued 任务的持久化 JSON 注入 storage stub，在 flowStore 中建立同 nodeId 的节点
+         （其 data.queued=true，即重启前 useImageGeneratorExecution 写下的排队标记），再首次 import queueStore，
+         走真实冷启动水合路径（persist.getItem → 反序列化 → onRehydrateStorage），随后最多等 1500ms。
+     期望：① 该 job 不再停留在 queued；② 对应节点 data.queued 被清除（falsy），不再永久显示"排队中"
+     实际：水合完成=true；水合后 job.status=error、节点 data.queued=false；等待后 job.status=error、节点 data.queued=false
+     判定：PASS
+
+【2】用例 B：同一节点连续点击生成不得重复入队（REQ-002）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-1")，取到公开返回的 handleGenerate，
+         对同一节点连续 await 调用 3 次；统计该节点的 job 总数（时间无关量）与全程峰值活动数。
+     期望：3 次连点后同节点 job 数恒为 1，且全程活动任务数（queued + running）峰值不超过 1
+     实际：同节点(gen-1) job 数=1；队列内 job 总数=1；瞬时活动数（每次调用后）=1/1/1；全程活动数峰值=1
+     判定：PASS
+
+【3】用例 C：批量（n=4）必须完整拆分且连点不增长（REQ-002 批量分支）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-batch")，节点数据 n=4（gemini 协议 → batchCount=4，
+         走 useImageGeneratorExecution.ts:61-74 的批量分支）；连点 3 次后等该批全部结束，再点第 4 次。
+     期望：① 首点后同节点 job 数 == 4（整批完整拆分）；② 第 2/3 次点击后不再增长；③ 该批结束后再点一次仍能产生新的完整一批
+     实际：batchCount=4；首点后同节点 job 数=1；连点后=1/1/1；该批结束=true；结束后再点一次新增=0（累计 1）
+     说明：未满足：首点只产生 1 个 job，应为完整的 4 个（批量拆分被截断：守卫误置于批量循环内/store 层任意去重）；该批结束后再点一次只新增 0 个 job，应为 4 个（去重锁死了节点重生成）（REQ-002 批量分支）
+     判定：FAIL
+
+【4】用例 D：该节点已有 queued（非 running）任务时也不得重复入队（REQ-002）
+     实现：concurrency=1，先用**另一节点** Z 的 running job 占满额度；再对节点 B 用 renderToStaticMarkup 挂载真实
+         useImageGeneratorExecution 并连点 3 次；断言 B 的 queued 数（时间无关量）。
+     期望：① 首点后节点 B 的 queued 数 == 1（不得被其他节点的占用连带拒绝）；② 第 2/3 次点击后不再增长
+     实际：额度占位：节点 gen-slot-z running=1 / concurrency=1；节点 gen-queued-b queued 数：首点后=1，连点后=1/1/1；B 的 running 数=0（应恒为 0）
+     判定：PASS
+
+【5】用例 E：并发点击（不 await 上一次调用）不得重复入队（REQ-002）
+     实现：连续触发 3 次 handleGenerate() 但**不 await**（收集 promise 后一起 await），并在输入解析路径注入 60ms
+         延迟以拉长"守卫通过后、尚未入队"的窗口（贴近真实 IPC 往返）；断言同节点 job 数。
+     期望：3 次重叠点击后同节点 job 数 == 1（时间无关量）
+     实际：3 次重叠点击（不 await）后同节点(gen-concurrent) job 数=1
+     判定：PASS
+
+【6】用例 F：重试（QueuePanel 入口）不得让同节点并发任务增长（REQ-002）
+     实现：直接调用 useQueueStore.getState().retry(id)（QueuePanel.tsx:221 的真实入口）连续重试 3 次；
+         断言同节点 job 数与活动任务数不增长（retry 不经过 handleGenerate，入口级守卫拦不住）。
+     期望：连续重试只应产生 1 个新任务，不得让同节点的并发任务累积增长
+     实际：重试前同节点 job 数=1（活动 0）；连续重试 3 次后=1，且原任务仍为 error 状态
+     说明：重试被守卫整个吞掉：连续重试 3 次既没有产生新任务、也没有把原任务重新排队，用户在 QueuePanel 点"重试"不会有任何反应（去重只能针对活动任务，不能按历史 job 锁死重试）（REQ-002）
+     判定：FAIL
+
+------------------------------------------------------------------------------
+汇总：PASS 4 / FAIL 2 / ERROR 0（共 6 个用例）
+=> 存在未满足的期望：这表示业务缺陷尚未修复（红状态），退出码 1
+EXIT CODE: 1
+  [OK]  对任意历史 job 去重（锁死重生成 + retry 被吞） → 必须 FAIL
+          exit=1，PASS 4 / FAIL 2 / ERROR 0
+==============================================================================
+生成队列回归：REQ-001（重启恢复） / REQ-002（重复入队 + 批量分支 + 并发点击 + 重试）
+MODE: default（默认：断言修复后应有的行为）
+SELF-CHECK: guard-running-only（变异自检：被测行为被人为改造，仅用于验证断言强度，不代表真实结论）
+==============================================================================
+
+SELF-CHECK 注入：enqueue 守卫（rule=running-only）
+
+SELF-CHECK 注入统计：已拒绝 18 次入队（rule=running-only，节点 gen-concurrent）
+
+【1】用例 A：重启后遗留 queued 任务必须被处置且节点不再显示排队中（REQ-001）
+     实现：把包含 1 个 status=queued 任务的持久化 JSON 注入 storage stub，在 flowStore 中建立同 nodeId 的节点
+         （其 data.queued=true，即重启前 useImageGeneratorExecution 写下的排队标记），再首次 import queueStore，
+         走真实冷启动水合路径（persist.getItem → 反序列化 → onRehydrateStorage），随后最多等 1500ms。
+     期望：① 该 job 不再停留在 queued；② 对应节点 data.queued 被清除（falsy），不再永久显示"排队中"
+     实际：水合完成=true；水合后 job.status=error、节点 data.queued=false；等待后 job.status=error、节点 data.queued=false
+     判定：PASS
+
+【2】用例 B：同一节点连续点击生成不得重复入队（REQ-002）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-1")，取到公开返回的 handleGenerate，
+         对同一节点连续 await 调用 3 次；统计该节点的 job 总数（时间无关量）与全程峰值活动数。
+     期望：3 次连点后同节点 job 数恒为 1，且全程活动任务数（queued + running）峰值不超过 1
+     实际：同节点(gen-1) job 数=1；队列内 job 总数=1；瞬时活动数（每次调用后）=1/1/1；全程活动数峰值=1
+     判定：PASS
+
+【3】用例 C：批量（n=4）必须完整拆分且连点不增长（REQ-002 批量分支）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-batch")，节点数据 n=4（gemini 协议 → batchCount=4，
+         走 useImageGeneratorExecution.ts:61-74 的批量分支）；连点 3 次后等该批全部结束，再点第 4 次。
+     期望：① 首点后同节点 job 数 == 4（整批完整拆分）；② 第 2/3 次点击后不再增长；③ 该批结束后再点一次仍能产生新的完整一批
+     实际：batchCount=4；首点后同节点 job 数=1；连点后=1/1/1；该批结束=true；结束后再点一次新增=1（累计 2）
+     说明：未满足：首点只产生 1 个 job，应为完整的 4 个（批量拆分被截断：守卫误置于批量循环内/store 层任意去重）；该批结束后再点一次只新增 1 个 job，应为 4 个（去重锁死了节点重生成）（REQ-002 批量分支）
+     判定：FAIL
+
+【4】用例 D：该节点已有 queued（非 running）任务时也不得重复入队（REQ-002）
+     实现：concurrency=1，先用**另一节点** Z 的 running job 占满额度；再对节点 B 用 renderToStaticMarkup 挂载真实
+         useImageGeneratorExecution 并连点 3 次；断言 B 的 queued 数（时间无关量）。
+     期望：① 首点后节点 B 的 queued 数 == 1（不得被其他节点的占用连带拒绝）；② 第 2/3 次点击后不再增长
+     实际：额度占位：节点 gen-slot-z running=1 / concurrency=1；节点 gen-queued-b queued 数：首点后=1，连点后=1/1/1；B 的 running 数=0（应恒为 0）
+     判定：PASS
+
+【5】用例 E：并发点击（不 await 上一次调用）不得重复入队（REQ-002）
+     实现：连续触发 3 次 handleGenerate() 但**不 await**（收集 promise 后一起 await），并在输入解析路径注入 60ms
+         延迟以拉长"守卫通过后、尚未入队"的窗口（贴近真实 IPC 往返）；断言同节点 job 数。
+     期望：3 次重叠点击后同节点 job 数 == 1（时间无关量）
+     实际：3 次重叠点击（不 await）后同节点(gen-concurrent) job 数=1
+     判定：PASS
+
+【6】用例 F：重试（QueuePanel 入口）不得让同节点并发任务增长（REQ-002）
+     实现：直接调用 useQueueStore.getState().retry(id)（QueuePanel.tsx:221 的真实入口）连续重试 3 次；
+         断言同节点 job 数与活动任务数不增长（retry 不经过 handleGenerate，入口级守卫拦不住）。
+     期望：连续重试只应产生 1 个新任务，不得让同节点的并发任务累积增长
+     实际：重试前：同节点 job 数=1（活动 0）；连续 retry 3 次后：同节点 job 数=2（活动 1），本次新增=1
+     判定：PASS
+
+------------------------------------------------------------------------------
+汇总：PASS 5 / FAIL 1 / ERROR 0（共 6 个用例）
+=> 存在未满足的期望：这表示业务缺陷尚未修复（红状态），退出码 1
+EXIT CODE: 1
+  [OK]  【仅 running】守卫（store 层） → 必须 FAIL
+          exit=1，PASS 5 / FAIL 1 / ERROR 0
+==============================================================================
+生成队列回归：REQ-001（重启恢复） / REQ-002（重复入队 + 批量分支 + 并发点击 + 重试）
+MODE: default（默认：断言修复后应有的行为）
+SELF-CHECK: entry-guard-running-only（变异自检：被测行为被人为改造，仅用于验证断言强度，不代表真实结论）
+==============================================================================
+
+【1】用例 A：重启后遗留 queued 任务必须被处置且节点不再显示排队中（REQ-001）
+     实现：把包含 1 个 status=queued 任务的持久化 JSON 注入 storage stub，在 flowStore 中建立同 nodeId 的节点
+         （其 data.queued=true，即重启前 useImageGeneratorExecution 写下的排队标记），再首次 import queueStore，
+         走真实冷启动水合路径（persist.getItem → 反序列化 → onRehydrateStorage），随后最多等 1500ms。
+     期望：① 该 job 不再停留在 queued；② 对应节点 data.queued 被清除（falsy），不再永久显示"排队中"
+     实际：水合完成=true；水合后 job.status=error、节点 data.queued=false；等待后 job.status=error、节点 data.queued=false
+     判定：PASS
+
+【2】用例 B：同一节点连续点击生成不得重复入队（REQ-002）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-1")，取到公开返回的 handleGenerate，
+         对同一节点连续 await 调用 3 次；统计该节点的 job 总数（时间无关量）与全程峰值活动数。
+     期望：3 次连点后同节点 job 数恒为 1，且全程活动任务数（queued + running）峰值不超过 1
+     实际：同节点(gen-1) job 数=1；队列内 job 总数=1；瞬时活动数（每次调用后）=1/1/1；全程活动数峰值=1
+     判定：PASS
+
+【3】用例 C：批量（n=4）必须完整拆分且连点不增长（REQ-002 批量分支）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-batch")，节点数据 n=4（gemini 协议 → batchCount=4，
+         走 useImageGeneratorExecution.ts:61-74 的批量分支）；连点 3 次后等该批全部结束，再点第 4 次。
+     期望：① 首点后同节点 job 数 == 4（整批完整拆分）；② 第 2/3 次点击后不再增长；③ 该批结束后再点一次仍能产生新的完整一批
+     实际：batchCount=4；首点后同节点 job 数=4；连点后=4/4/4；该批结束=true；结束后再点一次新增=4（累计 8）
+     判定：PASS
+
+【4】用例 D：该节点已有 queued（非 running）任务时也不得重复入队（REQ-002）
+     实现：concurrency=1，先用**另一节点** Z 的 running job 占满额度；再对节点 B 用 renderToStaticMarkup 挂载真实
+         useImageGeneratorExecution 并连点 3 次；断言 B 的 queued 数（时间无关量）。
+     期望：① 首点后节点 B 的 queued 数 == 1（不得被其他节点的占用连带拒绝）；② 第 2/3 次点击后不再增长
+     实际：额度占位：节点 gen-slot-z running=1 / concurrency=1；节点 gen-queued-b queued 数：首点后=1，连点后=1/1/1；B 的 running 数=0（应恒为 0）
+     判定：PASS
+
+【5】用例 E：并发点击（不 await 上一次调用）不得重复入队（REQ-002）
+     实现：连续触发 3 次 handleGenerate() 但**不 await**（收集 promise 后一起 await），并在输入解析路径注入 60ms
+         延迟以拉长"守卫通过后、尚未入队"的窗口（贴近真实 IPC 往返）；断言同节点 job 数。
+     期望：3 次重叠点击后同节点 job 数 == 1（时间无关量）
+     实际：3 次重叠点击（不 await）后同节点(gen-concurrent) job 数=1
+     判定：PASS
+
+【6】用例 F：重试（QueuePanel 入口）不得让同节点并发任务增长（REQ-002）
+     实现：直接调用 useQueueStore.getState().retry(id)（QueuePanel.tsx:221 的真实入口）连续重试 3 次；
+         断言同节点 job 数与活动任务数不增长（retry 不经过 handleGenerate，入口级守卫拦不住）。
+     期望：连续重试只应产生 1 个新任务，不得让同节点的并发任务累积增长
+     实际：重试前：同节点 job 数=1（活动 0）；连续 retry 3 次后：同节点 job 数=2（活动 1），本次新增=1
+     判定：PASS
+
+------------------------------------------------------------------------------
+汇总：PASS 6 / FAIL 0 / ERROR 0（共 6 个用例）
+=> 全部用例通过，退出码 0
+EXIT CODE: 0
+  [NG]  【仅 running】守卫（入口级：用例 D/E/F 都要判出） → 必须 FAIL
+          exit=0，PASS 6 / FAIL 0 / ERROR 0
+==============================================================================
+生成队列回归：REQ-001（重启恢复） / REQ-002（重复入队 + 批量分支 + 并发点击 + 重试）
+MODE: default（默认：断言修复后应有的行为）
+SELF-CHECK: guard-queued-only（变异自检：被测行为被人为改造，仅用于验证断言强度，不代表真实结论）
+==============================================================================
+
+SELF-CHECK 注入：enqueue 守卫（rule=queued-only）
+
+SELF-CHECK 注入统计：已拒绝 16 次入队（rule=queued-only，节点 gen-retry）
+
+【1】用例 A：重启后遗留 queued 任务必须被处置且节点不再显示排队中（REQ-001）
+     实现：把包含 1 个 status=queued 任务的持久化 JSON 注入 storage stub，在 flowStore 中建立同 nodeId 的节点
+         （其 data.queued=true，即重启前 useImageGeneratorExecution 写下的排队标记），再首次 import queueStore，
+         走真实冷启动水合路径（persist.getItem → 反序列化 → onRehydrateStorage），随后最多等 1500ms。
+     期望：① 该 job 不再停留在 queued；② 对应节点 data.queued 被清除（falsy），不再永久显示"排队中"
+     实际：水合完成=true；水合后 job.status=error、节点 data.queued=false；等待后 job.status=error、节点 data.queued=false
+     判定：PASS
+
+【2】用例 B：同一节点连续点击生成不得重复入队（REQ-002）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-1")，取到公开返回的 handleGenerate，
+         对同一节点连续 await 调用 3 次；统计该节点的 job 总数（时间无关量）与全程峰值活动数。
+     期望：3 次连点后同节点 job 数恒为 1，且全程活动任务数（queued + running）峰值不超过 1
+     实际：同节点(gen-1) job 数=1；队列内 job 总数=1；瞬时活动数（每次调用后）=1/1/1；全程活动数峰值=1
+     判定：PASS
+
+【3】用例 C：批量（n=4）必须完整拆分且连点不增长（REQ-002 批量分支）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-batch")，节点数据 n=4（gemini 协议 → batchCount=4，
+         走 useImageGeneratorExecution.ts:61-74 的批量分支）；连点 3 次后等该批全部结束，再点第 4 次。
+     期望：① 首点后同节点 job 数 == 4（整批完整拆分）；② 第 2/3 次点击后不再增长；③ 该批结束后再点一次仍能产生新的完整一批
+     实际：batchCount=4；首点后同节点 job 数=2；连点后=2/2/2；该批结束=true；结束后再点一次新增=2（累计 4）
+     说明：未满足：首点只产生 2 个 job，应为完整的 4 个（批量拆分被截断：守卫误置于批量循环内/store 层任意去重）；该批结束后再点一次只新增 2 个 job，应为 4 个（去重锁死了节点重生成）（REQ-002 批量分支）
+     判定：FAIL
+
+【4】用例 D：该节点已有 queued（非 running）任务时也不得重复入队（REQ-002）
+     实现：concurrency=1，先用**另一节点** Z 的 running job 占满额度；再对节点 B 用 renderToStaticMarkup 挂载真实
+         useImageGeneratorExecution 并连点 3 次；断言 B 的 queued 数（时间无关量）。
+     期望：① 首点后节点 B 的 queued 数 == 1（不得被其他节点的占用连带拒绝）；② 第 2/3 次点击后不再增长
+     实际：额度占位：节点 gen-slot-z running=1 / concurrency=1；节点 gen-queued-b queued 数：首点后=1，连点后=1/1/1；B 的 running 数=0（应恒为 0）
+     判定：PASS
+
+【5】用例 E：并发点击（不 await 上一次调用）不得重复入队（REQ-002）
+     实现：连续触发 3 次 handleGenerate() 但**不 await**（收集 promise 后一起 await），并在输入解析路径注入 60ms
+         延迟以拉长"守卫通过后、尚未入队"的窗口（贴近真实 IPC 往返）；断言同节点 job 数。
+     期望：3 次重叠点击后同节点 job 数 == 1（时间无关量）
+     实际：3 次重叠点击（不 await）后同节点(gen-concurrent) job 数=1
+     判定：PASS
+
+【6】用例 F：重试（QueuePanel 入口）不得让同节点并发任务增长（REQ-002）
+     实现：直接调用 useQueueStore.getState().retry(id)（QueuePanel.tsx:221 的真实入口）连续重试 3 次；
+         断言同节点 job 数与活动任务数不增长（retry 不经过 handleGenerate，入口级守卫拦不住）。
+     期望：连续重试只应产生 1 个新任务，不得让同节点的并发任务累积增长
+     实际：重试前：同节点 job 数=1（活动 0）；连续 retry 3 次后：同节点 job 数=2（活动 1），本次新增=1
+     判定：PASS
+
+------------------------------------------------------------------------------
+汇总：PASS 5 / FAIL 1 / ERROR 0（共 6 个用例）
+=> 存在未满足的期望：这表示业务缺陷尚未修复（红状态），退出码 1
+EXIT CODE: 1
+  [OK]  【仅 queued】守卫 → 必须 FAIL
+          exit=1，PASS 5 / FAIL 1 / ERROR 0
+==============================================================================
+生成队列回归：REQ-001（重启恢复） / REQ-002（重复入队 + 批量分支 + 并发点击 + 重试）
+MODE: default（默认：断言修复后应有的行为）
+SELF-CHECK: guard-global-single（变异自检：被测行为被人为改造，仅用于验证断言强度，不代表真实结论）
+==============================================================================
+
+SELF-CHECK 注入：enqueue 守卫（rule=global-single）
+
+SELF-CHECK 注入统计：已拒绝 23 次入队（rule=global-single，节点 gen-retry）
+
+【1】用例 A：重启后遗留 queued 任务必须被处置且节点不再显示排队中（REQ-001）
+     实现：把包含 1 个 status=queued 任务的持久化 JSON 注入 storage stub，在 flowStore 中建立同 nodeId 的节点
+         （其 data.queued=true，即重启前 useImageGeneratorExecution 写下的排队标记），再首次 import queueStore，
+         走真实冷启动水合路径（persist.getItem → 反序列化 → onRehydrateStorage），随后最多等 1500ms。
+     期望：① 该 job 不再停留在 queued；② 对应节点 data.queued 被清除（falsy），不再永久显示"排队中"
+     实际：水合完成=true；水合后 job.status=error、节点 data.queued=false；等待后 job.status=error、节点 data.queued=false
+     判定：PASS
+
+【2】用例 B：同一节点连续点击生成不得重复入队（REQ-002）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-1")，取到公开返回的 handleGenerate，
+         对同一节点连续 await 调用 3 次；统计该节点的 job 总数（时间无关量）与全程峰值活动数。
+     期望：3 次连点后同节点 job 数恒为 1，且全程活动任务数（queued + running）峰值不超过 1
+     实际：同节点(gen-1) job 数=1；队列内 job 总数=1；瞬时活动数（每次调用后）=1/1/1；全程活动数峰值=1
+     判定：PASS
+
+【3】用例 C：批量（n=4）必须完整拆分且连点不增长（REQ-002 批量分支）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-batch")，节点数据 n=4（gemini 协议 → batchCount=4，
+         走 useImageGeneratorExecution.ts:61-74 的批量分支）；连点 3 次后等该批全部结束，再点第 4 次。
+     期望：① 首点后同节点 job 数 == 4（整批完整拆分）；② 第 2/3 次点击后不再增长；③ 该批结束后再点一次仍能产生新的完整一批
+     实际：batchCount=4；首点后同节点 job 数=1；连点后=1/1/1；该批结束=true；结束后再点一次新增=1（累计 2）
+     说明：未满足：首点只产生 1 个 job，应为完整的 4 个（批量拆分被截断：守卫误置于批量循环内/store 层任意去重）；该批结束后再点一次只新增 1 个 job，应为 4 个（去重锁死了节点重生成）（REQ-002 批量分支）
+     判定：FAIL
+
+【4】用例 D：该节点已有 queued（非 running）任务时也不得重复入队（REQ-002）
+     实现：concurrency=1，先用**另一节点** Z 的 running job 占满额度；再对节点 B 用 renderToStaticMarkup 挂载真实
+         useImageGeneratorExecution 并连点 3 次；断言 B 的 queued 数（时间无关量）。
+     期望：① 首点后节点 B 的 queued 数 == 1（不得被其他节点的占用连带拒绝）；② 第 2/3 次点击后不再增长
+     实际：额度占位：节点 gen-slot-z running=1 / concurrency=1；节点 gen-queued-b queued 数：首点后=0，连点后=0/0/0；B 的 running 数=0（应恒为 0）
+     说明：未满足：节点 B 的首次点击被拒绝（0 个 queued job）——守卫没有按 nodeId 区分，把"其他节点占满额度"误当成"B 已有任务"，会禁止不同节点并发生成（全局单飞）（REQ-002）
+     判定：FAIL
+
+【5】用例 E：并发点击（不 await 上一次调用）不得重复入队（REQ-002）
+     实现：连续触发 3 次 handleGenerate() 但**不 await**（收集 promise 后一起 await），并在输入解析路径注入 60ms
+         延迟以拉长"守卫通过后、尚未入队"的窗口（贴近真实 IPC 往返）；断言同节点 job 数。
+     期望：3 次重叠点击后同节点 job 数 == 1（时间无关量）
+     实际：3 次重叠点击（不 await）后同节点(gen-concurrent) job 数=1
+     判定：PASS
+
+【6】用例 F：重试（QueuePanel 入口）不得让同节点并发任务增长（REQ-002）
+     实现：直接调用 useQueueStore.getState().retry(id)（QueuePanel.tsx:221 的真实入口）连续重试 3 次；
+         断言同节点 job 数与活动任务数不增长（retry 不经过 handleGenerate，入口级守卫拦不住）。
+     期望：连续重试只应产生 1 个新任务，不得让同节点的并发任务累积增长
+     实际：重试前：同节点 job 数=1（活动 0）；连续 retry 3 次后：同节点 job 数=2（活动 1），本次新增=1
+     判定：PASS
+
+------------------------------------------------------------------------------
+汇总：PASS 4 / FAIL 2 / ERROR 0（共 6 个用例）
+=> 存在未满足的期望：这表示业务缺陷尚未修复（红状态），退出码 1
+EXIT CODE: 1
+  [OK]  【全局单飞】守卫（禁止不同节点并发） → 必须 FAIL
+          exit=1，PASS 4 / FAIL 2 / ERROR 0
+==============================================================================
+生成队列回归：REQ-001（重启恢复） / REQ-002（重复入队 + 批量分支 + 并发点击 + 重试）
+MODE: default（默认：断言修复后应有的行为）
+SELF-CHECK: entry-guard-active（变异自检：被测行为被人为改造，仅用于验证断言强度，不代表真实结论）
+==============================================================================
+
+【1】用例 A：重启后遗留 queued 任务必须被处置且节点不再显示排队中（REQ-001）
+     实现：把包含 1 个 status=queued 任务的持久化 JSON 注入 storage stub，在 flowStore 中建立同 nodeId 的节点
+         （其 data.queued=true，即重启前 useImageGeneratorExecution 写下的排队标记），再首次 import queueStore，
+         走真实冷启动水合路径（persist.getItem → 反序列化 → onRehydrateStorage），随后最多等 1500ms。
+     期望：① 该 job 不再停留在 queued；② 对应节点 data.queued 被清除（falsy），不再永久显示"排队中"
+     实际：水合完成=true；水合后 job.status=error、节点 data.queued=false；等待后 job.status=error、节点 data.queued=false
+     判定：PASS
+
+【2】用例 B：同一节点连续点击生成不得重复入队（REQ-002）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-1")，取到公开返回的 handleGenerate，
+         对同一节点连续 await 调用 3 次；统计该节点的 job 总数（时间无关量）与全程峰值活动数。
+     期望：3 次连点后同节点 job 数恒为 1，且全程活动任务数（queued + running）峰值不超过 1
+     实际：同节点(gen-1) job 数=1；队列内 job 总数=1；瞬时活动数（每次调用后）=1/1/1；全程活动数峰值=1
+     判定：PASS
+
+【3】用例 C：批量（n=4）必须完整拆分且连点不增长（REQ-002 批量分支）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-batch")，节点数据 n=4（gemini 协议 → batchCount=4，
+         走 useImageGeneratorExecution.ts:61-74 的批量分支）；连点 3 次后等该批全部结束，再点第 4 次。
+     期望：① 首点后同节点 job 数 == 4（整批完整拆分）；② 第 2/3 次点击后不再增长；③ 该批结束后再点一次仍能产生新的完整一批
+     实际：batchCount=4；首点后同节点 job 数=4；连点后=4/4/4；该批结束=true；结束后再点一次新增=4（累计 8）
+     判定：PASS
+
+【4】用例 D：该节点已有 queued（非 running）任务时也不得重复入队（REQ-002）
+     实现：concurrency=1，先用**另一节点** Z 的 running job 占满额度；再对节点 B 用 renderToStaticMarkup 挂载真实
+         useImageGeneratorExecution 并连点 3 次；断言 B 的 queued 数（时间无关量）。
+     期望：① 首点后节点 B 的 queued 数 == 1（不得被其他节点的占用连带拒绝）；② 第 2/3 次点击后不再增长
+     实际：额度占位：节点 gen-slot-z running=1 / concurrency=1；节点 gen-queued-b queued 数：首点后=1，连点后=1/1/1；B 的 running 数=0（应恒为 0）
+     判定：PASS
+
+【5】用例 E：并发点击（不 await 上一次调用）不得重复入队（REQ-002）
+     实现：连续触发 3 次 handleGenerate() 但**不 await**（收集 promise 后一起 await），并在输入解析路径注入 60ms
+         延迟以拉长"守卫通过后、尚未入队"的窗口（贴近真实 IPC 往返）；断言同节点 job 数。
+     期望：3 次重叠点击后同节点 job 数 == 1（时间无关量）
+     实际：3 次重叠点击（不 await）后同节点(gen-concurrent) job 数=1
+     判定：PASS
+
+【6】用例 F：重试（QueuePanel 入口）不得让同节点并发任务增长（REQ-002）
+     实现：直接调用 useQueueStore.getState().retry(id)（QueuePanel.tsx:221 的真实入口）连续重试 3 次；
+         断言同节点 job 数与活动任务数不增长（retry 不经过 handleGenerate，入口级守卫拦不住）。
+     期望：连续重试只应产生 1 个新任务，不得让同节点的并发任务累积增长
+     实际：重试前：同节点 job 数=1（活动 0）；连续 retry 3 次后：同节点 job 数=2（活动 1），本次新增=1
+     判定：PASS
+
+------------------------------------------------------------------------------
+汇总：PASS 6 / FAIL 0 / ERROR 0（共 6 个用例）
+=> 全部用例通过，退出码 0
+EXIT CODE: 0
+  [NG]  【入口级 queued||running】守卫位置太靠上（用例 E/F 必须判出） → 必须 FAIL
+          exit=0，PASS 6 / FAIL 0 / ERROR 0
+==============================================================================
+生成队列回归：REQ-001（重启恢复） / REQ-002（重复入队 + 批量分支 + 并发点击 + 重试）
+MODE: default（默认：断言修复后应有的行为）
+SELF-CHECK: partial-fix-job-only（变异自检：被测行为被人为改造，仅用于验证断言强度，不代表真实结论）
+==============================================================================
+
+【1】用例 A：重启后遗留 queued 任务必须被处置且节点不再显示排队中（REQ-001）
+     实现：把包含 1 个 status=queued 任务的持久化 JSON 注入 storage stub，在 flowStore 中建立同 nodeId 的节点
+         （其 data.queued=true，即重启前 useImageGeneratorExecution 写下的排队标记），再首次 import queueStore，
+         走真实冷启动水合路径（persist.getItem → 反序列化 → onRehydrateStorage），随后最多等 1500ms。
+     期望：① 该 job 不再停留在 queued；② 对应节点 data.queued 被清除（falsy），不再永久显示"排队中"
+     实际：水合完成=true；水合后 job.status=error、节点 data.queued=false；等待后 job.status=error、节点 data.queued=false
+     判定：PASS
+
+【2】用例 B：同一节点连续点击生成不得重复入队（REQ-002）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-1")，取到公开返回的 handleGenerate，
+         对同一节点连续 await 调用 3 次；统计该节点的 job 总数（时间无关量）与全程峰值活动数。
+     期望：3 次连点后同节点 job 数恒为 1，且全程活动任务数（queued + running）峰值不超过 1
+     实际：同节点(gen-1) job 数=1；队列内 job 总数=1；瞬时活动数（每次调用后）=1/1/1；全程活动数峰值=1
+     判定：PASS
+
+【3】用例 C：批量（n=4）必须完整拆分且连点不增长（REQ-002 批量分支）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-batch")，节点数据 n=4（gemini 协议 → batchCount=4，
+         走 useImageGeneratorExecution.ts:61-74 的批量分支）；连点 3 次后等该批全部结束，再点第 4 次。
+     期望：① 首点后同节点 job 数 == 4（整批完整拆分）；② 第 2/3 次点击后不再增长；③ 该批结束后再点一次仍能产生新的完整一批
+     实际：batchCount=4；首点后同节点 job 数=4；连点后=4/4/4；该批结束=true；结束后再点一次新增=4（累计 8）
+     判定：PASS
+
+【4】用例 D：该节点已有 queued（非 running）任务时也不得重复入队（REQ-002）
+     实现：concurrency=1，先用**另一节点** Z 的 running job 占满额度；再对节点 B 用 renderToStaticMarkup 挂载真实
+         useImageGeneratorExecution 并连点 3 次；断言 B 的 queued 数（时间无关量）。
+     期望：① 首点后节点 B 的 queued 数 == 1（不得被其他节点的占用连带拒绝）；② 第 2/3 次点击后不再增长
+     实际：额度占位：节点 gen-slot-z running=1 / concurrency=1；节点 gen-queued-b queued 数：首点后=1，连点后=1/1/1；B 的 running 数=0（应恒为 0）
+     判定：PASS
+
+【5】用例 E：并发点击（不 await 上一次调用）不得重复入队（REQ-002）
+     实现：连续触发 3 次 handleGenerate() 但**不 await**（收集 promise 后一起 await），并在输入解析路径注入 60ms
+         延迟以拉长"守卫通过后、尚未入队"的窗口（贴近真实 IPC 往返）；断言同节点 job 数。
+     期望：3 次重叠点击后同节点 job 数 == 1（时间无关量）
+     实际：3 次重叠点击（不 await）后同节点(gen-concurrent) job 数=1
+     判定：PASS
+
+【6】用例 F：重试（QueuePanel 入口）不得让同节点并发任务增长（REQ-002）
+     实现：直接调用 useQueueStore.getState().retry(id)（QueuePanel.tsx:221 的真实入口）连续重试 3 次；
+         断言同节点 job 数与活动任务数不增长（retry 不经过 handleGenerate，入口级守卫拦不住）。
+     期望：连续重试只应产生 1 个新任务，不得让同节点的并发任务累积增长
+     实际：重试前：同节点 job 数=1（活动 0）；连续 retry 3 次后：同节点 job 数=2（活动 1），本次新增=1
+     判定：PASS
+
+------------------------------------------------------------------------------
+汇总：PASS 6 / FAIL 0 / ERROR 0（共 6 个用例）
+=> 全部用例通过，退出码 0
+EXIT CODE: 0
+  [NG]  用例 A：job 处置了但节点 queued 标记未清 → 必须 FAIL
+          exit=0，PASS 6 / FAIL 0 / ERROR 0
+==============================================================================
+生成队列回归：REQ-001（重启恢复） / REQ-002（重复入队 + 批量分支 + 并发点击 + 重试）
+MODE: default（默认：断言修复后应有的行为）
+SELF-CHECK: exec-instant-fail（变异自检：被测行为被人为改造，仅用于验证断言强度，不代表真实结论）
+==============================================================================
+
+【1】用例 A：重启后遗留 queued 任务必须被处置且节点不再显示排队中（REQ-001）
+     实现：把包含 1 个 status=queued 任务的持久化 JSON 注入 storage stub，在 flowStore 中建立同 nodeId 的节点
+         （其 data.queued=true，即重启前 useImageGeneratorExecution 写下的排队标记），再首次 import queueStore，
+         走真实冷启动水合路径（persist.getItem → 反序列化 → onRehydrateStorage），随后最多等 1500ms。
+     期望：① 该 job 不再停留在 queued；② 对应节点 data.queued 被清除（falsy），不再永久显示"排队中"
+     实际：水合完成=true；水合后 job.status=error、节点 data.queued=false；等待后 job.status=error、节点 data.queued=false
+     判定：PASS
+
+【2】用例 B：同一节点连续点击生成不得重复入队（REQ-002）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-1")，取到公开返回的 handleGenerate，
+         对同一节点连续 await 调用 3 次；统计该节点的 job 总数（时间无关量）与全程峰值活动数。
+     期望：3 次连点后同节点 job 数恒为 1，且全程活动任务数（queued + running）峰值不超过 1
+     实际：同节点(gen-1) job 数=3；队列内 job 总数=3；瞬时活动数（每次调用后）=0/1/1；全程活动数峰值=1
+     说明：同一节点被重复入队 3 次（连点各自创建了独立任务，会并发写同一 node.data）（REQ-002）；注意：瞬时采样未捕捉到峰值，仅同节点 job 数暴露了缺陷
+     判定：FAIL
+
+【3】用例 C：批量（n=4）必须完整拆分且连点不增长（REQ-002 批量分支）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-batch")，节点数据 n=4（gemini 协议 → batchCount=4，
+         走 useImageGeneratorExecution.ts:61-74 的批量分支）；连点 3 次后等该批全部结束，再点第 4 次。
+     期望：① 首点后同节点 job 数 == 4（整批完整拆分）；② 第 2/3 次点击后不再增长；③ 该批结束后再点一次仍能产生新的完整一批
+     实际：batchCount=4；首点后同节点 job 数=4；连点后=4/4/4；该批结束=true；结束后再点一次新增=4（累计 8）
+     判定：PASS
+
+【4】用例 D：该节点已有 queued（非 running）任务时也不得重复入队（REQ-002）
+     实现：concurrency=1，先用**另一节点** Z 的 running job 占满额度；再对节点 B 用 renderToStaticMarkup 挂载真实
+         useImageGeneratorExecution 并连点 3 次；断言 B 的 queued 数（时间无关量）。
+     期望：① 首点后节点 B 的 queued 数 == 1（不得被其他节点的占用连带拒绝）；② 第 2/3 次点击后不再增长
+     实际：额度占位：节点 gen-slot-z running=1 / concurrency=1；节点 gen-queued-b queued 数：首点后=1，连点后=1/1/1；B 的 running 数=0（应恒为 0）
+     判定：PASS
+
+【5】用例 E：并发点击（不 await 上一次调用）不得重复入队（REQ-002）
+     实现：连续触发 3 次 handleGenerate() 但**不 await**（收集 promise 后一起 await），并在输入解析路径注入 60ms
+         延迟以拉长"守卫通过后、尚未入队"的窗口（贴近真实 IPC 往返）；断言同节点 job 数。
+     期望：3 次重叠点击后同节点 job 数 == 1（时间无关量）
+     实际：3 次重叠点击（不 await）后同节点(gen-concurrent) job 数=1
+     判定：PASS
+
+【6】用例 F：重试（QueuePanel 入口）不得让同节点并发任务增长（REQ-002）
+     实现：直接调用 useQueueStore.getState().retry(id)（QueuePanel.tsx:221 的真实入口）连续重试 3 次；
+         断言同节点 job 数与活动任务数不增长（retry 不经过 handleGenerate，入口级守卫拦不住）。
+     期望：连续重试只应产生 1 个新任务，不得让同节点的并发任务累积增长
+     实际：重试前：同节点 job 数=1（活动 0）；连续 retry 3 次后：同节点 job 数=2（活动 1），本次新增=1
+     判定：PASS
+
+------------------------------------------------------------------------------
+汇总：PASS 5 / FAIL 1 / ERROR 0（共 6 个用例）
+=> 存在未满足的期望：这表示业务缺陷尚未修复（红状态），退出码 1
+EXIT CODE: 1
+  [OK]  用例 B：执行快速失败，瞬时采样抓不到重复 → 必须 FAIL
+          exit=1，PASS 5 / FAIL 1 / ERROR 0
+
+== 4b) 入口级守卫（P1）的精确画像 ==
+==============================================================================
+生成队列回归：REQ-001（重启恢复） / REQ-002（重复入队 + 批量分支 + 并发点击 + 重试）
+MODE: default（默认：断言修复后应有的行为）
+SELF-CHECK: entry-guard-active（变异自检：被测行为被人为改造，仅用于验证断言强度，不代表真实结论）
+==============================================================================
+
+【1】用例 A：重启后遗留 queued 任务必须被处置且节点不再显示排队中（REQ-001）
+     实现：把包含 1 个 status=queued 任务的持久化 JSON 注入 storage stub，在 flowStore 中建立同 nodeId 的节点
+         （其 data.queued=true，即重启前 useImageGeneratorExecution 写下的排队标记），再首次 import queueStore，
+         走真实冷启动水合路径（persist.getItem → 反序列化 → onRehydrateStorage），随后最多等 1500ms。
+     期望：① 该 job 不再停留在 queued；② 对应节点 data.queued 被清除（falsy），不再永久显示"排队中"
+     实际：水合完成=true；水合后 job.status=error、节点 data.queued=false；等待后 job.status=error、节点 data.queued=false
+     判定：PASS
+
+【2】用例 B：同一节点连续点击生成不得重复入队（REQ-002）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-1")，取到公开返回的 handleGenerate，
+         对同一节点连续 await 调用 3 次；统计该节点的 job 总数（时间无关量）与全程峰值活动数。
+     期望：3 次连点后同节点 job 数恒为 1，且全程活动任务数（queued + running）峰值不超过 1
+     实际：同节点(gen-1) job 数=1；队列内 job 总数=1；瞬时活动数（每次调用后）=1/1/1；全程活动数峰值=1
+     判定：PASS
+
+【3】用例 C：批量（n=4）必须完整拆分且连点不增长（REQ-002 批量分支）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-batch")，节点数据 n=4（gemini 协议 → batchCount=4，
+         走 useImageGeneratorExecution.ts:61-74 的批量分支）；连点 3 次后等该批全部结束，再点第 4 次。
+     期望：① 首点后同节点 job 数 == 4（整批完整拆分）；② 第 2/3 次点击后不再增长；③ 该批结束后再点一次仍能产生新的完整一批
+     实际：batchCount=4；首点后同节点 job 数=4；连点后=4/4/4；该批结束=true；结束后再点一次新增=4（累计 8）
+     判定：PASS
+
+【4】用例 D：该节点已有 queued（非 running）任务时也不得重复入队（REQ-002）
+     实现：concurrency=1，先用**另一节点** Z 的 running job 占满额度；再对节点 B 用 renderToStaticMarkup 挂载真实
+         useImageGeneratorExecution 并连点 3 次；断言 B 的 queued 数（时间无关量）。
+     期望：① 首点后节点 B 的 queued 数 == 1（不得被其他节点的占用连带拒绝）；② 第 2/3 次点击后不再增长
+     实际：额度占位：节点 gen-slot-z running=1 / concurrency=1；节点 gen-queued-b queued 数：首点后=1，连点后=1/1/1；B 的 running 数=0（应恒为 0）
+     判定：PASS
+
+【5】用例 E：并发点击（不 await 上一次调用）不得重复入队（REQ-002）
+     实现：连续触发 3 次 handleGenerate() 但**不 await**（收集 promise 后一起 await），并在输入解析路径注入 60ms
+         延迟以拉长"守卫通过后、尚未入队"的窗口（贴近真实 IPC 往返）；断言同节点 job 数。
+     期望：3 次重叠点击后同节点 job 数 == 1（时间无关量）
+     实际：3 次重叠点击（不 await）后同节点(gen-concurrent) job 数=1
+     判定：PASS
+
+【6】用例 F：重试（QueuePanel 入口）不得让同节点并发任务增长（REQ-002）
+     实现：直接调用 useQueueStore.getState().retry(id)（QueuePanel.tsx:221 的真实入口）连续重试 3 次；
+         断言同节点 job 数与活动任务数不增长（retry 不经过 handleGenerate，入口级守卫拦不住）。
+     期望：连续重试只应产生 1 个新任务，不得让同节点的并发任务累积增长
+     实际：重试前：同节点 job 数=1（活动 0）；连续 retry 3 次后：同节点 job 数=2（活动 1），本次新增=1
+     判定：PASS
+
+------------------------------------------------------------------------------
+汇总：PASS 6 / FAIL 0 / ERROR 0（共 6 个用例）
+=> 全部用例通过，退出码 0
+EXIT CODE: 0
+  [NG]  入口级 queued||running 守卫：只有用例 E/F 判 FAIL，B/C/D 仍 PASS（证明 E/F 不可省）
+          逐用例判定=PASS/PASS/PASS/PASS/PASS/PASS（A/B/C/D/E/F）
+
+== 4c) 正确实现位置的对照（store 层判定解决 E/F；批量仍需整批原子）==
+==============================================================================
+生成队列回归：REQ-001（重启恢复） / REQ-002（重复入队 + 批量分支 + 并发点击 + 重试）
+MODE: default（默认：断言修复后应有的行为）
+SELF-CHECK: guard-active（变异自检：被测行为被人为改造，仅用于验证断言强度，不代表真实结论）
+==============================================================================
+
+SELF-CHECK 注入：enqueue 守卫（rule=active）
+
+SELF-CHECK 注入统计：已拒绝 22 次入队（rule=active，节点 gen-retry）
+
+【1】用例 A：重启后遗留 queued 任务必须被处置且节点不再显示排队中（REQ-001）
+     实现：把包含 1 个 status=queued 任务的持久化 JSON 注入 storage stub，在 flowStore 中建立同 nodeId 的节点
+         （其 data.queued=true，即重启前 useImageGeneratorExecution 写下的排队标记），再首次 import queueStore，
+         走真实冷启动水合路径（persist.getItem → 反序列化 → onRehydrateStorage），随后最多等 1500ms。
+     期望：① 该 job 不再停留在 queued；② 对应节点 data.queued 被清除（falsy），不再永久显示"排队中"
+     实际：水合完成=true；水合后 job.status=error、节点 data.queued=false；等待后 job.status=error、节点 data.queued=false
+     判定：PASS
+
+【2】用例 B：同一节点连续点击生成不得重复入队（REQ-002）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-1")，取到公开返回的 handleGenerate，
+         对同一节点连续 await 调用 3 次；统计该节点的 job 总数（时间无关量）与全程峰值活动数。
+     期望：3 次连点后同节点 job 数恒为 1，且全程活动任务数（queued + running）峰值不超过 1
+     实际：同节点(gen-1) job 数=1；队列内 job 总数=1；瞬时活动数（每次调用后）=1/1/1；全程活动数峰值=1
+     判定：PASS
+
+【3】用例 C：批量（n=4）必须完整拆分且连点不增长（REQ-002 批量分支）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-batch")，节点数据 n=4（gemini 协议 → batchCount=4，
+         走 useImageGeneratorExecution.ts:61-74 的批量分支）；连点 3 次后等该批全部结束，再点第 4 次。
+     期望：① 首点后同节点 job 数 == 4（整批完整拆分）；② 第 2/3 次点击后不再增长；③ 该批结束后再点一次仍能产生新的完整一批
+     实际：batchCount=4；首点后同节点 job 数=1；连点后=1/1/1；该批结束=true；结束后再点一次新增=1（累计 2）
+     说明：未满足：首点只产生 1 个 job，应为完整的 4 个（批量拆分被截断：守卫误置于批量循环内/store 层任意去重）；该批结束后再点一次只新增 1 个 job，应为 4 个（去重锁死了节点重生成）（REQ-002 批量分支）
+     判定：FAIL
+
+【4】用例 D：该节点已有 queued（非 running）任务时也不得重复入队（REQ-002）
+     实现：concurrency=1，先用**另一节点** Z 的 running job 占满额度；再对节点 B 用 renderToStaticMarkup 挂载真实
+         useImageGeneratorExecution 并连点 3 次；断言 B 的 queued 数（时间无关量）。
+     期望：① 首点后节点 B 的 queued 数 == 1（不得被其他节点的占用连带拒绝）；② 第 2/3 次点击后不再增长
+     实际：额度占位：节点 gen-slot-z running=1 / concurrency=1；节点 gen-queued-b queued 数：首点后=1，连点后=1/1/1；B 的 running 数=0（应恒为 0）
+     判定：PASS
+
+【5】用例 E：并发点击（不 await 上一次调用）不得重复入队（REQ-002）
+     实现：连续触发 3 次 handleGenerate() 但**不 await**（收集 promise 后一起 await），并在输入解析路径注入 60ms
+         延迟以拉长"守卫通过后、尚未入队"的窗口（贴近真实 IPC 往返）；断言同节点 job 数。
+     期望：3 次重叠点击后同节点 job 数 == 1（时间无关量）
+     实际：3 次重叠点击（不 await）后同节点(gen-concurrent) job 数=1
+     判定：PASS
+
+【6】用例 F：重试（QueuePanel 入口）不得让同节点并发任务增长（REQ-002）
+     实现：直接调用 useQueueStore.getState().retry(id)（QueuePanel.tsx:221 的真实入口）连续重试 3 次；
+         断言同节点 job 数与活动任务数不增长（retry 不经过 handleGenerate，入口级守卫拦不住）。
+     期望：连续重试只应产生 1 个新任务，不得让同节点的并发任务累积增长
+     实际：重试前：同节点 job 数=1（活动 0）；连续 retry 3 次后：同节点 job 数=2（活动 1），本次新增=1
+     判定：PASS
+
+------------------------------------------------------------------------------
+汇总：PASS 5 / FAIL 1 / ERROR 0（共 6 个用例）
+=> 存在未满足的期望：这表示业务缺陷尚未修复（红状态），退出码 1
+EXIT CODE: 1
+  [OK]  store 层 queued||running 守卫（逐个判定）：用例 B/D/E/F 全 PASS（位置正确）
+          逐用例判定=PASS/PASS/FAIL/PASS/PASS/PASS（A/B/C/D/E/F）
+  [OK]  同上的逐个判定仍会截断批量（用例 C 必须 FAIL）——证明批量需要整批原子判定
+          用例 C 判定=FAIL
+
+== 5) 绿色对照（断言必须可被满足，不是永假门禁）==
+==============================================================================
+生成队列回归：REQ-001（重启恢复） / REQ-002（重复入队 + 批量分支 + 并发点击 + 重试）
+MODE: default（默认：断言修复后应有的行为）
+SELF-CHECK: full-fix（变异自检：被测行为被人为改造，仅用于验证断言强度，不代表真实结论）
+==============================================================================
+
+SELF-CHECK 注入：enqueue 守卫（rule=full-fix(store-layer, click-scoped)）
+
+SELF-CHECK 注入统计：已整批拒绝 16 次入队（节点 gen-retry 已有活动任务）
+
+【1】用例 A：重启后遗留 queued 任务必须被处置且节点不再显示排队中（REQ-001）
+     实现：把包含 1 个 status=queued 任务的持久化 JSON 注入 storage stub，在 flowStore 中建立同 nodeId 的节点
+         （其 data.queued=true，即重启前 useImageGeneratorExecution 写下的排队标记），再首次 import queueStore，
+         走真实冷启动水合路径（persist.getItem → 反序列化 → onRehydrateStorage），随后最多等 1500ms。
+     期望：① 该 job 不再停留在 queued；② 对应节点 data.queued 被清除（falsy），不再永久显示"排队中"
+     实际：水合完成=true；水合后 job.status=running、节点 data.queued=false；等待后 job.status=error、节点 data.queued=false
+     判定：PASS
+
+【2】用例 B：同一节点连续点击生成不得重复入队（REQ-002）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-1")，取到公开返回的 handleGenerate，
+         对同一节点连续 await 调用 3 次；统计该节点的 job 总数（时间无关量）与全程峰值活动数。
+     期望：3 次连点后同节点 job 数恒为 1，且全程活动任务数（queued + running）峰值不超过 1
+     实际：同节点(gen-1) job 数=1；队列内 job 总数=1；瞬时活动数（每次调用后）=1/1/1；全程活动数峰值=1
+     判定：PASS
+
+【3】用例 C：批量（n=4）必须完整拆分且连点不增长（REQ-002 批量分支）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-batch")，节点数据 n=4（gemini 协议 → batchCount=4，
+         走 useImageGeneratorExecution.ts:61-74 的批量分支）；连点 3 次后等该批全部结束，再点第 4 次。
+     期望：① 首点后同节点 job 数 == 4（整批完整拆分）；② 第 2/3 次点击后不再增长；③ 该批结束后再点一次仍能产生新的完整一批
+     实际：batchCount=4；首点后同节点 job 数=4；连点后=4/4/4；该批结束=true；结束后再点一次新增=4（累计 8）
+     判定：PASS
+
+【4】用例 D：该节点已有 queued（非 running）任务时也不得重复入队（REQ-002）
+     实现：concurrency=1，先用**另一节点** Z 的 running job 占满额度；再对节点 B 用 renderToStaticMarkup 挂载真实
+         useImageGeneratorExecution 并连点 3 次；断言 B 的 queued 数（时间无关量）。
+     期望：① 首点后节点 B 的 queued 数 == 1（不得被其他节点的占用连带拒绝）；② 第 2/3 次点击后不再增长
+     实际：额度占位：节点 gen-slot-z running=1 / concurrency=1；节点 gen-queued-b queued 数：首点后=1，连点后=1/1/1；B 的 running 数=0（应恒为 0）
+     判定：PASS
+
+【5】用例 E：并发点击（不 await 上一次调用）不得重复入队（REQ-002）
+     实现：连续触发 3 次 handleGenerate() 但**不 await**（收集 promise 后一起 await），并在输入解析路径注入 60ms
+         延迟以拉长"守卫通过后、尚未入队"的窗口（贴近真实 IPC 往返）；断言同节点 job 数。
+     期望：3 次重叠点击后同节点 job 数 == 1（时间无关量）
+     实际：3 次重叠点击（不 await）后同节点(gen-concurrent) job 数=1
+     判定：PASS
+
+【6】用例 F：重试（QueuePanel 入口）不得让同节点并发任务增长（REQ-002）
+     实现：直接调用 useQueueStore.getState().retry(id)（QueuePanel.tsx:221 的真实入口）连续重试 3 次；
+         断言同节点 job 数与活动任务数不增长（retry 不经过 handleGenerate，入口级守卫拦不住）。
+     期望：连续重试只应产生 1 个新任务，不得让同节点的并发任务累积增长
+     实际：重试前：同节点 job 数=1（活动 0）；连续 retry 3 次后：同节点 job 数=2（活动 1），本次新增=1
+     判定：PASS
+
+------------------------------------------------------------------------------
+汇总：PASS 6 / FAIL 0 / ERROR 0（共 6 个用例）
+=> 全部用例通过，退出码 0
+EXIT CODE: 0
+  [OK]  正确修复（full-fix）→ 六个用例全 PASS、退出码 0
+          exit=0，PASS 6 / FAIL 0 / ERROR 0
+
+== 6) 慢速执行下的正确修复（用例 C 必须 ERROR 而非 FAIL）==
+==============================================================================
+生成队列回归：REQ-001（重启恢复） / REQ-002（重复入队 + 批量分支 + 并发点击 + 重试）
+MODE: default（默认：断言修复后应有的行为）
+SELF-CHECK: full-fix,exec-slow（变异自检：被测行为被人为改造，仅用于验证断言强度，不代表真实结论）
+==============================================================================
+
+SELF-CHECK 注入：enqueue 守卫（rule=full-fix(store-layer, click-scoped)）
+
+SELF-CHECK 注入统计：已整批拒绝 20 次入队（节点 gen-retry 已有活动任务）
+
+【1】用例 A：重启后遗留 queued 任务必须被处置且节点不再显示排队中（REQ-001）
+     实现：把包含 1 个 status=queued 任务的持久化 JSON 注入 storage stub，在 flowStore 中建立同 nodeId 的节点
+         （其 data.queued=true，即重启前 useImageGeneratorExecution 写下的排队标记），再首次 import queueStore，
+         走真实冷启动水合路径（persist.getItem → 反序列化 → onRehydrateStorage），随后最多等 1500ms。
+     期望：① 该 job 不再停留在 queued；② 对应节点 data.queued 被清除（falsy），不再永久显示"排队中"
+     实际：水合完成=true；水合后 job.status=running、节点 data.queued=false；等待后 job.status=error、节点 data.queued=false
+     判定：PASS
+
+【2】用例 B：同一节点连续点击生成不得重复入队（REQ-002）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-1")，取到公开返回的 handleGenerate，
+         对同一节点连续 await 调用 3 次；统计该节点的 job 总数（时间无关量）与全程峰值活动数。
+     期望：3 次连点后同节点 job 数恒为 1，且全程活动任务数（queued + running）峰值不超过 1
+     实际：同节点(gen-1) job 数=1；队列内 job 总数=1；瞬时活动数（每次调用后）=1/1/1；全程活动数峰值=1
+     判定：PASS
+
+【3】用例 C：批量（n=4）必须完整拆分且连点不增长（REQ-002 批量分支）
+     实现：renderToStaticMarkup 挂载真实 useImageGeneratorExecution("gen-batch")，节点数据 n=4（gemini 协议 → batchCount=4，
+         走 useImageGeneratorExecution.ts:61-74 的批量分支）；连点 3 次后等该批全部结束，再点第 4 次。
+     期望：① 首点后同节点 job 数 == 4（整批完整拆分）；② 第 2/3 次点击后不再增长；③ 该批结束后再点一次仍能产生新的完整一批
+     实际：batchCount=4；首点后同节点 job 数=4；连点后=4/4/4；该批在 5000ms 内未结束（仍有 4 个活动 job）
+     说明：基础设施无法评估：第 ③ 条需要该批跑完，但 5000ms 内未结束。这不是业务缺陷的判定，需要调大 SETTLE_TIMEOUT_MS 或改用更快的执行环境后重跑
+     判定：ERROR
+
+【4】用例 D：该节点已有 queued（非 running）任务时也不得重复入队（REQ-002）
+     实现：concurrency=1，先用**另一节点** Z 的 running job 占满额度；再对节点 B 用 renderToStaticMarkup 挂载真实
+         useImageGeneratorExecution 并连点 3 次；断言 B 的 queued 数（时间无关量）。
+     期望：① 首点后节点 B 的 queued 数 == 1（不得被其他节点的占用连带拒绝）；② 第 2/3 次点击后不再增长
+     实际：额度占位：节点 gen-slot-z running=1 / concurrency=1；节点 gen-queued-b queued 数：首点后=1，连点后=1/1/1；B 的 running 数=0（应恒为 0）
+     判定：PASS
+
+【5】用例 E：并发点击（不 await 上一次调用）不得重复入队（REQ-002）
+     实现：连续触发 3 次 handleGenerate() 但**不 await**（收集 promise 后一起 await），并在输入解析路径注入 60ms
+         延迟以拉长"守卫通过后、尚未入队"的窗口（贴近真实 IPC 往返）；断言同节点 job 数。
+     期望：3 次重叠点击后同节点 job 数 == 1（时间无关量）
+     实际：3 次重叠点击（不 await）后同节点(gen-concurrent) job 数=1
+     判定：PASS
+
+【6】用例 F：重试（QueuePanel 入口）不得让同节点并发任务增长（REQ-002）
+     实现：直接调用 useQueueStore.getState().retry(id)（QueuePanel.tsx:221 的真实入口）连续重试 3 次；
+         断言同节点 job 数与活动任务数不增长（retry 不经过 handleGenerate，入口级守卫拦不住）。
+     期望：连续重试只应产生 1 个新任务，不得让同节点的并发任务累积增长
+     实际：重试前：同节点 job 数=1（活动 0）；连续 retry 3 次后：同节点 job 数=2（活动 1），本次新增=1
+     判定：PASS
+
+------------------------------------------------------------------------------
+汇总：PASS 5 / FAIL 0 / ERROR 1（共 6 个用例）
+=> 有 1 个用例无法评估（基础设施/时序问题，非业务缺陷判定）：
+   - 用例 C：批量（n=4）必须完整拆分且连点不增长（REQ-002 批量分支）
+退出码 1（门禁不通过：存在无法评估或未满足的用例）
+EXIT CODE: 1
+  [OK]  每个 job 6s（超过 5000ms 窗口）→ 用例 C 判 ERROR，且不被计为业务缺陷 FAIL
+          exit=1，PASS 5 / FAIL 0 / ERROR 1；用例 C 判定=ERROR
+
+== 7) 未知自检键名必须立刻失败（非 0 退出）==
+node : 
+所在位置 行:1 字符: 129
++ ... new($false); node scripts/queue-regression.selfcheck.mjs 2>&1 | Tee-O ...
++                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+[自检参数错误] --self-check 收到未知键名：guard-global-single-flight
+有效键名（13 个）：exec-instant-fail, exec-slow, partial-fix-job-only, full-fix, guard-active, guard-inside-batch-loop, guard-r
+unning-only, guard-queued-only, guard-global-single, store-dedupe-any, any-history-dedupe, entry-guard-active, entry-gu
+ard-running-only
+说明：未知键名会静默退化为默认模式，使自检项空过，因此这里直接失败（退出码 2）。
+
+  [OK]  未知键名 guard-global-single-flight → 必须非 0 退出且不产生报告（即未执行任何用例）
+          exit=2，报告=未生成（未执行用例）
+
+[自检参数错误] --self-check 收到未知键名：does-not-exist
+有效键名（13 个）：exec-instant-fail, exec-slow, partial-fix-job-only, full-fix, guard-active, guard-inside-batch-loop, guard-r
+unning-only, guard-queued-only, guard-global-single, store-dedupe-any, any-history-dedupe, entry-guard-active, entry-gu
+ard-running-only
+说明：未知键名会静默退化为默认模式，使自检项空过，因此这里直接失败（退出码 2）。
+
+  [OK]  未知键名 does-not-exist → 必须非 0 退出且不产生报告（即未执行任何用例）
+          exit=2，报告=未生成（未执行用例）
+
+[自检参数错误] --self-check 收到未知键名：entry-guard-runningonly
+有效键名（13 个）：exec-instant-fail, exec-slow, partial-fix-job-only, full-fix, guard-active, guard-inside-batch-loop, guard-r
+unning-only, guard-queued-only, guard-global-single, store-dedupe-any, any-history-dedupe, entry-guard-active, entry-gu
+ard-running-only
+说明：未知键名会静默退化为默认模式，使自检项空过，因此这里直接失败（退出码 2）。
+
+  [OK]  未知键名 entry-guard-runningonly → 必须非 0 退出且不产生报告（即未执行任何用例）
+          exit=2，报告=未生成（未执行用例）
+
+[自检参数错误] --self-check 收到未知键名：typo-key
+有效键名（13 个）：exec-instant-fail, exec-slow, partial-fix-job-only, full-fix, guard-active, guard-inside-batch-loop, guard-r
+unning-only, guard-queued-only, guard-global-single, store-dedupe-any, any-history-dedupe, entry-guard-active, entry-gu
+ard-running-only
+说明：未知键名会静默退化为默认模式，使自检项空过，因此这里直接失败（退出码 2）。
+
+  [OK]  合法键名 + 未知键名混用 → 也必须失败（不得只跑合法的那部分）
+          exit=2，报告=未生成
+
+------------------------------------------------------------------------------
+SELF-CHECK 汇总：21/27 项符合预期
+不符合预期的项：
+  - 默认模式在未修复的源码上必须 FAIL（退出码 1，6 个用例全部判 FAIL）
+  - --expect-red 在未修复的源码上必须退出码 0（红状态符合预期）
+  - 【仅 running】守卫（入口级：用例 D/E/F 都要判出） → 必须 FAIL
+  - 【入口级 queued||running】守卫位置太靠上（用例 E/F 必须判出） → 必须 FAIL
+  - 用例 A：job 处置了但节点 queued 标记未清 → 必须 FAIL
+  - 入口级 queued||running 守卫：只有用例 E/F 判 FAIL，B/C/D 仍 PASS（证明 E/F 不可省）
+EXIT CODE: 1

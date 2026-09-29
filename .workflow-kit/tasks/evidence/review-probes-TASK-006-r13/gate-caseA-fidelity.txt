@@ -1,0 +1,18 @@
+﻿前置（与门禁用例 A 相同）：flowStore 已含该节点且 data.queued=true；队列种子 canvasId=null
+
+=== 门禁断言的那一刻（只跑到这里，门禁判 PASS）===
+  水合完成=true
+  job.status=error
+  flowStore   data.queued=false   ← 门禁断言的就是它（第 414-415 行）
+  canvasStore data.queued=false   ← 门禁从未检查这一份
+
+=== 追加 App.tsx:121-163（activeCanvasId 就绪 → setNodes(画布节点)）===
+  setNodes 之后 flowStore data.queued=false  ← 覆盖了恢复清掉的值
+
+================ 用户最终看到的状态 ================
+  flowStore   data.queued = false
+  canvasStore data.queued = false（落盘，重启后再次载入）
+  ImageGeneratorNode.canRun = true
+
+RESULT: 节点可用。
+

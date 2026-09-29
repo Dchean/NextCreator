@@ -1,0 +1,93 @@
+{
+  "task_id": "TASK-006",
+  "candidate_digest": "26b2276c97ef992c1c35881f1025010f5ebe9153466a30a13348a122760f499b",
+  "verification_run": "RUN-4f082949457846f1bdfc53b9ef9972b0",
+  "verdict": "PASS",
+  "summary": "第 13 轮独立确认性审查（全新上下文，未参与实现）。审查范围：review-packet-TASK-006-r13.json 绑定的 10 文件聚焦候选（candidate_digest=26b2276c…）在**当前工作树**（叠加 TASK-002 已 verified 的 5 条未提交路径）下的 TASK-006 结论是否仍成立。本轮七项全部亲自重做，无一项采信包内或历史结论。\n\n【问题 1：REQ-001/REQ-002 在组合候选下是否仍成立 → 成立】(a) 逐文件重算 sha256，10/10 与候选清单逐字节相符（queueStore.ts=3638d31d…、useImageGeneratorExecution.ts=6c417d98…、ImageGeneratorNode.tsx=93120b48…、scripts/queue-regression.mjs=a3a391ae…、selfcheck=6fcd022a…、tsconfig.json=dfee6e52…、package.json=f8759d7b…、tauriStorage.ts=09d36fb8…、imageGenerationExecution.ts=9546b520…、probe-queue-store.mjs=b9240093…），且与 RUN-4f082949457846f1bdfc53b9ef9972b0-candidate.json 内条目一一相符，故本轮审的确实是记录的候选。(b) REQ-002 守卫确实在 queueStore.enqueue 内**同步**判定（queueStore.ts:302-359：consumeRetryOrigin → isBatchContinuation → hasActiveJobForNode(queued||running，作用域 (canvasId,nodeId)) → 批次链记账），不看 paused、不做全局单飞、不对历史任务判重；hook 侧 admitted 守卫（useImageGeneratorExecution.ts:84-142）在 enqueue 返回空串时不写 queued:true 并给 toast 反馈。(c) REQ-001 恢复确实在 store 层 onRehydrateStorage 内（queueStore.ts:549-559 → recoverPersistedQueuedJobs:255-292），partialize 与恢复逻辑严格对应（partialize 只过滤 running ⇒ 落盘的未完成态只有 queued ⇒ isRecoverableJob 只看 queued），不存在仍然不可达的分支；恢复先无条件清节点标记、再 waitForCanvasReady（有界 600ms）后 pump、最后条件复核，并有 recoveryStarted 单次 + 终态不匹配 isRecoverableJob 两道防崩溃循环约束。(d) 行为证据由本轮亲自复跑取得：node --experimental-strip-types scripts/queue-regression.mjs → exit 0，用例 A-F 六条全 PASS（A: 水合后 job=error 且节点 queued=false；B: 同节点 job 数=1、峰值活动=1；C: 首点整批 4 个、连点 4/4/4、批后再点新增 4；D: 其它节点占满额度时 B 首点 queued=1 且连点 1/1/1，B 的 running=0；E: 3 次不 await 重叠点击后 job 数=1；F: 连续 retry 3 次仅新增 1）。\n\n【问题 2：TASK-002 是否削弱 TASK-006 → 不削弱】(a) git diff 6e999b7 对 TASK-006 六个范围文件（queueStore.ts、useImageGeneratorExecution.ts、ImageGeneratorNode.tsx、imageGenerationExecution.ts、tauriStorage.ts、queue-regression.mjs + selfcheck）与 tsconfig.json 全部**零改动**；全树相对 6e999b7 的改动恰为 TASK-002 的 5 条路径（M bun.lock / M package.json / D package-lock.json / D src/services/imageService.ts / D src/utils/imageCompression.ts），无一落在 TASK-006 的 allow/protected 范围。(b) scripts/ 与 tsconfig.json 相对 HEAD 零改动，门禁未被弱化；git 历史显示两个门禁脚本自 45a7bf8 之后再未被提交改动，queueStore.ts 相对 HEAD 亦零改动，TASK-006 的候选就是 HEAD 上已验证的形态。(c) TASK-002 从 package.json 移除的是 @types/uuid（uuid 13.0.0 自带 dist/index.d.ts，且 src 中 3 处 uuid 导入都只依赖包内类型），删除的 imageService.ts/imageCompression.ts 在本轮全 src 扫描中**零引用**，因此对 TASK-006 的类型面与行为面无影响；本轮 tsc --noEmit 退出码 0、stdout 0 字节（通过时的正确形态），6/6 行为用例在含 TASK-002 删除的工作树上全绿，构成组合候选下的直接反证。\n\n【问题 3：r12 记录的三条“差异”现状 → 三条均非被审对象缺陷，故本轮不判 FAIL】① 实机验收结果文件缺失：TASK-006-MANUAL-VERIFICATION-RESULT.md 已补建（3659 字节，2026-09-29 14:25），本轮核验其存在、非空且与截图证据链自洽（见 failure_paths 与 ui_review）。② 截图计数：TASK-006-manual-verify/ 下实为 19 份 PNG（编号 00-17，其中 16-scenario7-toast.png 与 16-scenario7-toast-visible.png 两份），RESULT.md 的“00–17 共 19 份 PNG”表述准确；“18 份”是简报口径误差。③ 快照口径：RUN-4f082949457846f1bdfc53b9ef9972b0-candidate.json 是 10 文件聚焦快照，113 文件全树快照 fa249870c21d03b430686feaaa149a150ee83e888c8c09c5c13e2699bb2db23a 属 TASK-002 的验证 RUN（本轮逐文件重算 113/113 相符、0 缺失，且不含已删除的 imageService.ts/imageCompression.ts/package-lock.json）；两者是不同任务的快照，简报把它们混为一次验证的口径误差，不构成缺陷。三条均只在简报/记录层，未在被审对象内发现可改动缺陷，故 verdict=PASS、findings=[]。\n\n【问题 4：两条已知缺口仍属可接受且有记录，本轮不要求现在修】(a) MAX_HEAL_PASSES=8（queueStore.ts:893）只在“某写入方**每收到一次通知就重写 nodes**”的病态形态下残留陈旧标记，而写入方自身有界（N≤7）时全部治愈；本轮复跑 r7-cap.mjs 确认：正常路径轮数=1、谓词调用=1、治疗自身身份变化=1；病态写入方 2ms 内 8 轮退出（对照 MAX_HEAL_PASSES=∞ 的突变体跑满探针硬闸 401 轮仍未返回），后续一次良性 nodes 身份变化即治愈（标记 true→false）。该上限承载的是“UI 线程不被同步循环钉死”这一更严重风险的终止性，代价是“可自愈的延迟”而非冻结；对“有界重复写入者”的残留属仓内不可达（本仓库不存在每收通知就重写 nodes 的写入方：hook 的置位只在 admitted 之后写一次，撤销/重做是一次性整数组写回）。修法（调大上限或不设上限）会把 2ms 的有界退出换成无界同步循环，风险严格更差，故不建议在本轮改。(b) queueStore.ts:963/:967 两处出口描述与打点口径不够精确：:948 的 `if (!healPending) break;` 位于重扫之前，因此“本轮无嵌套写入”的真实出口是该早退路径，而非 :954 的零候选分支；注释已在此后两段（:974-991，第 8/9 轮订正）如实写明正确出口依赖于“本轮有没有嵌套写入”，只是 :963 一句仍以“出口是 zero-candidate”概括 N=7 那一形状。该文件与 HEAD 逐字节相同（git diff HEAD 零输出）、不在本次 diff 内，属既有文本表述，且其修正不会改变任何行为；r12 已如实记录，本轮维持“有记录、可接受、不需现在修”。\n\n【问题 5：本轮没有验证什么（边界，如实列出）】① 未做真实应用实机复现：截图与 RESULT.md 是**审查**（核对内容与场景描述是否自洽、文件是否存在非空、时间戳是否连贯），不是由我重跑；我未重新启动 Tauri 应用、未重新执行 CDP 场景。② 未验证真实 API 端到端生成：门禁与探针都对 executeImageGeneration 用了忠实桩/替代实现，真实供应商调用、真实 IPC 往返与真实落盘（app-data.json）未由我复现。③ 未用真实浏览器运行时验证 UI 渲染层：tauriStorage.ts 依赖的 window、@xyflow/react、react-dom 客户端渲染路径在 Node 侧均为桩（历史已记录 vite build 在本机沙箱因 esbuild spawn EPERM 无法运行）。④ 未验证 macOS 目标平台。⑤ 未覆盖 RESULT.md 自述的未构造场景 5(d)（节点已不存在时的处置）与 dev-profile WebView2 启动崩溃这一新发现——后者被明示为本任务范围外、留待后续任务。⑥ 未验证 queueStore.ts 注释中大量“实测”数字的绝对正确性（探针副本本身有插桩），只验证了其中与行为有关的关键结论（轮数=1、上限=8、三个出口形状、合法标记被保留）。⑦ selfcheck 的“已知缺口”性质：scripts/queue-regression.selfcheck.mjs 在本轮复跑为 21/27，未通过的 6 项正是“针对未修复源码的红状态/变异体”类检查（默认模式与 --expect-red 的基线项、入口级守卫两形态、partial-fix-job-only、P1 精确画像）——在当前**已修复**的源码上这些变异体注入后不再制造缺陷（例如入口级守卫被 store 层同步守卫兜住），故它们是已修复状态的预期表现而非新缺陷；我未把 selfcheck 当作门禁，也未据此判定被审对象有问题。",
+  "findings": [],
+  "review_checks": [
+    {
+      "area": "requirements",
+      "status": "PASS",
+      "analysis": "逐项对照 REQ-001/REQ-002 与 TASK-006 验收标准，在组合候选下全部成立。REQ-001：(a) 根因处理——partialize（queueStore.ts:545-548）只过滤 running，恢复逻辑 isRecoverableJob（:193-195）只看 queued，两者严格对应，原先“partialize 过滤 running 而恢复只找 running”的不可达分支已消除（本文件已无恢复 running 的分支）；(b) 恢复落在 store 层 onRehydrateStorage（:549-559），门禁用例 A 只驱动水合链路即可观察到推进，未依赖 App.tsx 的 useEffect；(c) 节点锁死解除——恢复在派发前无条件 clearNodeQueuedMarker（覆盖 flowStore 当前节点 + 每个含该 nodeId 的画布副本两类载体），派发后条件复核，ImageGeneratorNode.tsx 的 canRun 依赖 data.queued 因而不再永久禁用；(d) 顺序竞态——waitForCanvasReady（:212-247）要求 canvasStore._hasHydrated 且每个 job 的节点按“是否活动画布”选择副本后可解析，超时 600ms 也必须放行，故不会因“节点不存在”把恢复静默打成 error 后卡住；(e) 防崩溃循环——recoveryStarted 只恢复一次、恢复不重试不重排、终态不再匹配 isRecoverableJob。REQ-002：守卫在 enqueue 内同步判定（:302-359），覆盖同一 tick 批量续传（批次链）、互不 await 的连点、以及绕过 handleGenerate 的 retry（enqueueOriginRetry 来源标记，:407-427）；判定只取该 (canvasId,nodeId) 的 queued||running（hasActiveJobForNode:153-157），历史终态不参与，故不锁死重生成；不看 paused（:305 注释 + :312-323 无 paused 分支），故暂停态连点仍被拦；非全局单飞（谓词按节点作用域，用例 D 与我的 T3 双向确认）；批量不被截断（:312-322 整批续传 + caseBatchChain 场景 1 完整 4 个）。并发钳制仍在 1..4（setConcurrency:435-439），取消语义未变（cancel:375-405 两分支 + pump 的 .finally 复核）。范围未被扩大：工作树相对 6e999b7 的产品代码改动只有 TASK-002 的 5 条路径，TASK-006 范围文件零改动，未发现漏做或顺带改变行为。",
+      "evidence_files": [
+        "src/stores/queueStore.ts",
+        "src/hooks/useImageGeneratorExecution.ts",
+        "src/components/nodes/ImageGeneratorNode.tsx",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-006-r13/probe-r13-independent-req002.txt",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-006-r13/req001-race-delays.txt",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-006-r13/req001-coldstart-real-coldstart.txt"
+      ]
+    },
+    {
+      "area": "regression",
+      "status": "PASS",
+      "analysis": "两门禁由本人在当前组合候选上亲自重跑，结果与 RUN-4f082949457846f1bdfc53b9ef9972b0 一致且断言有牙。(1) node ./node_modules/typescript/bin/tsc --noEmit → 退出码 0、stdout 0 字节（tsc 通过时恒静默，这是正确形态；本轮未引用任何 *-typecheck.stdout.txt，退出码与命令记入 rerun-tsc-noemit.txt，非空）。(2) node --experimental-strip-types scripts/queue-regression.mjs → 退出码 0，六条用例逐条判定 PASS（汇总 PASS 6 / FAIL 0 / ERROR 0，EXIT CODE: 0）；我的复跑输出保存为 rerun-queue-regression-stdout.txt（4627 字节，行尾为 CRLF），与 RUN 的 behavior-regression stdout 附件（4571 字节，LF）在换行归一化后**内容完全相同**，即门禁输出可复现、非人工拼装。(3) 断言强度：本人复跑 scripts/queue-regression.selfcheck.mjs，21/27 项符合预期，通过的 21 项覆盖了**判绿条件有牙**的核心面——环境变量独立性（NC_QUEUE_MUTANT=full-fix/exec-instant-fail/1/true/组合 共 5 项结论与退出码均不变）、CLI 变异开关仍生效、五种残缺守卫形态被判 FAIL（guard-running-only / guard-queued-only / guard-global-single / store-dedupe-any / any-history-dedupe / guard-inside-batch-loop）、entry-guard-running-only 被判 FAIL、exec-instant-fail 精确画像（用例 B 仍判 FAIL，证明主断言是时间无关量而非瞬时采样）、4c 组 store 层逐个判定在 B/D/E/F 全 PASS 而用例 C 必须 FAIL（证明批量需整批原子判定）、绿色对照 full-fix 六条全 PASS（断言可达、非永假门禁）、慢速执行用例 C 判 ERROR 而非 FAIL、未知自检键名一律退出码 2 且不产生报告。未通过的 6 项全部是“对**未修复**源码的红状态/变异体”类断言（基线两项、entry-guard-active 与 entry-guard-running-only 两项、partial-fix-job-only、P1 精确画像），在已修复源码上变异注入不再制造缺陷，属已修复状态的预期表现，不构成门禁弱化；我未把 selfcheck 当作交付门禁。(4) 保护未被削弱：scripts/ 与 tsconfig.json 相对 HEAD 零改动，门禁脚本与 TASK-006 候选文件相对 6e999b7 零改动；门禁脚本自身的设计（不读 process.env、未知键名直接失败、自证默认模式不可被环境变量伪造）在本轮复跑中确认仍然有效。(5) 红→绿证据链：BASELINE-gate-red-TASK-006.txt 记录修复前同一门禁 6/6 FAIL（用例 A 的 job 与节点标记双双停在 queued=true、用例 B 同节点 3 个、用例 C 4→12、用例 D 1→3、用例 E 3 个、用例 F 新增 3），与修复后的 6/6 PASS 构成完整红→绿。",
+      "evidence_files": [
+        ".workflow-kit/tasks/runs/RUN-4f082949457846f1bdfc53b9ef9972b0.json",
+        ".workflow-kit/tasks/evidence/RUN-4f082949457846f1bdfc53b9ef9972b0-behavior-regression.stdout.txt",
+        ".workflow-kit/tasks/evidence/RUN-4f082949457846f1bdfc53b9ef9972b0-candidate.json",
+        ".workflow-kit/tasks/evidence/BASELINE-gate-red-TASK-006.txt",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-006-r13/selfcheck-rerun.txt",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-006-r13/rerun-queue-regression-stdout.txt",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-006-r13/rerun-tsc-noemit.txt",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-006-r13/req001-coldstart-preload-node.txt"
+      ]
+    },
+    {
+      "area": "failure_paths",
+      "status": "PASS",
+      "analysis": "异常、空输入、重复执行、恢复与跨画布边界的失败路径本轮均自跑自看。(1) 冷启动两条顺序：probe-req001-coldstart.mjs 的 preload-node（门禁用例 A 的假设）与 coldstart（flowStore 为空、真实重启形态）两种模式我各跑一次，均为 exit 0：preload-node 下 job→error（供应商未配置）、coldstart 下 job→error（“节点不存在”）、两模式下 canvasStore 与随后的 flowStore 该节点 data.queued 均为 false、canRun=true——即使超时放行落到 error，节点也不锁死、且不是永久 queued。(2) 竞态扫描：probe-req001-race.mjs 在 delay=0/50/300/590/900ms 五档逐档跑（每档独立进程，避免模块缓存串味）：0-590ms 内 job=success 且执行器确实看到了节点；900ms（超过 600ms 上限约 300ms）job 落到 error“节点不存在”，但 canvas.queued 与 flow.queued 均为 false、节点可用——正是 waitForCanvasReady 的有界等待语义，缺陷不以新形式复现（不留在 queued、不锁死）。(3) 重复执行/暂停：我自写的 probe-r13-independent-req002.mjs 9/9 成立，其中 T1 同一 tick 内两次不 await 点击→同节点 job 数=1；T2 paused=true 三连点→仍只 1 个且停在 queued（守卫不跳过暂停态，且暂停期不误派发）；T4 历史终态任务存在时再次生成仍放行（+1）且活动数恒为 1（历史任务既不锁死节点也不被并发放行）。同族的 probe-batch-chain.mjs 我复跑 15/15：批中间被打断/形状相同的新一击/retry 与批量交错（来源标记不泄漏）/取消批中一个任务/整批交完/批跑完重新生成——均按预期；probe-cross-canvas.mjs 复跑确认复制画布后两画布同名 nodeId 互不干扰（各 2 个 job）。(4) 自愈上限与合法标记（历史记录中“不可满足的 section D 断言”所在地）：probe-r9-exits.mjs 复跑 exit 0，三个出口实测 (a) LEGAL+已治愈、无写入方 → 2 轮/nopending/零告警；(b) 一次性整数组写回 → 3 轮/nopending/零告警；(c) 每轮补回的写入方 → 8 轮/cap/1 条告警；三种形状里合法标记（另一个真有 queued 任务的节点）全部被保留、陈旧标记在 (a)(b) 下被治愈且画布副本同步为 false。r7-cap.mjs 复跑在 section D 仍报 1 条 FAIL（“合法标记被保留”），与我看到的事实（该形状下标记=true、谓词调用 1 次）不一致——按简报提示，这属已知损坏/不可满足的旧断言，我未把它当信号、也未据此判 FAIL；其余各节（正常路径轮数=1/谓词=1/身份变化=1、病态写入方 8 轮退出、上限代价与后续自愈、有界写入方零误报）本轮均实测成立。(5) 实机证据链自洽性：我逐张查看 5 份截图——03（队列面板“暂无任务”、节点库打开、画布含“CDP 实机验收测试提示词 Scenario-1”节点）、04（右下“失败 API 返回…”与 03 同场景的失败结果）、05（生成队列 4/4、3/4、2/4、1/4 四条同一节点记录，错误均为“API 返回错误 (502 Bad Gateway)”+ gemini-3.1-flash-image-preview，与 RESULT.md 场景 2 描述逐项一致）、08（节点按钮显示“排队中…”且禁用、底部“排队中”徽标，与场景 3 暂停态 1 个 queued 一致）、12（重启后“画布 2 1 个节点”、节点按钮可用、底部“失败 API 返回…”，与场景 5“遗留任务被处置、节点解锁”一致）、13（队列面板“队列已暂停”、cancelled/error 混排记录、场景 6 撤销后无陈旧“排队中”徽标）、15（状态检查：节点显示“输出预览”、数量 1/2/4、无排队徽标）、17（toast 文案“该节点仍有任务在排队中，本次点击未生效（可等待完成或用队列面板取消）”，与场景 7 契约逐字一致、位于页面顶部），另 01（与 00 同字节 139110 的初始态）与 04 的“失败”提示均由 RESULT.md 的“应用自配本地网关返回 502（无外部 API 费用）”解释，与场景描述自洽；目录 19 份 PNG、时间戳 11:57→14:06 连贯。(6) 未构造项如实记录：RESULT.md 明确写出场景 5(d) 未构造、以及 dev-profile WebView2 启动即崩（release 正常）这一范围外发现，未伪装成全通过。",
+      "evidence_files": [
+        ".workflow-kit/tasks/evidence/review-probes-TASK-006-r13/probe-r13-independent-req002.txt",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-006-r13/req001-race-delays.txt",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-006-r13/batch-chain.txt",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-006-r13/cross-canvas.txt",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-006-r13/heal-exits.txt",
+        ".workflow-kit/tasks/evidence/TASK-006-MANUAL-VERIFICATION-RESULT.md"
+      ]
+    },
+    {
+      "area": "maintainability",
+      "status": "PASS",
+      "analysis": "职责与依赖方向合理，未发现新增维护负担，也没有“需要拆而未拆”的证据。queueStore.ts 的职责是队列状态机（入队守卫、调度、标记不变式的唯一判定与清除落点），hook 只负责“一次点击”的语义（解析提示词、拆批、按 admitted 决定是否写节点标记），执行器负责真实调用；守卫的语义与不变式的判定都收敛到单一谓词（clearNodeQueuedMarkerIfNoActiveJob），清除落点唯一（clearNodeQueuedMarker），不重复规则。依赖方向正确：queueStore 静态依赖 flowStore/canvasStore/imageGenerationExecution（注释 :5-10 记录不新增模块图回边、无循环依赖），未出现 service 反向依赖 components。批次链（batchChains）、重入标志（healingQueuedMarkers/healPending）、恢复单次标志（recoveryStarted）都是模块级私有状态，状态机不变式在文件末集中记录成文，命名与作用域键（guardScopeKey 的 (canvasId,nodeId) vs 标记的 nodeId）有明确区分说明，未发现两套口径混用的地方。已知的两处文本口径不精确（:963/:967 对自愈出口的概括、MAX_HEAL_PASSES=8 的残留边界）已在同文件内被后续段落如实订正并留有实测记录，且文件与 HEAD 逐字节相同、不在本次 diff 内，属可接受的既有文本；我未以“行数大”或“为将来复用”为理由提出任何拆分。TASK-002 侧：删除的 imageService.ts/imageCompression.ts 在本轮全 src 扫描中零引用，package.json 移除的 @types/uuid 由 uuid 自带类型替代（3 处导入均只依赖包内声明），tsc 保持零诊断，故组合候选未给可维护性带来新风险；scripts/ 与 tsconfig.json 相对 HEAD 零改动，门禁未被弱化。",
+      "evidence_files": [
+        "src/stores/queueStore.ts",
+        "src/hooks/useImageGeneratorExecution.ts",
+        "src/services/imageGenerationExecution.ts",
+        ".workflow-kit/tasks/evidence/RUN-387cc0d7d9d94e5394546cb331baeb0a-candidate.json",
+        ".workflow-kit/tasks/evidence/RUN-fd785e43b34047d09b11acdba86a9eb5-candidate.json"
+      ]
+    },
+    {
+      "area": "performance",
+      "status": "NOT_APPLICABLE",
+      "analysis": "具体理由：TASK-006 的改动是队列状态机守卫（同节点按点击判重、整批原子判定、retry 来源标记）与重启恢复（冷启动水合后处置遗留 queued、有界等待画布就绪），验收维度是行为正确性与状态收敛性；TASK-006 定义与简报里的 performance 明确是 not_applicable（targets 为空、rationale 记录三处性能可疑点均属未经测量的静态推断，本轮 A–D 四项改造不改变渲染与数据规模），两道门禁也全部是行为断言、无任何性能口径。本轮我在组合候选下未做、也无法做有代表性的负载测量：候选文件与上一轮通过时逐字节相同（sha256 与 git diff 双重复核），TASK-002 删除的两个文件不在任何执行路径上（全 src 零引用），不存在新引入的性能面。唯一与“时间/资源”有关的事实是自愈循环的**终止性**（MAX_HEAL_PASSES=8：正常路径 1 轮、病态写入方 2ms 内 8 轮退出，对照无上限突变体 401 轮仍未返回），我把它记在 failure_paths 与 summary 的问题 4 里作为正确性问题，而非把它伪称成性能提升或建立无证据的基准。故本项判 NOT_APPLICABLE。",
+      "evidence_files": [
+        ".workflow-kit/tasks/runs/RUN-4f082949457846f1bdfc53b9ef9972b0.json",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-006-r13/r7-cap-rerun.txt"
+      ]
+    }
+  ],
+  "ui_review": {
+    "contract_ref": ".workflow-kit/tasks/evidence/TASK-006-MANUAL-VERIFICATION-RESULT.md（TASK-006 七场景实机验收结果记录，2026-09-29，CDP/WebView2 执行，7/7 通过；本轮核验其存在、非空、内容与截图自洽）",
+    "checked_states": [
+      "S1 连点：03-scenario1-after3clicks.png（队列面板“暂无任务”、画布含『CDP 实机验收测试提示词 Scenario-1』生成节点）与 04-scenario1-result.png（同一节点失败提示）一致，对应 RESULT.md『队列仅 1 任务；失败后节点解锁』",
+      "S2 批量：05-scenario2-batch-records.png 中生成队列逐条显示同一节点的『绘图生成 4/4 / 3/4 / 2/4 / 1/4』与『API 返回错误 (502 Bad Gateway)』『gemini-3.1-flash-image-preview』，与 RESULT.md 场景 2 的『两轮各完整 4 个（batchIndex 1..4 ×2）』逐项一致",
+      "S3 暂停态：08-scenario3-one-queued.png 显示节点按钮为禁用的『排队中…』且底部有『排队中』徽标、队列面板在场，与 RESULT.md『暂停中连点仅 1 个 queued』一致",
+      "S4 重试：13-scenario6-after-undo.png 中队列面板显示『队列已暂停』、cancelled 与 error 记录混排且各带『重新排队』按钮，属场景 6 撤销后的合法态（重试场景证据为 10/11 号截图）",
+      "S5 重启恢复：12-scenario5-after-restart.png 显示『画布 2 1 个节点』、所选生成节点按钮可用、底部『失败 API 返回…』，与 RESULT.md『强杀重启后遗留任务被自动处置、节点解锁、无崩溃循环』一致",
+      "S6 撤销/重做：13/14 号截图存在且节点无陈旧『排队中』徽标（15-state-check.png 进一步显示节点处于『输出预览』态、数量 1/2/4、无排队徽标）",
+      "S7 被拒点击反馈：17-toast-visual.png 中页面顶部 toast 文案为『该节点仍有任务在排队中，本次点击未生效（可等待完成或用队列面板取消）』，与场景 7 契约逐字一致",
+      "证据完整性与计数：TASK-006-manual-verify/ 下实为 19 份 PNG（00-17，其中 16-scenario7-toast.png 与 16-scenario7-toast-visible.png 两份），时间戳 11:57→14:06 连贯，与 RESULT.md 证据清单『00–17 共 19 份 PNG（16- 号两份均保留）』完全一致"
+    ],
+    "evidence_files": [
+      ".workflow-kit/tasks/evidence/TASK-006-manual-verify/03-scenario1-after3clicks.png",
+      ".workflow-kit/tasks/evidence/TASK-006-manual-verify/05-scenario2-batch-records.png",
+      ".workflow-kit/tasks/evidence/TASK-006-manual-verify/08-scenario3-one-queued.png",
+      ".workflow-kit/tasks/evidence/TASK-006-manual-verify/12-scenario5-after-restart.png",
+      ".workflow-kit/tasks/evidence/TASK-006-manual-verify/17-toast-visual.png",
+      ".workflow-kit/tasks/evidence/TASK-006-MANUAL-VERIFICATION-RESULT.md"
+    ]
+  }
+}

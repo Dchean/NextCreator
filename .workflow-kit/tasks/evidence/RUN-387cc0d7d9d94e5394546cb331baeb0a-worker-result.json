@@ -1,0 +1,14 @@
+{
+  "task_id": "TASK-006",
+  "run_id": "RUN-387cc0d7d9d94e5394546cb331baeb0a",
+  "status": "ready_for_verification",
+  "summary": "记录性循环：本运行零代码改动（changed_this_run 为空）。目的仅是解除 r12 review_failure（3 条记录性 finding：RESULT.md 已补建 TASK-006-MANUAL-VERIFICATION-RESULT.md；另两条为总控简报口径错误）后的状态机复位，使已完好的验证（组合候选 26b2276c…，此前 RUN-984b00f8 两门禁 PASS exit 0、queueStore.ts 3638d31d 与第10/11轮所审候选逐字节一致）能绑定新 RUN 并记录 r13 独立确认审查。TASK-006 业务代码自 6e999b7 起未再改动。",
+  "changed_files": [],
+  "validation_requests": [
+    "typecheck",
+    "behavior-regression"
+  ],
+  "requested_actions": [],
+  "unresolved_items": [],
+  "blocked_reason": null
+}

@@ -1,0 +1,60 @@
+{
+  "task_id": "TASK-002",
+  "candidate_digest": "fa249870c21d03b430686feaaa149a150ee83e888c8c09c5c13e2699bb2db23a",
+  "verification_run": "RUN-fd785e43b34047d09b11acdba86a9eb5",
+  "verdict": "PASS",
+  "summary": "独立审查（全新上下文，未参与实现）：候选=删除 src/services/imageService.ts(357行)、src/utils/imageCompression.ts(95行)、package-lock.json(3712行)，package.json 恰移除 \"@types/uuid\" 一行，bun.lock 纯删除 175 行（0 新增）。逐项独立重做：113/113 清单文件 sha256 与工作树一致，candidate_digest 由清单体按 canonical JSON 重算匹配；imageService/imageCompression 全仓多形态 grep 零命中（含删除前 HEAD 复查，删除前即不可达）；@types/uuid 移除安全（uuid@13 自带 dist/index.d.ts，tsc --traceResolution 证实 import \"uuid\" 解析到自带类型；@types/uuid@11 在本机 node_modules 的残留是 traceResolution 规定的 --lockfile-only 流程预期结果且为无 index.d.ts 的惰性 stub，对编译零贡献）；bun.lock 消失 86 包（361→275）全部无保留硬依赖者，根级消失条目恰为 @google/genai、pptxgenjs、@types/uuid；CI release.yml 仅用 bun install 且不引用 package-lock.json，bun v1.4.2 install --dry-run exit 0 且 bun.lock 哈希前后不变（84a403…，列表含 uuid@13.0.0、无 @types/uuid）；两门禁相对 HEAD 零改动，本人复跑 tsc exit 0、queue-regression 6/6 PASS exit 0。总控裁定复核成立：bun.lock 停留 33f88e5（2026-02-08），HEAD 的 package.json 已无 @google/genai/pptxgenjs 而 HEAD bun.lock 根依赖段仍记录三者，失同步先于本任务存在；修剪属纯删除且零保留依赖者，纳入 REQ-008 范围的修订验收第 7 条（纯删除、允许消失条目=@types/uuid+package.json 已不含的陈旧子树）事实前提与风险面均核实成立。未发现需要修复的问题，findings 为空。",
+  "findings": [],
+  "review_checks": [
+    {
+      "area": "requirements",
+      "status": "PASS",
+      "analysis": "REQ-003：实际改动恰为 5 个路径——git status/diff 证实 M bun.lock(0+/175-)、M package.json(0+/1-，恰删 \"@types/uuid\": \"^11.0.0\" 一行)、D package-lock.json(3712 行)、D src/services/imageService.ts(357 行)、D src/utils/imageCompression.ts(95 行)；无未跟踪产品源码混入（未跟踪文件全部位于 .workflow-kit/ 工具目录）。删除后全仓（排除 node_modules/.workflow-kit/.git/dist/target，含无扩展名全扫与二进制检查）grep \"imageService\"/\"imageCompression\" 零命中，覆盖 import/require/动态导入/type-only/字符串/@别名等一切文本形态；git grep HEAD 证实删除前产品代码即零引用、仅在 .workflow-kit 文档中被提及（模块不可达）。REQ-008：uuid ^13.0.0 保留于 dependencies；三个 store 的 import { v4 as uuidv4 } from \"uuid\" 与 HEAD 逐字节一致；release.yml（保护路径）未改动且仅用 bun install、全文件无 package-lock.json 引用；node ./node_modules/typescript/bin/tsc --noEmit 复跑 exit 0。验收第 7 条按总控修订版核对：bun.lock 纯删除 0 新增（0 新增在数学上排除版本变更与重排），根级消失条目恰为 @google/genai、pptxgenjs、@types/uuid；对 @google/genai 与 pptxgenjs 在 src/、scripts/、src-tauri/src/、src-tauri/Cargo.toml 复查零引用（Cargo.toml 第 28 行的 uuid 是 Rust crate，与 npm uuid 无关），且两者确不在 package.json。验收第 1-7 条（按修订版）全部满足。",
+      "evidence_files": [
+        ".workflow-kit/tasks/evidence/RUN-fd785e43b34047d09b11acdba86a9eb5-candidate.json",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-002-r1/reviewer-tsc-rerun.txt",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-002-r1/reviewer-uuid-importers.txt",
+        "package.json",
+        "bun.lock"
+      ]
+    },
+    {
+      "area": "regression",
+      "status": "PASS",
+      "analysis": "两条必需门禁相对 HEAD 零改动：git diff HEAD 对 scripts/queue-regression.mjs、scripts/queue-regression.selfcheck.mjs、tsconfig.json、.github/ 全部为空，git status 对上述路径干净；tsconfig 编译选项（strict、noUnusedLocals 等）未放松。RUN-fd785e43b34047d09b11acdba86a9eb5-behavior-regression.stdout.txt 完整真实：6 个用例（重启恢复 REQ-001、重复入队、批量分支、queued 占位、并发不 await、retry 入口）各含实现/期望/实际/判定，汇总 PASS 6 / FAIL 0 / ERROR 0，EXIT CODE: 0，断言为时间无关量并覆盖守卫窗口注入（60ms 延迟）等反例构造，能发现目标缺陷。本人独立复跑两门禁：tsc --noEmit exit 0（probe 记录）、node --experimental-strip-types scripts/queue-regression.mjs 6/6 PASS exit 0（probe 记录完整输出）。RUN JSON 中两 check 的 candidate_digest 均为 fa249870…，与本候选绑定一致。删除的两模块删除前零引用（HEAD 复查），删除不改变任何可执行行为，门禁继续全部 PASS 与行为保持一致。",
+      "evidence_files": [
+        ".workflow-kit/tasks/evidence/RUN-fd785e43b34047d09b11acdba86a9eb5-behavior-regression.stdout.txt",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-002-r1/reviewer-queue-regression-rerun.txt",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-002-r1/reviewer-tsc-rerun.txt"
+      ]
+    },
+    {
+      "area": "failure_paths",
+      "status": "PASS",
+      "analysis": "逐类排查失败路径：(1) 隐藏引用——多形态 grep（import/require/dynamic import/type-only/字符串引用/@别名/无扩展名全仓扫描）零命中，含删除前 git grep HEAD 复查。(2) @types/uuid 移除破坏 uuid 类型——uuid@13.0.0 的 package.json types 字段指向 ./dist/index.d.ts；tsc --traceResolution 证实 import \"uuid\" 实际解析到 node_modules/uuid/dist/index.d.ts（自带类型），@types/uuid 从未参与该解析；本机 node_modules/@types/uuid 仍存在（任务规定优先 --lockfile-only、不重写 node_modules 的预期结果），但 trace 显示它是无 index.d.ts 的废弃 stub（'File .../@types/uuid/index.d.ts' does not exist），对编译零贡献；bun v1.4.2 install --dry-run exit 0 的全新安装解析树含 uuid@13.0.0、不含 @types/uuid，CI 全新 runner 不会安装它。(3) bun.lock 修剪破坏保留包——消失的 86 包（361→275，新增 0，保留包依赖图零变化）经硬依赖反向扫描证实无任何保留包或现行根依赖引用其中任何一个；86 包中 71 个可由 3 个根移除项沿硬依赖直达，其余 15 个为已消失父包的嵌套别名副本（如 path-scurry/lru-cache@10.4.3 随 path-scurry 消失，而 @babel/helper-compilation-targets 使用的平铺 lru-cache@5.1.1 保留）或仅被消失包依赖的平铺条目（color-convert←wrap-ansi-cjs/ansi-styles、color-name←color-convert、@pkgjs/parseargs 无保留依赖者）；vite 的 @types/node 仅为 optionalPeer（HEAD/CUR 的 vite 条目逐字节一致），不构成硬依赖。(4) CI 失败——release.yml 仅一步 bun install（无 frozen-lockfile），不引用 package-lock.json；dry-run 后 bun.lock sha256 前后不变（84a403f0…），证明锁与 package.json 一致、再生成无进一步变动。",
+      "evidence_files": [
+        ".workflow-kit/tasks/evidence/review-probes-TASK-002-r1/reviewer-uuid-traceResolution.txt",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-002-r1/reviewer-typesUuid-trace-lines.txt",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-002-r1/reviewer-bun-install-dryrun.txt",
+        ".github/workflows/release.yml",
+        "bun.lock"
+      ]
+    },
+    {
+      "area": "maintainability",
+      "status": "PASS",
+      "analysis": "纯删除型收尾：移除 452 行不可达代码与 3712 行无人使用的 npm 锁文件、一个废弃类型 stub 依赖，缩小维护面且不引入任何新抽象、新重复或新依赖方向；src/ 其余文件与 HEAD 逐字节一致（113/113 哈希匹配含全部 store/services/components），无顺带重构或范围扩大。删除后 services 层仍保留 imageGeneration/（现行实现）与 imageDataUtils 等在用模块，结构未受影响；src-tauri 中可能残留的 Rust invoke 处理属任务声明的 non_goals（留待后续任务），非本候选引入的债务。保护路径（store 三件、imageGenerationExecution、queue-regression 门禁、tsconfig、release.yml）全部零改动。",
+      "evidence_files": [
+        ".workflow-kit/tasks/evidence/RUN-fd785e43b34047d09b11acdba86a9eb5-candidate.json",
+        "package.json"
+      ]
+    },
+    {
+      "area": "performance",
+      "status": "NOT_APPLICABLE",
+      "analysis": "本候选为纯删除：移除的 imageService.ts/imageCompression.ts 删除前零引用（HEAD 复查证实不可达），不参与任何运行时或构建路径；package-lock.json 无任何构建/CI 引用；@types/uuid 是无 index.d.ts 的类型 stub，不进产物。无任何可观察的运行时行为或负载特征变化，项目性能基线本任务不适用（BRIEF 层面 performance.mode=not_applicable，REQ-009 记为待办），故不建立基准、不做无证据的性能声称。",
+      "evidence_files": []
+    }
+  ],
+  "ui_review": null
+}

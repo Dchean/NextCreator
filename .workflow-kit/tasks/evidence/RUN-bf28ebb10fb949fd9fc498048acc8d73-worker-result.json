@@ -1,0 +1,20 @@
+{
+  "task_id": "TASK-002",
+  "run_id": "RUN-bf28ebb10fb949fd9fc498048acc8d73",
+  "status": "ready_for_verification",
+  "summary": "TASK-002 完成，首度运行曾走 blocked 路径后经总控裁定放行：改动前基线全绿（工作树除 .workflow-kit 总控文件外干净；tsc --noEmit 退出码 0；queue-regression 6/6 PASS 退出码 0）；git rm 删除 src/services/imageService.ts（357 行）、src/utils/imageCompression.ts（95 行）、package-lock.json（3712 行），编辑 package.json 移除 devDependencies 的 \"@types/uuid\": \"^11.0.0\"（uuid ^13.0.0 保留），npx --yes bun install（bun 1.4.2）后 git diff bun.lock 出现 @google/genai 与 pptxgenjs 及其传递子树的连带修剪，按当时门禁判据还原两文件并以 blocked 上报。总控裁定：两包为 package.json 已不含的既有锁文件死条目，修剪属 REQ-008 范围且不可回避，判据修订为'纯删除即放行'。续跑全部实测：重编辑 package.json 后 npx --yes bun install 退出码 0（3 packages removed）；git diff bun.lock 为 0 新增/175 删除（89 行内容 + 86 行空行分隔符，与首轮完全一致，无版本变更、无重排），根依赖块消失条目恰为允许清单 @google/genai、pptxgenjs、@types/uuid；git diff package.json 仅 1 行删除；node_modules/typescript 存在。改动后门禁：tsc --noEmit 退出码 0（@types/uuid 已被修剪出 node_modules，该 PASS 实证 uuid v13 自带类型解析正常）；queue-regression.mjs 6/6 PASS、退出码 0；grep -rn \"imageService\\|imageCompression\"（--include 七类文件，--exclude-dir=node_modules 与 .workflow-kit）零命中、grep 退出码 1；grep -rniE \"google/genai|pptxgenjs\" src/ scripts/ src-tauri/src/ src-tauri/Cargo.toml 零命中、退出码 1，作为修剪死条目的证据。node_modules 已与修剪后的 bun.lock 同步，工作树最终变化即 5 个路径：3 个删除 + package.json（1 行删）+ bun.lock（175 行删）。",
+  "changed_files": [
+    "src/services/imageService.ts",
+    "src/utils/imageCompression.ts",
+    "package-lock.json",
+    "package.json",
+    "bun.lock"
+  ],
+  "validation_requests": [
+    "typecheck",
+    "behavior-regression"
+  ],
+  "requested_actions": [],
+  "unresolved_items": [],
+  "blocked_reason": null
+}

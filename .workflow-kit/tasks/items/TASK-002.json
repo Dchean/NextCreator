@@ -1,0 +1,202 @@
+{
+  "schema_version": 1,
+  "id": "TASK-002",
+  "title": "删除零引用死代码与依赖收尾（REQ-003 + REQ-008：imageService/imageCompression、package-lock.json、@types/uuid）",
+  "kind": "implementation",
+  "retry_safe": true,
+  "ui_change": false,
+  "ui_contract_ref": null,
+  "ui_checks": [],
+  "status": "done",
+  "objective": "按已确认需求 REQ-003 与 REQ-008 做纯删除型收尾：删除全项目零引用的死代码模块 src/services/imageService.ts 与 src/utils/imageCompression.ts（实测 357+95=452 行；需求描述中的 312+81=393 行是 2026-09-27 分析时的旧数字，已过期，以实测为准），删除无人使用的 package-lock.json（CI release.yml 与实际安装均用 bun），并从 package.json 与 bun.lock 移除已废弃的 @types/uuid（uuid v13 自带类型；uuid 本体保留）；以既有两条零依赖门禁证明无行为回归。",
+  "non_goals": [
+    "不删除 uuid 本体，不改任何 store 源码（canvasStore/userPromptStore/flowStore 正在使用 uuid）。",
+    "不动 src-tauri/（imageService 删除后不再被调用的 Rust invoke 命令处理留待后续任务评估，不属本任务）。",
+    "不做 REQ-004/005/006/007（执行链统一、全局并发背压、取消语义、API Key 加密存储）。",
+    "不引入 knip/ts-prune 等死代码检测工具（此前已评估为 rejected）。",
+    "不修改 scripts/ 门禁、tsconfig.json、.github/ CI 配置，不做全局依赖升级。"
+  ],
+  "requirement_refs": [
+    "REQ-003",
+    "REQ-008"
+  ],
+  "reference_ids": [],
+  "decision_refs": [],
+  "dependencies": [],
+  "blocks": [],
+  "risk": {
+    "level": "low",
+    "decision_ids": []
+  },
+  "scope": {
+    "allowed_paths": [
+      "src/services/imageService.ts",
+      "src/utils/imageCompression.ts",
+      "package-lock.json",
+      "package.json",
+      "bun.lock"
+    ],
+    "protected_paths": [
+      "AGENTS.md",
+      "CLAUDE.md",
+      "WORKFLOW.md",
+      "tasks/**",
+      "docs/PRODUCT.md",
+      "docs/FEATURES.md",
+      "docs/workflow/**",
+      "scripts/project_workflow.py",
+      "scripts/workflow_runtime.py",
+      "scripts/workflow_bootstrap.py",
+      "scripts/workflow_intake.py",
+      "scripts/workflow_progress.py",
+      "WORKFLOW-KIT.md",
+      ".workflow-kit/binding.json",
+      ".workflow-kit/tasks/**",
+      ".workflow-kit/notes/**",
+      ".workflow-kit/scripts/**",
+      ".workflow-kit/docs/workflow/**",
+      ".workflow-kit/legacy/**",
+      ".workflow-kit/AGENTS.md",
+      ".workflow-kit/CLAUDE.md",
+      ".workflow-kit/WORKFLOW.md",
+      ".workflow-kit/docs/PRODUCT.md",
+      ".workflow-kit/docs/FEATURES.md",
+      "scripts/queue-regression.mjs",
+      "scripts/queue-regression.selfcheck.mjs",
+      "tsconfig.json",
+      ".github/workflows/release.yml",
+      "src/stores/queueStore.ts",
+      "src/stores/flowStore.ts",
+      "src/stores/canvasStore.ts",
+      "src/stores/userPromptStore.ts",
+      "src/stores/settingsStore.ts",
+      "src/hooks/useImageGeneratorExecution.ts",
+      "src/services/imageGenerationExecution.ts",
+      "src/services/imageDataUtils.ts",
+      "src/components/nodes/ImageGeneratorNode.tsx",
+      "src/utils/tauriStorage.ts",
+      ".workflow-kit/tasks/runs/RUN-abbaf27af8614605a132bc76cb7b4aae.json"
+    ],
+    "network": "none",
+    "data": "synthetic_only"
+  },
+  "acceptance": [
+    "实际改动恰为：删除 src/services/imageService.ts（357 行）、src/utils/imageCompression.ts（95 行）、package-lock.json 三个文件；package.json 移除 \"@types/uuid\" 一行；bun.lock 相应修剪 @types/uuid 条目。不得出现任何其他源码或配置改动。",
+    "删除后全仓（src/、scripts/、*.html、*.json、*.yml、*.toml，排除 node_modules 与 .workflow-kit）grep \"imageService\" 与 \"imageCompression\" 零命中。",
+    "node ./node_modules/typescript/bin/tsc --noEmit PASS（exit 0）。编译选项不得改变（tsconfig.json 属保护路径）；该 PASS 同时证明移除 @types/uuid 后 uuid v13 自带类型解析正常。",
+    "node --experimental-strip-types scripts/queue-regression.mjs 6/6 PASS 且 exit 0；不得修改该脚本及其 selfcheck。",
+    "uuid 本体保留：package.json 依赖中 uuid 不动；src/stores/canvasStore.ts、src/stores/userPromptStore.ts、src/stores/flowStore.ts 的 import 不变（三者均属保护路径）。",
+    "package-lock.json 删除不影响 CI：.github/workflows/release.yml 属保护路径，不得改动；其仅用 bun install，不引用 package-lock.json。",
+    "bun.lock 修剪只允许 @types/uuid 相关条目消失。若 npx bun install 产生 @types/uuid 修剪以外的大范围变动（版本升级、整体重排、无关包增删），停止并报告，不得擅自接受。优先使用 npx --yes bun install --lockfile-only（不重写 node_modules）；若该 flag 不被当前 bun 版本支持，回退完整 npx --yes bun install 并逐行核对 git diff bun.lock。"
+  ],
+  "gates": [
+    {
+      "id": "typecheck",
+      "required": true,
+      "program": "node",
+      "args": [
+        "./node_modules/typescript/bin/tsc",
+        "--noEmit"
+      ],
+      "cwd": ".",
+      "timeout_seconds": 600
+    },
+    {
+      "id": "behavior-regression",
+      "required": true,
+      "program": "node",
+      "args": [
+        "--experimental-strip-types",
+        "scripts/queue-regression.mjs"
+      ],
+      "cwd": ".",
+      "timeout_seconds": 600
+    }
+  ],
+  "test_review": {
+    "behavior": "preserve",
+    "baseline": {
+      "status": "PASS",
+      "evidence_ref": ".workflow-kit/tasks/runs/RUN-abbaf27af8614605a132bc76cb7b4aae.json",
+      "summary": "行为保持型任务：只删除零引用模块、未使用的 npm 锁文件与废弃类型包，不改变任何运行行为。基线=当前已验证候选（TASK-006，candidate_digest a0272c52…，其 10 个绑定文件哈希已于 2026-09-29 由总控全量重算复核、与当前工作树 src/ 一致）：typecheck 与 behavior-regression 两门禁在该 RUN 均 PASS（exit 0），总控当日亦在本树亲自复跑两门禁 PASS（tsc exit 0；queue-regression 6/6 PASS exit 0）。项目无其他旧测试套件需处置；两条门禁继续作为必需回归，本任务不替换、不退役任何检查。"
+    },
+    "decision_ids": [],
+    "actions": [
+      {
+        "target": "typecheck（tsc --noEmit）与 behavior-regression（queue-regression.mjs 6 用例）两条既有门禁",
+        "action": "keep",
+        "reason": "行为保持：既有门禁必须继续全 PASS，作为无回归证据；本任务无行为变更，无需替换或退役任何检查。",
+        "gate_ids": [
+          "typecheck",
+          "behavior-regression"
+        ]
+      }
+    ]
+  },
+  "input": {
+    "manifest": ".workflow-kit/tasks/evidence/TASK-002-input-c359628c409144629f4b6e304c7de3a7.json",
+    "digest": "ffdd3ef5bb0cac515ee968c7b98571ac9f06e831c489f65c731a1c3a64dd489e",
+    "source_revision": null,
+    "definition_digest": "b20840f292ed98a97ebfdc32dffdeecaf702582648f746c184e1a72e0271000e"
+  },
+  "budget": {
+    "started_at_utc": "2026-09-29T02:04:27.768223Z",
+    "deadline_at_utc": "2026-09-29T05:04:27.768223Z",
+    "repair_rounds_used": 0
+  },
+  "batch_id": "BATCH-c782387bf20543bcbc9ae0c7747650b3",
+  "run_ids": [
+    "RUN-bf28ebb10fb949fd9fc498048acc8d73",
+    "RUN-fd785e43b34047d09b11acdba86a9eb5",
+    "RUN-0b27a8fe98ee4aabbdfe199500633500"
+  ],
+  "blockers": [],
+  "evidence": {
+    "candidate_manifest": ".workflow-kit/tasks/evidence/RUN-fd785e43b34047d09b11acdba86a9eb5-candidate.json",
+    "candidate_digest": "fa249870c21d03b430686feaaa149a150ee83e888c8c09c5c13e2699bb2db23a",
+    "verification_run": "RUN-fd785e43b34047d09b11acdba86a9eb5",
+    "review_run": "RUN-0b27a8fe98ee4aabbdfe199500633500",
+    "acceptance_ref": ".workflow-kit/tasks/evidence/DEC-d87feeca5ee34c42a23a2538bc0aaa53-acceptance.json",
+    "owner_decision_ids": [
+      "DEC-d87feeca5ee34c42a23a2538bc0aaa53"
+    ],
+    "merge_ref": "not_applicable：改动仍在工作区未提交（TASK-002 的 5 条路径）；提交/推送/tag 属独立批准项，待用户指示"
+  },
+  "snapshot_paths": [
+    ".github",
+    ".workflow-kit/tasks/runs/RUN-abbaf27af8614605a132bc76cb7b4aae.json",
+    "bun.lock",
+    "package-lock.json",
+    "package.json",
+    "scripts",
+    "src",
+    "tsconfig.json"
+  ],
+  "checkpoints": [
+    {
+      "at_utc": "2026-09-29T02:04:27.843836Z",
+      "note": "开始执行，保留原任务身份和截止时间",
+      "next_action": "完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify"
+    },
+    {
+      "at_utc": "2026-09-29T02:20:21.930737Z",
+      "note": "编码结果已记录，差异范围已核对：bun.lock, package-lock.json, package.json, src/services/imageService.ts, src/utils/imageCompression.ts",
+      "next_action": "运行 verify；代码完成尚未等于验收通过"
+    },
+    {
+      "at_utc": "2026-09-29T02:20:43.101079Z",
+      "note": "预先定义的必需测试全部通过，日志已保存",
+      "next_action": "审查当前候选；独立审查使用没有参与编码的新上下文"
+    },
+    {
+      "at_utc": "2026-09-29T02:40:25.979147Z",
+      "note": "当前候选的测试与审查通过（independent）",
+      "next_action": "继续已授权任务；所属功能完成后请用户验收"
+    },
+    {
+      "at_utc": "2026-09-29T02:40:42.193750Z",
+      "note": "TASK-002 完成收口：候选 fa249870c21d03b430686feaaa149a150ee83e888c8c09c5c13e2699bb2db23a（RUN-bf28ebb1 实现、RUN-fd785e43 验证：typecheck PASS exit 0 + behavior-regression 6/6 PASS exit 0）、独立审查 r1 PASS findings=[]（report-TASK-002-r1.json，全新上下文审查者重算 candidate digest、HEAD 级零引用证明、锁文件逐包依赖图核对、bun install --dry-run CI 一致性）。实际改动 5 路径：删除 imageService.ts(357行)/imageCompression.ts(95行)/package-lock.json(3712行)；package.json 移除 @types/uuid；bun.lock 纯删除修剪 175 行（@types/uuid + 先于本任务的失同步死条目 @google/genai、pptxgenjs 及传递子树，86 包 361→275，0 新增 0 版本变更）。总控裁定记录于 note（decision）。改动未提交，验收归用户。",
+      "next_action": "向用户展示成果并请求验收决定（TASK-006 与 TASK-002 均为已验证待验收）；提交/推送/tag 待用户指示"
+    }
+  ]
+}
