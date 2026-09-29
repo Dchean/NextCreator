@@ -1,0 +1,12 @@
+chore(security): 从 Git 历史中清除真实 API Key（用户授权改写历史）
+
+密钥曾随 task003-live / live-acceptance-20260929 两份证据备份进入 v0.2.8~v0.2.10 的历史
+并被推送到 NextCreator 远端。经用户授权，用 filter-branch --index-filter 从全部历史移除
+这两个路径，重写 v0.2.8/v0.2.9/v0.2.10 等 16 个 tag，force-push main，
+并从 GitHub 重新克隆逐提交扫描确认 0 命中。完整记录见 09-report.txt，
+回滚备份在 C:/Users/A/NextCreator-key-backups/pre-rewrite/。
+
+改写前后的哈希对照：
+  v0.2.8  b59f07e -> e4c9830
+  v0.2.9  98dc29d -> fee8489
+  v0.2.10 af832d1 -> 85cfd8f
