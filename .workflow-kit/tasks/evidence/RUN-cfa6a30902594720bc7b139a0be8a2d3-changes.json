@@ -1,0 +1,10 @@
+{
+  "changed_files": [
+    "scripts/queue-regression.mjs",
+    "src/services/concurrencyLimiter.ts",
+    "src/services/imageGenerationExecution.ts",
+    "src/services/nodeExecutor.ts",
+    "src/services/workflowEngine.ts",
+    "src/stores/queueStore.ts"
+  ]
+}

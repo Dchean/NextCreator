@@ -1,0 +1,209 @@
+{
+  "root": "C:\\Users\\A\\AppData\\Local\\Temp\\nc-abl-20260929190254",
+  "results": {
+    "S1_success_no_canvas": {
+      "result": {
+        "success": true,
+        "output": {
+          "imageData": "data:image/png;base64,iVBORw0KGgo=",
+          "imageDataList": [
+            "data:image/png;base64,iVBORw0KGgo="
+          ]
+        }
+      },
+      "thrown": null,
+      "node": {
+        "status": "success",
+        "error": null,
+        "errorDetails": null,
+        "outputImage": "data:image/png;base64,iVBORw0KGgo=",
+        "outputImagePath": null,
+        "outputImages": [
+          "data:image/png;base64,iVBORw0KGgo="
+        ],
+        "outputImagePaths": null,
+        "outputThumbPath": null,
+        "outputThumbPaths": null,
+        "runRecords": [],
+        "queued": null
+      }
+    },
+    "S2_success_with_canvas_saveimage_fails": {
+      "result": {
+        "success": true,
+        "output": {
+          "imageData": "data:image/png;base64,iVBORw0KGgo=",
+          "imageDataList": [
+            "data:image/png;base64,iVBORw0KGgo="
+          ]
+        }
+      },
+      "thrown": null,
+      "node": {
+        "status": "success",
+        "error": null,
+        "errorDetails": null,
+        "outputImage": "data:image/png;base64,iVBORw0KGgo=",
+        "outputImagePath": null,
+        "outputImages": [
+          "data:image/png;base64,iVBORw0KGgo="
+        ],
+        "outputImagePaths": null,
+        "outputThumbPath": null,
+        "outputThumbPaths": null,
+        "runRecords": [],
+        "queued": null
+      }
+    },
+    "S3_empty_prompt": {
+      "result": {
+        "success": false,
+        "error": "缺少必需的提示词输入"
+      },
+      "thrown": null,
+      "node": {
+        "status": "error",
+        "error": "缺少必需的提示词输入",
+        "errorDetails": null,
+        "outputImage": null,
+        "outputImagePath": null,
+        "outputImages": null,
+        "outputImagePaths": null,
+        "outputThumbPath": null,
+        "outputThumbPaths": null,
+        "runRecords": [],
+        "queued": null
+      }
+    },
+    "S4_provider_error": {
+      "result": {
+        "success": false,
+        "error": "probe: provider error"
+      },
+      "thrown": null,
+      "node": {
+        "status": "error",
+        "error": "probe: provider error",
+        "errorDetails": {
+          "code": "E-PROBE"
+        },
+        "outputImage": null,
+        "outputImagePath": null,
+        "outputImages": null,
+        "outputImagePaths": null,
+        "outputThumbPath": null,
+        "outputThumbPaths": null,
+        "runRecords": [],
+        "queued": null
+      }
+    },
+    "S5_provider_no_image": {
+      "result": {
+        "success": true,
+        "output": {}
+      },
+      "thrown": null,
+      "node": {
+        "status": "success",
+        "error": null,
+        "errorDetails": null,
+        "outputImage": null,
+        "outputImagePath": null,
+        "outputImages": null,
+        "outputImagePaths": null,
+        "outputThumbPath": null,
+        "outputThumbPaths": null,
+        "runRecords": [],
+        "queued": null
+      }
+    },
+    "S6_provider_throws": {
+      "result": {
+        "success": false,
+        "error": "probe: provider failure"
+      },
+      "thrown": null,
+      "node": {
+        "status": "error",
+        "error": "probe: provider failure",
+        "errorDetails": null,
+        "outputImage": null,
+        "outputImagePath": null,
+        "outputImages": null,
+        "outputImagePaths": null,
+        "outputThumbPath": null,
+        "outputThumbPaths": null,
+        "runRecords": [],
+        "queued": null
+      }
+    },
+    "S7_preaborted_signal": {
+      "result": {
+        "success": false,
+        "error": "已取消"
+      },
+      "thrown": null,
+      "node": {
+        "status": "idle",
+        "error": null,
+        "errorDetails": null,
+        "outputImage": null,
+        "outputImagePath": null,
+        "outputImages": null,
+        "outputImagePaths": null,
+        "outputThumbPath": null,
+        "outputThumbPaths": null,
+        "runRecords": [],
+        "queued": null
+      }
+    },
+    "S8_cancel_during_request": {
+      "result": {
+        "success": false,
+        "error": "已取消"
+      },
+      "thrown": null,
+      "node": {
+        "status": "idle",
+        "error": null,
+        "errorDetails": null,
+        "outputImage": null,
+        "outputImagePath": null,
+        "outputImages": null,
+        "outputImagePaths": null,
+        "outputThumbPath": null,
+        "outputThumbPaths": null,
+        "runRecords": [],
+        "queued": null
+      }
+    },
+    "S9_cancel_during_save__saveWindowOpened": true,
+    "S9_cancel_during_save": {
+      "result": {
+        "success": true,
+        "output": {
+          "imageData": "data:image/png;base64,iVBORw0KGgo=",
+          "imageDataList": [
+            "data:image/png;base64,iVBORw0KGgo="
+          ]
+        }
+      },
+      "thrown": null,
+      "node": {
+        "status": "success",
+        "error": null,
+        "errorDetails": null,
+        "outputImage": "data:image/png;base64,iVBORw0KGgo=",
+        "outputImagePath": null,
+        "outputImages": [
+          "data:image/png;base64,iVBORw0KGgo="
+        ],
+        "outputImagePaths": null,
+        "outputThumbPath": null,
+        "outputThumbPaths": null,
+        "runRecords": [],
+        "queued": null
+      }
+    }
+  }
+}

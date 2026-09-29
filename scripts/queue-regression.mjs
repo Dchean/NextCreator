@@ -251,6 +251,20 @@ registerHooks({
     if (hasMutant("full-fix") && spec === "@/services/imageGenerationExecution") {
       return { url: "mutant:exec-ok", shortCircuit: true };
     }
+    // 用例 H 专用：把 fileStorageService 换成"真实模块 + 可控落盘延迟"的包装。
+    // 为什么需要它：真实的 saveImage 走 Tauri IPC（本门禁里被 stub 成抛错），落盘阶段会在
+    // catch 分支里瞬间结束，取消根本来不及落进"provider 已返回、结果尚未写回"的窗口 ——
+    // 那样用例 H 会**空过**（把修复移除也照样 PASS）。这个包装保留真实 saveImage 的行为，
+    // 只在其前后插入一段可等待的时间，使该窗口确定存在（并由用例主动 abort）。
+    if (spec === "@/services/fileStorageService") {
+      return { url: "mutant:filestorage-gated-save", shortCircuit: true };
+    }
+    // 用例 H 专用：让 provider 立刻成功（真实 provider 会走 IPC 并被 stub 抛错，
+    // 于是执行器在 provider 之前的取消检查就返回 cancelled，取消落不进落盘窗口）。
+    // 仅当用例设置了 globalThis.__NC_CANCEL_H_PROVIDER__ 时生效，其余时刻完全透传。
+    if (spec === "@/services/imageGeneration") {
+      return { url: "mutant:imagegen-cancel-h", shortCircuit: true };
+    }
     if (spec.startsWith("@/")) return { url: pathToFileURL(withTs(path.join(SRC, spec.slice(2)))).href, shortCircuit: true };
     if (spec.startsWith(".") && !path.extname(spec) && context.parentURL) {
       const base = fileURLToPath(new URL(spec, context.parentURL));
@@ -261,6 +275,44 @@ registerHooks({
   },
   load(url, context, nextLoad) {
     if (url.startsWith("stub:")) return { format: "module", source: STUBS[url.slice(5)], shortCircuit: true };
+    // 用例 H 的落盘闸门：saveImage 先等 globalThis.__NC_SAVE_GATE__ 放行，再调用真实实现。
+    // 未设置闸门时是纯透传，不影响任何其它用例。
+    if (url === "mutant:filestorage-gated-save") {
+      const realPath = JSON.stringify(pathToFileURL(path.join(SRC, "services/fileStorageService.ts")).href);
+      return {
+        format: "module",
+        source: `
+          import { saveImage as realSaveImage } from ${realPath};
+          export * from ${realPath};
+          export async function saveImage(...args) {
+            const gate = globalThis.__NC_SAVE_GATE__;
+            if (!gate) return realSaveImage(...args);
+            gate.markEntered();
+            await gate.wait;
+            return realSaveImage(...args);
+          }
+        `,
+        shortCircuit: true,
+      };
+    }
+    // 用例 H 的 provider 替身：仅在 __NC_CANCEL_H_PROVIDER__ 存在时返回一个立刻成功的响应，
+    // 否则逐字转发真实实现（其它用例完全不受影响）。
+    if (url === "mutant:imagegen-cancel-h") {
+      const realPath = JSON.stringify(pathToFileURL(path.join(SRC, "services/imageGeneration/index.ts")).href);
+      return {
+        format: "module",
+        source: `
+          import { generateImage as realGenerateImage, editImage as realEditImage } from ${realPath};
+          export * from ${realPath};
+          const fake = { imageData: "data:image/png;base64,iVBORw0KGgo=", imageDataList: ["data:image/png;base64,iVBORw0KGgo="] };
+          export const generateImage = async (...args) =>
+            globalThis.__NC_CANCEL_H_PROVIDER__ ? fake : realGenerateImage(...args);
+          export const editImage = async (...args) =>
+            globalThis.__NC_CANCEL_H_PROVIDER__ ? fake : realEditImage(...args);
+        `,
+        shortCircuit: true,
+      };
+    }
     // 入队即失败（pump 置 running 后立刻在 .then 里落 error），用于验证用例 B 的断言不依赖时序窗口。
     // getImageBatchCount 必须与真实实现同语义（否则用例 C 会因为"没走批量分支"而误报 ERROR）。
     if (url === "mutant:exec-instant-fail") {
@@ -1087,6 +1139,436 @@ async function caseRetry() {
 }
 
 // ---------------------------------------------------------------------------
+// 6e) 用例 G —— REQ-005 全局单一并发上限
+//
+// 修复前的缺陷：两条路径各自持有互不知情的独立上限 —— queueStore.concurrency（默认 2，
+// UI 可设 1..4）与 workflowEngine.maxParallelNodes（默认 3）。叠加最坏 5 路同时打同一个
+// API Key，而且全项目没有任何地方能查询"现在几路在途"。
+//
+// 本用例断言修复后应有的行为，判据全部落在**真实出口**上，而不是只看计数器：
+//   ① 全局额度的唯一来源可查询、可设置；
+//   ② 额度被外部（模拟工作流路径）占满时，队列任务**留在 queued**（不置 running、不发出请求）；
+//   ③ 外部归还额度后，队列被**唤醒**并真的把任务发出去（证明不会"停车后没人叫"）；
+//   ④ 既有的 6 条用例（A–F）继续全绿，证明 REQ-005 没有破坏 REQ-001/002 的守卫与恢复语义。
+//
+// 为什么必须新增这条：既有 A–F 全部是单节点、且没有全局额度竞争，结构上抓不到"两条路径
+// 各自为政"。而 ④ 由本门禁的其余用例承担，因此本用例只需专注②③这两个新边界。
+// ---------------------------------------------------------------------------
+async function caseGlobalConcurrencyLimit() {
+  const name = "用例 G：全局并发上限是唯一来源，超限排队且归还后被唤醒（REQ-005）";
+  const impl = "加载真实 concurrencyLimiter 与 queueStore：把全局额度设为 1，先由**外部**（模拟工作流路径）\n" +
+    "         占住唯一额度，再让队列有 2 个 queued 任务，观察是否停车；随后外部归还，观察是否被唤醒执行。";
+  const expectation = "① 额度被外部占满时队列任务必须留在 queued（不置 running）；② 外部归还后队列被唤醒并开始执行；③ 全局在途数任一时刻不超过上限";
+
+  // concurrencyLimiter 是零依赖模块，可直接按真实路径加载
+  const limiter = await import(
+    pathToFileURL(path.join(SRC, "services/concurrencyLimiter.ts")).href
+  );
+  const required = [
+    "getGlobalConcurrencyLimit",
+    "setGlobalConcurrencyLimit",
+    "getInFlightCount",
+    "getWaiterCount",
+    "tryAcquireGlobalSlot",
+    "acquireGlobalSlot",
+    "onGlobalSlotReleased",
+    "resetGlobalConcurrencyLimiter",
+  ];
+  const missing = required.filter((k) => typeof limiter[k] !== "function" && k !== "DEFAULT_GLOBAL_CONCURRENCY_LIMIT");
+  if (missing.length > 0) {
+    return {
+      name, impl, expectation,
+      actual: `src/services/concurrencyLimiter.ts 缺少导出：${missing.join(", ")}`,
+      verdict: "FAIL",
+      note: "REQ-005 要求存在唯一可查询、可设置的全局并发额度来源；该模块缺失或 API 不完整" +
+        "（修复前根本不存在这个模块，因此本用例在修复前必然判 FAIL）",
+    };
+  }
+
+  const { useQueueStore } = await import(pathToFileURL(path.join(SRC, "stores/queueStore.ts")).href);
+
+  // 隔离：先清空队列并等一拍，让**前面用例**留下的在途任务收尾。
+  // 不这样做会有真实的串扰：用例 F 结束时仍有一个 job 在跑，它稍后收尾时会归还额度、
+  // 并触发 onGlobalSlotReleased 唤醒队列 —— 那会在本用例"占满额度"之后把额度让出来，
+  // 使本用例的前提失效（表现为刚拿到的额度凭空消失、被占满的假设不成立）。
+  useQueueStore.setState({ jobs: [] });
+  await sleep(250);
+
+  // 干净的起点
+  limiter.resetGlobalConcurrencyLimiter();
+  limiter.setGlobalConcurrencyLimit(1);
+  useQueueStore.setState({
+    paused: false,
+    concurrency: 4, // 队列自己愿意开 4 个（UI 上限），但全局只有 1 个额度
+    jobs: [
+      { id: "g-a", nodeId: "g-node-a", canvasId: null, nodeLabel: "G-A", modelLabel: "m", promptPreview: "a", status: "queued", createdAt: Date.now() },
+      { id: "g-b", nodeId: "g-node-b", canvasId: null, nodeLabel: "G-B", modelLabel: "m", promptPreview: "b", status: "queued", createdAt: Date.now() + 1 },
+    ],
+  });
+
+  // 外部（模拟工作流路径的节点执行）占住唯一额度
+  const externalRelease = limiter.tryAcquireGlobalSlot();
+  if (!externalRelease) {
+    limiter.resetGlobalConcurrencyLimiter();
+    useQueueStore.setState({ jobs: [] });
+    return {
+      name, impl, expectation,
+      actual: "把全局额度设为 1 后，外部 tryAcquireGlobalSlot() 仍返回 null",
+      verdict: "ERROR",
+      note: "基础设施异常：无法建立\"额度被占满\"的前提，用例无效",
+    };
+  }
+
+  const runningCount = () => useQueueStore.getState().jobs.filter((j) => j.status === "running").length;
+  const queuedCount = () => useQueueStore.getState().jobs.filter((j) => j.status === "queued").length;
+
+  useQueueStore.getState().pump();
+  await sleep(120);
+
+  const runningWhileBlocked = runningCount();
+  const queuedWhileBlocked = queuedCount();
+  const inFlightWhileBlocked = limiter.getInFlightCount();
+
+  // 外部归还 → 队列必须被唤醒（不依赖本队列自己的任务收尾）
+  externalRelease();
+  const wokeUp = await waitFor(() => runningCount() > 0 || queuedCount() < 2, 3000, 20);
+
+  const runningAfterRelease = runningCount();
+  const inFlightAfterRelease = limiter.getInFlightCount();
+
+  // 收尾：清空并复位，避免影响后续用例
+  useQueueStore.setState({ jobs: [] });
+  limiter.resetGlobalConcurrencyLimiter();
+
+  const okNoStart = runningWhileBlocked === 0 && queuedWhileBlocked === 2;
+  const okCap = inFlightWhileBlocked <= 1;
+  const okWake = wokeUp === true;
+  const okAll = okNoStart && okCap && okWake;
+
+  return {
+    name, impl, expectation,
+    actual:
+      `额度占满时：队列 running=${runningWhileBlocked}（期望 0）、仍 queued=${queuedWhileBlocked}（期望 2）、全局在途=${inFlightWhileBlocked}（上限 1）；` +
+      `外部归还后：被唤醒=${okWake}、队列 running=${runningAfterRelease}、全局在途=${inFlightAfterRelease}`,
+    verdict: okAll ? "PASS" : "FAIL",
+    note: okAll
+      ? ""
+      : [
+          okNoStart ? "" : "额度被占满时队列仍把任务置为 running（等于超限发出请求，REQ-005 未生效）",
+          okCap ? "" : `全局在途 ${inFlightWhileBlocked} 超过上限 1`,
+          okWake ? "" : "外部归还额度后队列没有被唤醒（任务会永远停在 queued —— 停车后必须有人叫醒它）",
+        ].filter(Boolean).join("；"),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 6f) 用例 H —— REQ-006 取消后不得写回结果
+//
+// 修复前的缺陷：执行器只在"发起前"与"请求刚返回后"检查 signal.aborted，而两者之间、以及
+// 返回之后到成功写回之间还有多处真实 await（persistInputImages、Promise.all(saveImage) 等
+// IPC 往返）。取消恰好落进那些 await 时，代码会继续走成功分支：把 status:"success" 与
+// outputImage/outputImagePath 写进节点数据，并把 runRecords 记为成功 —— 用户点了取消却看到
+// "生成成功"，而且该结果会被画布持久化进 app-data.json。
+//
+// 为什么必须新增这条：既有 A–F 无一条涉及取消后的写回（probe-cancel-abort-lock.mjs 尽管
+// 名字相像，断言的是 REQ-001 的 queued 标记锁，不是"结果不得落盘"）。
+//
+// 判据（时间无关）：取消后节点 status 不得为 "success"，且不得出现本次的 outputImagePath/
+// outputImagePaths；同时执行器必须返回 cancelled 而不是把取消当成成功。
+// ---------------------------------------------------------------------------
+async function caseCancelDoesNotWriteBack() {
+  const name = "用例 H：取消落在落盘阶段时不得把结果写回节点（REQ-006）";
+  const impl = "真实 executeImageGeneration + 确定性窗口：provider 立刻成功（标志位触发的透传替身），\n" +
+    "         落盘 saveImage 被闸门停住，在该窗口内 abort 后再放行；断言结果不得写回节点。";
+  const expectation = "取消后：执行器返回 cancelled=true，节点 status !== \"success\"，且未写入本次 outputImage/outputImagePath/outputImages/outputImagePaths";
+
+  const { useFlowStore } = await import(pathToFileURL(path.join(SRC, "stores/flowStore.ts")).href);
+  const { getDefaultImageGeneratorData } = await import(
+    pathToFileURL(path.join(SRC, "components/nodes/imageGeneratorConfig.ts")).href
+  );
+  const { executeImageGeneration } = await import(
+    pathToFileURL(path.join(SRC, "services/imageGenerationExecution.ts")).href
+  );
+
+  const NODE = "cancel-node-h";
+  const CANVAS = "cancel-canvas-h";
+  useFlowStore.setState({
+    nodes: [
+      {
+        id: NODE,
+        type: "imageGeneratorNode",
+        position: { x: 0, y: 0 },
+        data: { ...getDefaultImageGeneratorData(), prompt: "cancel regression h" },
+      },
+    ],
+    edges: [],
+  });
+  // canvasId 不能为 null：执行器只在"有画布"时才走 persistInputImages/saveImage 落盘分支
+  // （否则结果只走 base64 回退，落盘窗口根本不存在，本用例会空过）。
+  // 这里建立一个真实画布并设为活动画布，让落盘分支确定被执行。
+  const { useCanvasStore } = await import(pathToFileURL(path.join(SRC, "stores/canvasStore.ts")).href);
+  useCanvasStore.setState({
+    activeCanvasId: CANVAS,
+    canvases: [
+      {
+        id: CANVAS,
+        name: "cancel-regression",
+        nodes: [
+          {
+            id: NODE,
+            type: "imageGeneratorNode",
+            position: { x: 0, y: 0 },
+            data: { ...getDefaultImageGeneratorData(), prompt: "cancel regression h" },
+          },
+        ],
+        edges: [],
+      },
+    ],
+  });
+
+  // 打开两个确定性开关：
+  //   __NC_CANCEL_H_PROVIDER__  → provider 立刻返回图片（无需 IPC）
+  //   __NC_SAVE_GATE__          → saveImage 进入后停住，直到用例放行
+  let resolveEntered;
+  const entered = new Promise((resolve) => { resolveEntered = resolve; });
+  let releaseSave;
+  const saveMayProceed = new Promise((resolve) => { releaseSave = resolve; });
+  globalThis.__NC_CANCEL_H_PROVIDER__ = true;
+  globalThis.__NC_SAVE_GATE__ = { markEntered: () => resolveEntered(), wait: saveMayProceed };
+
+  const controller = new AbortController();
+  let result;
+  let windowOpened = false;
+  try {
+    const run = executeImageGeneration(NODE, {
+      canvasId: CANVAS,
+      withRunRecords: false,
+      signal: controller.signal,
+    });
+
+    // 等到 saveImage 真的进入（说明 provider 已返回、正处于落盘阶段）
+    windowOpened = await Promise.race([
+      entered.then(() => true),
+      sleep(5000).then(() => false),
+    ]);
+
+    if (!windowOpened) {
+      releaseSave();
+      await run.catch(() => {});
+      return {
+        name, impl, expectation,
+        actual: "未能进入落盘窗口（saveImage 未被调用）",
+        verdict: "ERROR",
+        note: "基础设施异常：用例 H 依赖\"provider 已返回、正在落盘\"这一窗口；窗口未建立时不得判 PASS（否则会空过）",
+      };
+    }
+
+    // 关键时序：取消发生在窗口内，然后才放行落盘
+    controller.abort();
+    releaseSave();
+    result = await run;
+  } catch (error) {
+    try { releaseSave(); } catch {}
+    return {
+      name, impl, expectation,
+      actual: `执行器在取消路径上抛出异常：${error && error.message ? error.message : String(error)}`,
+      verdict: "ERROR",
+      note: "基础设施异常：取消路径应返回 {success:false, cancelled:true}，不应抛错",
+    };
+  } finally {
+    delete globalThis.__NC_CANCEL_H_PROVIDER__;
+    delete globalThis.__NC_SAVE_GATE__;
+  }
+
+  const node = useFlowStore.getState().nodes.find((n) => n.id === NODE);
+  const data = (node && node.data) || {};
+  const wroteSuccess = data.status === "success";
+  const wrotePaths =
+    Boolean(data.outputImage) ||
+    Boolean(data.outputImagePath) ||
+    Boolean(data.outputImages && data.outputImages.length) ||
+    Boolean(data.outputImagePaths && data.outputImagePaths.length);
+
+  const ok = windowOpened && result.cancelled === true && !wroteSuccess && !wrotePaths;
+  return {
+    name, impl, expectation,
+    actual:
+      `落盘窗口已建立=${windowOpened}；执行器返回 cancelled=${String(result.cancelled)}、success=${String(result.success)}；` +
+      `节点 status=${JSON.stringify(data.status)}、outputImage=${JSON.stringify(data.outputImage || null)}、` +
+      `outputImagePath=${JSON.stringify(data.outputImagePath || null)}、outputImagePaths=${JSON.stringify(data.outputImagePaths || null)}`,
+    verdict: ok ? "PASS" : "FAIL",
+    note: ok
+      ? ""
+      : "取消后仍把结果写回：节点被标记为成功或写入了本次产物 —— 用户点了取消却看到生成成功，" +
+        "该结果还会被画布持久化进 app-data.json。必须在每个 await 之后（尤其成功写回之前）复查 signal.aborted（REQ-006）",
+  };
+}
+
+
+
+// ---------------------------------------------------------------------------
+// 6g) 用例 I —— REQ-004 复用不得改变工作流路径对 `data.queued` 的行为
+//
+// 背景（独立审查 r1 实测到的真实缺陷）：把工作流路径的图片执行改为复用
+// executeImageGeneration 之后，执行器启动时**无条件**写 `queued:false`，于是工作流路径
+// 开始写它以前从不碰的字段；当该节点的队列任务**仍停在 queued**（队列被暂停、额度被别人占满、
+// 或 concurrency 小于该节点排队任务数）时，一次工作流运行会抹掉一份**合法**的排队标记：
+// 节点显示"未排队"、生成按钮重新可点，而任务其实还在等 —— 正是 queueStore 自己列为缺陷类的
+// 「不该清却清了」。
+//
+// 判据：在"该节点确有一个 queued 队列任务"的前提下调用执行器（模拟工作流路径的调用方式，
+// 即不传 clearQueuedMarker），断言 `data.queued` **保持 true**；同时断言队列路径的调用方式
+// （clearQueuedMarker:true）仍然会清掉它 —— 后者是既有语义，不能被这次修复弄丢。
+// ---------------------------------------------------------------------------
+async function caseWorkflowPreservesQueuedMarker() {
+  const name = "用例 I：工作流路径复用执行器时不得抹掉合法的 queued 标记（REQ-004）";
+  const impl = "节点上存在一个真实 queued 队列任务；分别以【工作流路径】（不传 clearQueuedMarker）\n" +
+    "         与【队列路径】（clearQueuedMarker:true）调用 executeImageGeneration，比较 data.queued 的终态。";
+  const expectation = "① 工作流路径：data.queued 必须保持 true（不得抹掉合法标记）；② 队列路径：仍会把它清为 falsy（既有语义不丢）";
+
+  const { useFlowStore } = await import(pathToFileURL(path.join(SRC, "stores/flowStore.ts")).href);
+  const { useCanvasStore } = await import(pathToFileURL(path.join(SRC, "stores/canvasStore.ts")).href);
+  const { useQueueStore } = await import(pathToFileURL(path.join(SRC, "stores/queueStore.ts")).href);
+  const { getDefaultImageGeneratorData } = await import(
+    pathToFileURL(path.join(SRC, "components/nodes/imageGeneratorConfig.ts")).href
+  );
+  const { executeImageGeneration } = await import(
+    pathToFileURL(path.join(SRC, "services/imageGenerationExecution.ts")).href
+  );
+
+  const NODE = "queued-marker-i";
+  const CANVAS = "queued-marker-canvas-i";
+  const makeNodeData = () => ({
+    ...getDefaultImageGeneratorData(),
+    prompt: "queued marker regression i",
+    queued: true, // 合法标记：下面同时让它确有一个 queued 队列任务
+  });
+
+  // ⚠ 顺序很重要：必须先建立"该 nodeId 确有活动任务"，再写节点数据。
+  // queueStore 的自愈订阅会在 flowStore 的 nodes **换身份**时复核标记，而它只清不置位；
+  // 若先写节点数据（queued:true）再建 job，那次换身份发生时活动任务还不存在，
+  // 自愈会把标记当成陈旧项清掉 —— 那是**正确**行为，却会让本用例的前提不成立（假 FAIL）。
+  useQueueStore.setState({
+    paused: true,
+    concurrency: 1,
+    jobs: [
+      {
+        id: "i-job",
+        nodeId: NODE,
+        canvasId: CANVAS,
+        nodeLabel: "I",
+        modelLabel: "m",
+        promptPreview: "p",
+        status: "queued",
+        createdAt: Date.now(),
+      },
+    ],
+  });
+
+  useFlowStore.setState({
+    nodes: [{ id: NODE, type: "imageGeneratorNode", position: { x: 0, y: 0 }, data: makeNodeData() }],
+    edges: [],
+  });
+  useCanvasStore.setState({
+    activeCanvasId: CANVAS,
+    canvases: [
+      {
+        id: CANVAS,
+        name: "queued-marker",
+        nodes: [{ id: NODE, type: "imageGeneratorNode", position: { x: 0, y: 0 }, data: makeNodeData() }],
+        edges: [],
+      },
+    ],
+  });
+
+  // 前提核对：标记必须确实存在，否则本用例没有区分力
+  const preflight = (() => {
+    const flow = useFlowStore.getState().nodes.find((n) => n.id === NODE);
+    return flow && flow.data ? flow.data.queued : undefined;
+  })();
+  if (preflight !== true) {
+    useQueueStore.setState({ jobs: [] });
+    useFlowStore.setState({ nodes: [], edges: [] });
+    return {
+      name, impl, expectation,
+      actual: `前提未建立：写节点数据后 data.queued=${JSON.stringify(preflight)}（期望 true；很可能是自愈订阅把先写的标记清掉了，属用例夹具顺序问题）`,
+      verdict: "ERROR",
+      note: "基础设施异常：夹具必须先建活动任务再写节点数据，否则测不到目标行为",
+    };
+  }
+
+  const readQueued = () => {
+    const flow = useFlowStore.getState().nodes.find((n) => n.id === NODE);
+    const canvas = useCanvasStore.getState().canvases.find((c) => c.id === CANVAS);
+    const canvasNode = canvas && canvas.nodes.find((n) => n.id === NODE);
+    return {
+      flow: flow && flow.data ? flow.data.queued : undefined,
+      canvas: canvasNode && canvasNode.data ? canvasNode.data.queued : undefined,
+    };
+  };
+
+  // provider 用立刻成功的替身（其余 provider/落盘都走真实代码路径）。
+  // ⚠ 不能一开始就 abort：执行器在 signal 已 aborted 时会**提前 return**，根本走不到启动时的
+  // 节点写入，本用例就会空过（把修复移除也照样 PASS）。所以这里让它正常跑完，
+  // 真正要观察的是"启动写入"那一步对 data.queued 的影响。
+  globalThis.__NC_CANCEL_H_PROVIDER__ = true;
+
+  let workflowQueued;
+  let queuePathQueued;
+  try {
+    // ---- ① 工作流路径的调用方式：withRunRecords:false，且**不传** clearQueuedMarker ----
+    await executeImageGeneration(NODE, { canvasId: CANVAS, withRunRecords: false });
+    workflowQueued = readQueued();
+
+    // ---- ② 队列路径的调用方式：clearQueuedMarker:true ----
+    useFlowStore.setState({
+      nodes: [{ id: NODE, type: "imageGeneratorNode", position: { x: 0, y: 0 }, data: makeNodeData() }],
+    });
+    useCanvasStore.setState({
+      canvases: [
+        {
+          id: CANVAS,
+          name: "queued-marker",
+          nodes: [{ id: NODE, type: "imageGeneratorNode", position: { x: 0, y: 0 }, data: makeNodeData() }],
+          edges: [],
+        },
+      ],
+    });
+    await executeImageGeneration(NODE, {
+      canvasId: CANVAS,
+      withRunRecords: true,
+      clearQueuedMarker: true,
+    });
+    queuePathQueued = readQueued();
+  } finally {
+    delete globalThis.__NC_CANCEL_H_PROVIDER__;
+    useQueueStore.setState({ jobs: [] });
+    useFlowStore.setState({ nodes: [], edges: [] });
+    useCanvasStore.setState({ canvases: [] });
+  }
+
+  const preserves = workflowQueued.flow === true;
+  const stillClears = !queuePathQueued.flow;
+  const ok = preserves && stillClears;
+
+  return {
+    name, impl, expectation,
+    actual:
+      `工作流路径后 data.queued=${JSON.stringify(workflowQueued.flow)}（期望 true，画布副本=${JSON.stringify(workflowQueued.canvas)}）；` +
+      `队列路径后 data.queued=${JSON.stringify(queuePathQueued.flow)}（期望 falsy）`,
+    verdict: ok ? "PASS" : "FAIL",
+    note: ok
+      ? ""
+      : [
+          preserves ? "" : "工作流路径抹掉了一份合法的 queued 标记：该节点确有 queued 队列任务，却把标记清成 false，" +
+            "于是 UI 显示未排队、生成按钮重新可点（用户点了只会被入队守卫拦下）。" +
+            "`data.queued` 属队列路径专有状态，工作流不经 enqueue、必须原样保留（REQ-004 验收第 3 条）",
+          stillClears ? "" : "队列路径不再清除 queued 标记：既有语义被这次修复弄丢（队列任务启动时应消费掉该标记）",
+        ].filter(Boolean).join("；"),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // 7) 守卫形态的模拟（仅 --self-check 时启用）
 //     把"守卫"装到 queueStore.enqueue 上：这是真实补丁最可能的位置，且能完整复现
 //     "批量被截断""仅 running 漏判 queued""全局单飞禁止多节点并发"等可观察后果。
@@ -1211,6 +1693,7 @@ function printCase(r, index) {
 
 console.log("=".repeat(78));
 console.log("生成队列回归：REQ-001（重启恢复） / REQ-002（重复入队 + 批量分支 + 并发点击 + 重试）");
+console.log("              / REQ-005（全局单一并发上限） / REQ-006（取消后不写回结果）");
 console.log(`MODE: ${MODE}${MODE === "expect-red" ? "（红状态自检：用例都应当 FAIL）" : "（默认：断言修复后应有的行为）"}`);
 if (MUTANTS.size > 0) {
   console.log(`SELF-CHECK: ${[...MUTANTS].join(",")}（变异自检：被测行为被人为改造，仅用于验证断言强度，不代表真实结论）`);
@@ -1250,7 +1733,9 @@ if (guardStats) {
   console.log("");
 }
 
-for (const run of [caseDuplicateEnqueue, caseBatchEnqueue, caseQueuedNotRunning, caseConcurrentClicks, caseRetry]) {
+// 用例 G/H/I 追加在既有 A–F 之后：selfcheck 里有若干按**下标**读取用例结果的断言
+// （p1Cases[1..5] / slCases[1..5]），把新用例插在中间会让那些下标指向错的用例。
+for (const run of [caseDuplicateEnqueue, caseBatchEnqueue, caseQueuedNotRunning, caseConcurrentClicks, caseRetry, caseGlobalConcurrencyLimit, caseCancelDoesNotWriteBack, caseWorkflowPreservesQueuedMarker]) {
   try {
     results.push(await run());
   } catch (e) {

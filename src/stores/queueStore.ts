@@ -11,6 +11,13 @@ import { executeImageGeneration } from "@/services/imageGenerationExecution";
 import { useFlowStore } from "@/stores/flowStore";
 import { useCanvasStore } from "@/stores/canvasStore";
 import type { ImageGeneratorNodeData } from "@/components/nodes/imageGeneratorConfig";
+// REQ-005：全局并发额度的**唯一来源**。本 store 的 `concurrency` 只表示"这个队列自己愿意同时
+// 跑几个"，真正的"全应用同时最多几路"由 concurrencyLimiter 决定；工作流路径同样从这里取许可。
+// 二者叠加不再各自为政：以前 queueStore 2 × workflowEngine 3 互不知情，最多 5 路打同一个 Key。
+import {
+  onGlobalSlotReleased,
+  tryAcquireGlobalSlot,
+} from "@/services/concurrencyLimiter";
 
 export type QueueJobStatus = "queued" | "running" | "success" | "error" | "cancelled";
 
@@ -110,6 +117,15 @@ interface BatchChain {
   /** 这一批下一个应当到来的 batchIndex。 */
   nextIndex: number;
 }
+
+// REQ-005：全局额度被"别处"归还时（例如工作流路径的节点执行完毕，或另一个队列任务收尾），
+// 必须重新调度本队列。没有这一步，队列在"取不到全局额度"而停车后就可能再也不被唤醒 ——
+// 它只会在 enqueue / setConcurrency / togglePaused / 本队列任务收尾时 pump()，而这几件事
+// 在"额度被工作流占着"期间都不会发生，任务于是明明有额度可用却一直停在 queued。
+// pump() 自带重入保护（pumping 标志）且在没有 queued 任务时立刻返回，因此这里可以无条件调用。
+onGlobalSlotReleased(() => {
+  useQueueStore.getState().pump();
+});
 
 const batchChains = new Map<string, BatchChain>();
 
@@ -451,8 +467,14 @@ export const useQueueStore = create<QueueState>()(
 
         const step = () => {
           const state = get();
+          if (state.paused) {
+            pumping = false;
+            return;
+          }
+
+          // 第一道：本队列自己愿意同时跑几个（用户在 QueuePanel 设的 1..4）。
           const runningCount = state.jobs.filter((j) => j.status === "running").length;
-          if (state.paused || runningCount >= state.concurrency) {
+          if (runningCount >= state.concurrency) {
             pumping = false;
             return;
           }
@@ -461,6 +483,16 @@ export const useQueueStore = create<QueueState>()(
             .reverse()
             .find((j) => j.status === "queued");
           if (!next) {
+            pumping = false;
+            return;
+          }
+
+          // 第二道（REQ-005）：全应用真正的在途上限。取不到额度就让该任务**留在 queued**，
+          // 而不是先置 running 再等待 —— 后者会让 UI 显示"运行中"但实际没发出去，也会让
+          // 上面那道 runningCount 与真实在途数脱节。额度归还会经 onGlobalSlotReleased 回调
+          // 重新 pump()，所以停在这里不会漏跑。
+          const releaseSlot = tryAcquireGlobalSlot();
+          if (!releaseSlot) {
             pumping = false;
             return;
           }
@@ -479,6 +511,9 @@ export const useQueueStore = create<QueueState>()(
           void executeImageGeneration(next.nodeId, {
             canvasId: next.canvasId,
             withRunRecords: true,
+            // 队列路径有权清 `data.queued`：正在启动的就是该节点这个队列任务，标记该被消费掉。
+            // 工作流路径不传这个开关（默认 false），因此它不会抹掉这里的合法标记。
+            clearQueuedMarker: true,
             signal: controller.signal,
             dataOverride: next.dataOverride,
           })
@@ -527,6 +562,9 @@ export const useQueueStore = create<QueueState>()(
               // 误伤：该节点若还有 queued||running 任务（例如用户在这个时间窗里新点的一次生成，
               // 或另一个画布上的同名节点），它什么都不做。
               clearNodeQueuedMarkerIfNoActiveJob(next.nodeId);
+              // REQ-005：必须先归还全局额度再继续调度，否则本队列会把额度一直握在自己手里，
+              // 工作流路径永远取不到许可。归还本身是幂等的（重复调用只生效一次）。
+              releaseSlot();
               step();
             });
 

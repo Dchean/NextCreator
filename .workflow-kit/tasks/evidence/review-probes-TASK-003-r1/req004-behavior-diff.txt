@@ -1,0 +1,78 @@
+REQ-004 行为差异明细（驱动层 = nodeExecutor.executeNode；同一组 provider/fileStorage 替身）
+before 源码根 = C:\Users\A\AppData\Local\Temp\nc-abl-20260929190254
+candidate 源码根 = D:\NextCreator
+
+--- S1_success_no_canvas ---
+  before    result = {"success":true,"output":{"imageData":"data:image/png;base64,iVBORw0KGgo=","imageDataList":["data:image/png;base64,iVBORw0KGgo="]}}
+  candidate result = {"success":true,"output":{"imageData":"data:image/png;base64,iVBORw0KGgo=","imageDataList":["data:image/png;base64,iVBORw0KGgo="]}}
+  before    node.status="success" node.error=null queued=null runRecords=[]
+  candidate node.status="success" node.error=null queued=false runRecords=[]
+
+--- S2_success_with_canvas_saveimage_fails ---
+  before    result = {"success":true,"output":{"imageData":"data:image/png;base64,iVBORw0KGgo=","imageDataList":["data:image/png;base64,iVBORw0KGgo="]}}
+  candidate result = {"success":true,"output":{"imageData":"data:image/png;base64,iVBORw0KGgo=","imageDataList":["data:image/png;base64,iVBORw0KGgo="]}}
+  before    node.status="success" node.error=null queued=null runRecords=[]
+  candidate node.status="success" node.error=null queued=false runRecords=[]
+
+--- S3_empty_prompt ---
+  before    result = {"success":false,"error":"缺少必需的提示词输入"}
+  candidate result = {"success":false,"error":"请连接提示词节点"}
+  before    node.status="error" node.error="缺少必需的提示词输入" queued=null runRecords=[]
+  candidate node.status="error" node.error="请连接提示词节点" queued=false runRecords=[]
+
+--- S4_provider_error ---
+  before    result = {"success":false,"error":"probe: provider error"}
+  candidate result = {"success":false,"error":"probe: provider error"}
+  before    node.status="error" node.error="probe: provider error" queued=null runRecords=[]
+  candidate node.status="error" node.error="probe: provider error" queued=false runRecords=[]
+
+--- S5_provider_no_image ---
+  before    result = {"success":true,"output":{}}
+  candidate result = {"success":false,"error":"未返回图片数据"}
+  before    node.status="success" node.error=null queued=null runRecords=[]
+  candidate node.status="error" node.error="未返回图片数据" queued=false runRecords=[]
+
+--- S6_provider_throws ---
+  before    result = {"success":false,"error":"probe: provider failure"}
+  candidate result = {"success":false,"error":"probe: provider failure"}
+  before    node.status="error" node.error="probe: provider failure" queued=null runRecords=[]
+  candidate node.status="error" node.error="probe: provider failure" queued=false runRecords=[]
+
+--- S7_preaborted_signal ---
+  before    result = {"success":false,"error":"已取消"}
+  candidate result = {"success":false,"error":"已取消"}
+  before    node.status="idle" node.error=null queued=null runRecords=[]
+  candidate node.status="idle" node.error=null queued=false runRecords=[]
+
+--- S8_cancel_during_request ---
+  before    result = {"success":false,"error":"已取消"}
+  candidate result = {"success":false,"error":"已取消"}
+  before    node.status="idle" node.error=null queued=null runRecords=[]
+  candidate node.status="idle" node.error=null queued=false runRecords=[]
+
+--- S9_cancel_during_save ---
+  before    result = {"success":true,"output":{"imageData":"data:image/png;base64,iVBORw0KGgo=","imageDataList":["data:image/png;base64,iVBORw0KGgo="]}}
+  candidate result = {"success":false,"error":"已取消"}
+  before    node.status="success" node.error=null queued=null runRecords=[]
+  candidate node.status="idle" node.error=null queued=false runRecords=[]
+
+=== 结论分类 ===
+A. 期望的变化（REQ-004 要求统一实现，故错误文案沿用唯一实现的口径）：
+   - S3_empty_prompt：'缺少必需的提示词输入'（旧 nodeExecutor 文案） -> '请连接提示词节点'（执行器文案）
+     两者语义相同（都指没有可用提示词），且都在节点 status=error / error 字段上可见。
+
+B. 缺陷修复带来的变化（REQ-004 的收益，不是回归）：
+   - S5_provider_no_image：浏览器 provider 返回成功但没有图片数据时，
+     旧 nodeExecutor 判 success=true 并把 undefined 写入 outputImage（节点显示成功但无图）；
+     统一实现判 success=false, error='未返回图片数据'（节点显示 error）。
+     注意真实 gemini provider 在这条路径上会自己先返回 error（gemini.ts:191-208，文案 'API 返回成功但未包含图片数据'），
+     所以真实运行时本来就走 error 分支；S5 是替身绕开 provider 校验后的直接对照。
+
+C. REQ-006 的目标修复（取消落在落盘阶段不再写回）：
+   - S9_cancel_during_save：before success=true / status=success；candidate cancelled / status=idle。
+
+D. 附带的一致性变化（同一节点在两条路径上的字段语义对齐）：
+   - queued 字段：before=null -> candidate=false
+     执行器启动时写 queued:false（imageGenerationExecution.ts:276-283）；旧工作流实现从不碰 queued。
+     UI 影响：ImageGeneratorNode.canRun 依赖 !isQueued，把陈旧的 queued:true 纠正为 false 是放宽而非收紧；
+     工作流路径不会写下 queued:true（那是 hook 在入队成功后写的），因此该分支在实际工作流运行中不会有值可改。

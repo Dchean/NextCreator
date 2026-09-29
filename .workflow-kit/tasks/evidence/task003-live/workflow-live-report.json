@@ -1,0 +1,99 @@
+{
+  "startedAt": "2026-09-29T10:54:57.727Z",
+  "checks": [
+    {
+      "id": "W0",
+      "title": "实机启动并渲染",
+      "result": "PASS",
+      "detail": "release 应用 + vite devUrl + CDP 9222"
+    },
+    {
+      "id": "W1",
+      "title": "构造工作流图片节点（同一实现入口）",
+      "result": "PASS",
+      "detail": "nodes=[{\"id\":\"wf-verify-node\",\"type\":\"imageGeneratorNode\",\"prompt\":\"WF-ACCEPTANCE-TASK00\"}]"
+    },
+    {
+      "id": "W2",
+      "title": "工作流图片节点经统一执行器真的被执行并到达终态（不卡 loading）",
+      "result": "PASS",
+      "detail": "engine 节点状态=\"failed\"、engine 总状态=\"error\"、progress={\"completed\":1,\"total\":1}；节点 status=\"idle\" error=\"\""
+    },
+    {
+      "id": "W3",
+      "title": "工作流路径仍不写 runRecords（withRunRecords:false 语义保持）",
+      "result": "PASS",
+      "detail": "runRecords=null"
+    },
+    {
+      "id": "W4",
+      "title": "全局额度跑完后归零、无泄漏与残留等待者（REQ-005）",
+      "result": "PASS",
+      "detail": "inFlight=0 waiters=0（上限 4）"
+    }
+  ],
+  "notes": [
+    {
+      "hydratedNodes": 0
+    },
+    {
+      "fixture": {
+        "nodes": [
+          {
+            "id": "wf-verify-node",
+            "type": "imageGeneratorNode",
+            "prompt": "WF-ACCEPTANCE-TASK00"
+          }
+        ]
+      }
+    },
+    {
+      "limiterBefore": {
+        "limit": 4,
+        "inFlight": 0,
+        "waiters": 0
+      }
+    },
+    {
+      "runResult": {
+        "ok": true,
+        "engineStatus": "error",
+        "nodeState": "failed",
+        "errors": {
+          "wf-verify-node": "节点不存在"
+        },
+        "progress": {
+          "completed": 1,
+          "total": 1
+        },
+        "engineRanNode": true
+      }
+    },
+    {
+      "nodeAfter": {
+        "status": "idle",
+        "error": "",
+        "runRecords": null,
+        "outputImagePath": null,
+        "outputThumbPath": null,
+        "inFlight": 0,
+        "waiters": 0
+      }
+    }
+  ],
+  "dataShaBefore": "824a7e330edb9b20ea94b7e5538fc9d4e9e36991e31c5d2b480effedf19a0490",
+  "backup": "D:\\NextCreator\\.workflow-kit\\tasks\\evidence\\task003-live\\app-data.before.json",
+  "consoleErrors": [
+    "Storage save error: 拒绝访问。 (os error 5)",
+    "Storage save error: 拒绝访问。 (os error 5)",
+    "Storage save error: 拒绝访问。 (os error 5)"
+  ],
+  "unifiedEntry": {
+    "totalNodes": 1
+  },
+  "restore": {
+    "sha256": "824a7e330edb9b20ea94b7e5538fc9d4e9e36991e31c5d2b480effedf19a0490",
+    "matches": true
+  },
+  "finishedAt": "2026-09-29T10:55:52.257Z"
+}

@@ -1,0 +1,95 @@
+{
+  "task_id": "TASK-003",
+  "candidate_digest": "315900936a4da252653d9a6d6aac15a8b5f024fd951dd81c723ee0842c02a36f",
+  "verification_run": "RUN-852c12c4eafd4381ae91705c6ce1b19d",
+  "verdict": "PASS",
+  "summary": "独立复核 TASK-003 r2（REQ-004 统一图片执行链 / REQ-005 全局单一并发上限 / REQ-006 取消不写回），重点验证 r1 唯一 finding（工作流路径经复用后无条件写 queued:false，抹掉合法排队标记）的修复是否真的闭合。方法：不采信审查包与作者结论——独立重算 116/116 候选文件 sha256（全部与 packet 一致，且与 RUN-852c12c4eafd4381ae91705c6ce1b19d-candidate.json 的 digest 一致）；独立重跑两道门禁（tsc --noEmit exit 0、0 行输出；queue-regression.mjs 9/9 PASS exit 0）；逐条读用例 A–I 的断言源码；在仓库外副本（%TEMP% + node_modules junction，绝不动真实仓库）对三个新用例各做一次最小势能消融；另写 6 个独立探针：before 树（git HEAD src 逐字节还原）与候选树的**节点写入键集合**对照、r1 场景的两条路径复现（含 flowStore 与 canvasStore 两份载体、自愈订阅顺序陷阱、真实 pump 驱动）、limiter 记账不变量与公平性、REQ-006 在 withRunRecords 两种取值与两个取消时点下的完整性、以及缩略图字段的覆写边界。结论：r1 的 finding 已闭合（我自己复现：候选树工作流路径保住 queued=true，消融退回缺陷形态后同一探针判出被抹除，before 树 4 个场景全部保留标记）；G/H/I 三个用例经我自己的消融全部判红且判红点互不重叠、落在各自的目标断言上（非空过）；REQ-005 的单一额度来源、超限停车、归还唤醒、幂等归还、复位代数、FIFO 不插队均实测成立；REQ-006 的复查支配 provider 返回窗口、落盘窗口、无画布 base64 回退与 catch 分支，且注释如实声明不能中止在途请求。未发现需要修复的缺陷。两处**非缺陷**观察如实记录：(1) nodeExecutor 注释自称『完整清单』，但我实测工作流路径**新写入**了 outputThumbPath/outputThumbPaths（成功落盘且后端返回 thumb_path 时）以及被连接输入节点的 imagePath（persistInputImages），该注释未列这两项；二者都属任务目标与验收第 1 条明确要求/与手动路径一致的既有能力（缩略图是 REQ-004 的既定收益、输入图落盘幂等且只在缺失时写），不构成行为缺陷，但『完整清单』的措辞仍偏满。(2) scripts/queue-regression.selfcheck.mjs（受保护路径、本任务未改动，已核对与 HEAD 逐字节相同）在候选上 19/27、exit 1：其中 6 项在**改动前的 HEAD 上就已经是 NG**（该脚本对『未修复源码必须 FAIL』的陈旧期望，与本次改动无关），只有 2 项是本次新增的**计数耦合**（:123/:201 硬编码 pass === 6），判别力未被削弱——--self-check=full-fix 实测 9/9 PASS exit 0，且我自己的三个消融证明判红能力完好。",
+  "findings": [],
+  "review_checks": [
+    {
+      "area": "requirements",
+      "status": "PASS",
+      "analysis": "REQ-004：(a) 单一实现入口——全仓 grep generateImage( / editImage( 的直接调用点只剩 imageGenerationExecution.ts:340-341，以及 imageGenerationService.ts:104/135-141 的 editImage→generateImage 内部转发，符合验收判定；nodeExecutor.ts:407-440 的 executeImageGeneratorNode 已缩为对 executeImageGeneration 的委托 + 成功路径回读映射。(b) r1 的 finding 是否闭合——**我自己构造场景复现**，不采信描述：候选树上『某节点确有一个 status=queued 的队列任务』（分别用 paused=true 与全局额度被外部占满两种前提建立）后跑工作流路径（nodeExecutor.executeNode，不传 clearQueuedMarker），flowStore 与 canvasStore 两份载体的 data.queued 均保持 true（before-tree-queued-marker.log / candidate-tree-queued-marker.log 场景 A、B）；把三处写入改回无条件 clear（const queuedMarkerPatch = { queued: false as const }）后，**同一探针**在同一场景判出被抹除（ablation-I-queued-marker.log：前置 true → 后置 false），证明我的探针确实能看见 r1 缺陷、候选的保留不是探针失灵。队列路径（clearQueuedMarker:true）仍清为 falsy，既有语义未丢。clearQueuedMarker 是**正确的轴**（而非 withRunRecords）：二者语义正交——withRunRecords 决定是否写运行历史（工作流要 false），queued 决定是否消费队列标记（工作流与该标记无关），把清标记挂到 withRunRecords 上会让『工作流不写 runRecords』与『不清标记』被错误绑死，队列路径也无法再用同一开关表达真实意图；默认 false 保护了**所有**不传该开关的调用方（当前仅 queueStore.pump() 一处传 true，grep clearQueuedMarker 确认无第三处调用方），方向正确（默认值朝『不做破坏性写入』一侧）。(c) 是否还有**其他**新写入字段——见 maintainability 的逐字段对照：除任务目标明确要求的缩略图（验收第 1 条『使工作流执行也产生运行记录与缩略图』）与与手动路径一致的输入图落盘外，无 queued 类的『合法状态被抹掉』。(d) 真实 pump 驱动下工作流路径与队列共存时不互相破坏标记（probe-queued-marker-r2 场景 E：任务从 queued 正常跑到 success，标记终态 false，额度残留 0）。REQ-005：唯一可查询/可设置来源成立（concurrencyLimiter.ts 的 get/set/reset + getInFlightCount/getWaiterCount/tryAcquire/acquire/onGlobalSlotReleased 齐备）；限额默认 4（= UI 上限），钳制实测 0→1、999→16、NaN→默认 4；两条路径都从它取许可（queueStore.ts:494 tryAcquireGlobalSlot、workflowEngine.ts:526 acquireGlobalSlot），且 maxParallelNodes 降级为次级约束仍在。REQ-006：取消后不写回结果成立（见 failure_paths），且限制说明如实——imageGenerationExecution.ts:8-17 明确写出『不能中止已发出的 HTTP 请求、在途请求会继续跑完、可能仍然产生计费、图片文件可能已落盘且不回收』，:452-457 再次声明只说『不写回状态与记录、不宣称已中止』；全仓 grep『必然/永远/绝不/总是』未发现与取消相关的夸大表述（唯一相邻的『绝不能让节点状态显示成功』是禁止性意图，且由实测成立的复查兑现）。验收『不得扩大范围』：git status 显示产物仅 6 个文件，全部落在 allowed_paths 内，tsconfig.json/flowStore.ts/canvasStore.ts/ImageGeneratorNode.tsx/queue-regression.selfcheck.mjs 均与 HEAD 逐字节相同。",
+      "evidence_files": [
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/candidate-tree-queued-marker.log",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/before-tree-queued-marker.log",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/ablation-I-queued-marker.log",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/probe-limiter-cancel.log",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/diff-imageGenerationExecution.txt",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/diff-queueStore.txt",
+        ".workflow-kit/tasks/runs/RUN-852c12c4eafd4381ae91705c6ce1b19d.json",
+        "src/services/concurrencyLimiter.ts",
+        "src/services/imageGenerationExecution.ts",
+        "src/services/nodeExecutor.ts",
+        "src/services/workflowEngine.ts",
+        "src/stores/queueStore.ts"
+      ]
+    },
+    {
+      "area": "regression",
+      "status": "PASS",
+      "analysis": "独立重跑两道门禁（不采信 RUN 记录）：node ./node_modules/typescript/bin/tsc --noEmit → exit 0、输出 0 行（成功时空输出是正确形态，故类型证据引用 RUN json 与我自己的非空 rerun 日志，不引用 0 字节的 *-typecheck.stdout.txt）；node --experimental-strip-types scripts/queue-regression.mjs → exit 0、PASS 9 / FAIL 0 / ERROR 0，与 RUN-852c12c4eafd4381ae91705c6ce1b19d 记录一致。既有断言未被弱化或删除：git diff 显示 queue-regression.mjs 被删除的行**只有 1 行**（主流程驱动的 for 数组那一行，因为 G/H/I 追加进同一数组），A–F 的断言体、判据、name/impl/expectation 文本与 --self-check 变异注入表（SELF_CHECK_KEYS 13 项）零改动；新增内容的 hunk 全部位于 registerHooks 的用例 H/I 专用替身（:254-267、:278-315）、:1138-1569 的 G/H/I 本体、以及 :1693 与 :1733-1741 的拼接行。G/H/I 追加在 A–F 之后，未移动既有下标（selfcheck 的 p1Cases[1..5]/slCases[1..5] 仍指向原用例）。**三个新用例的消融（我自己在仓库外副本做，仓库未被修改）**：中和全局 limiter（tryAcquireGlobalSlot 恒发许可且不记账）→ 用例 G 判 FAIL（exit 1，8 PASS/1 FAIL，G 实际输出『额度占满时队列 running=0、仍 queued=0（期望 2）』，即队列不再停车、超限直接发出），A–F 与 H/I 仍 PASS；只删掉成功写回前那一个 abort 复查 → 用例 H 判 FAIL（exit 1；H 实际输出『执行器返回 cancelled=undefined、success=true；节点 status=success、outputImage 有值』），G/I 仍 PASS；把 queuedMarkerPatch 改回无条件清 → 用例 I 判 FAIL（exit 1；I 实际输出『工作流路径后 data.queued=false（期望 true）』），G/H 仍 PASS。三次判红点落在各用例互不重叠的目标断言上，且失败原因就是该用例要守的缺陷机制（不是基础设施 ERROR、不是连带误伤），故 G/H/I 都不是空过断言。用例 I 的夹具顺序陷阱（自愈订阅只清不置位）已由脚本自己在 :1447-1450 说明并用 preflight（:1484-1498）把『前提未建立』判 ERROR 而不是 PASS——我实测该 preflight 有效：在我故意先写节点数据后建 job 的顺序下，标记确实被当陈旧清掉，说明若顺序写反会判 ERROR 而非假绿。selfcheck 情况已核对（受保护路径，未改动，与 HEAD 逐字节相同）：候选上 19/27 exit 1，其中 6 项在**改动前的 HEAD 上就已经 NG**（陈旧期望：对已由 TASK-006 修好的源码要求『必须 FAIL』），另 2 项为本次新增的**纯计数耦合**（:123 与 :201 硬编码 pass === 6，实际 9）；判别力未被削弱——--self-check=full-fix 实测 9/9 PASS exit 0，且上述三个消融证明判红能力完好。",
+      "evidence_files": [
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/reviewer-tsc-rerun.log",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/reviewer-queue-regression-baseline.log",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/ablation-G-case-G-must-FAIL.log",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/ablation-H-case-H-must-FAIL.log",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/ablation-I-case-I-must-FAIL.log",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/ablation-G-report.json",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/ablation-H-report.json",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/ablation-I-report.json",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/reviewer-selfcheck.log",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/selfcheck-at-HEAD.log",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/ablation-copy-baseline.log",
+        ".workflow-kit/tasks/runs/RUN-852c12c4eafd4381ae91705c6ce1b19d.json",
+        "scripts/queue-regression.mjs",
+        "scripts/queue-regression.selfcheck.mjs"
+      ]
+    },
+    {
+      "area": "failure_paths",
+      "status": "PASS",
+      "analysis": "REQ-005 记账不变量（自写探针，不依赖门禁断言）：同一 release 连调 3 次只扣一次（防额度放大）；取满后超额请求返回 null、全部归还后 inFlight=0（不泄漏）；limit=1 且 1 持有者 + 2 等待者时，一次归还**只**唤醒一个等待者、第二个继续阻塞、任一时刻在途 ≤ 1（不超额发放）；复位代数生效——复位前发出的陈旧许可归还时**不**误扣新一轮计数（实测复位后 inFlight=1，陈旧归还后仍为 1）；等待中 abort 返回 null、不占额度、不残留等待者（getWaiterCount()=0）；预先 abort 的 signal 立即返回 null；存在等待者时 tryAcquireGlobalSlot 拒绝插队（实测 steal=null），保证持续 pump 的队列不会把工作流的等待者饿死。pump() 的**每一条**早退路径都复位 pumping（逐分支核对 queueStore.ts:468-498：paused、runningCount>=concurrency、无 queued、取不到额度四条均 pumping=false），唯一继续递归的路径是成功派发后 setTimeout(step,0)，故不存在『pumping 卡在 true 导致调度器死锁』；额度归还在 .finally 里且归还函数幂等（makeRelease 的 released 短路），正常收尾/执行器抛错/返回 cancelled 三条路径都经同一处归还，既不泄漏也不双释放；workflowEngine 侧 releaseGlobalSlot 同样在 .finally，且 acquire 返回 null 只可能因为 abort（reset 会以 null 放行等待者，但该函数被注释明确标注为仅供测试、产品不调用），所以 `if (!releaseGlobalSlot) break` 不会在非取消场景吞掉节点。REQ-006 复查是否支配全部写回点（我枚举 provider 返回后的每一处写节点状态/落盘，并逐点构造窗口）：请求前、provider 刚返回后、persistInputImages 之后、saveImage 之后（成功写回前最后一次）、catch 共 5 处复查。实测覆盖——(a) 取消落在 provider 返回窗口，withRunRecords=false 与 true 两种取值下均返回 cancelled=true、节点 status=idle（非 success）、四个产物字段全空、runRecords 里**没有** status 为 success 的记录；(b) 取消落在落盘窗口（用可控落盘闸门确定性地建立该窗口），两种取值同样不写回成功、无产物；(c) canvasId=null（走 base64 回退的 else 分支，落盘窗口根本不存在）预取消同样不写回；(d) 对照组证明没有一刀切——provider 报 error 且未取消时，节点 status=error 且 runRecords 正常留下 error 记录（取消的『丢弃』只针对取消，不会把正常失败也吞掉）；(e) provider 成功但无图片数据时正确写 error（这是复用带来的修复收益：before 树实测为假成功 status=success，见 probe-before-claims.log，验证了注释第 6 条差异属实）。取消不留静默丢弃：节点终态为 idle + workflowEngine 记 failed 且 errors[nodeId]=『已取消』/error 文案，队列路径 result.cancelled → job status=cancelled，均不滞留在 loading/queued。自愈订阅与取消的交互也核对：执行器取消路径不写 queued:false，由 pump 的 .finally 复核兜底（唯一任务级常规复位路径），不存在『取消后节点永久显示排队中』。诚实记录一处**探针自伤**（非产品缺陷）：我的 limiter/cancel 探针里『非活动画布标记保留』一项最初判 FAIL，逐层定位后确认真因是我的夹具在**晚 import queueStore 之后立刻 setState 塞入 queued 任务**，与 zustand persist 的**异步水合**竞态（时间线实测：+3ms 塞入成功、+4ms 水合覆盖导致该 nodeId 瞬时无活动任务、自愈谓词据此放行清标记、+918ms 才 hasHydrated=true）；同一探针在**改动前的 before 树**上表现完全一致（V2 变体两棵树都判『标记被清除』，V1/V3 两棵树都判『被保留』），故该现象与 TASK-003 无关；真实应用里入队必经用户点击、发生在水合完成之后，该时序不可达。",
+      "evidence_files": [
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/probe-limiter-cancel.log",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/probe-limiter-cancel-r2.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/probe-queued-marker-r2.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/candidate-tree-queued-marker.log",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/probe-before-claims.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/timeline-nonactive-hydration.log",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/discriminate-nonactive-cause.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/debug-nonactive-canvas.log",
+        "src/services/concurrencyLimiter.ts",
+        "src/stores/queueStore.ts",
+        "src/services/imageGenerationExecution.ts",
+        "src/services/workflowEngine.ts"
+      ]
+    },
+    {
+      "area": "maintainability",
+      "status": "PASS",
+      "analysis": "职责与依赖方向：新增 src/services/concurrencyLimiter.ts 为零 import 的独立模块，不反向依赖 store 或组件；queueStore/workflowEngine 只依赖它，未引入新环。重复规则确已被消除：工作流路径原先自建的请求拼装/尺寸校验/落盘/错误分支整体删除（nodeExecutor.ts 由 675 行降到 591 行，diff 删除 232 行、新增约 100 行且多为注释），同一业务流程只剩一份实现。**复用后工作流路径能触发的节点写入逐字段对照**（before 树 = git HEAD src 逐字节还原，与候选跑同一份探针、同一组替身，见 before/candidate-tree-fieldwrites.log）：status（error/loading/success/idle 四态一致）、error、errorDetails、outputImage、outputImagePath、outputImages、outputImagePaths 在成功/缺提示词/预取消/尺寸校验失败四个场景下**键集合与值均一致**；runRecords 仍因 withRunRecords:false 完全不写（与改造前一致）；queued 已按 clearQueuedMarker 修正为工作流路径不写（r1 finding 的修复）。发现**两处新写入**（均为本轮新增、非 r1 那类『抹掉合法状态』）——(1) outputThumbPath / outputThumbPaths：成功落盘且后端返回 thumb_path 时被写入（本机 src-tauri/src/storage.rs:495 的 generate_thumbnail_file 在正常情形返回非空路径，故这是**默认**路径而非罕见分支；真实后端未生成缩略图时写 undefined/[]）。这是任务目标与验收第 1 条明确要求的收益（『使工作流执行也产生运行记录与缩略图』），且 nodeExecutor 注释第 3 条已把 outputThumbPaths 列入返回值说明；(2) 被连接输入节点的 imagePath：persistInputImages 在『该输入节点无 imagePath 且有 base64』时把输入图落盘并回写 imagePath（探针实测：saveImage 调用由 1 次（仅输出图）变为 2 次（输入图 + 输出图），inputNode 新增 imagePath 键）。该行为与手动/队列路径完全一致、只在缺失时写（幂等，第二次不再重复落盘），且输入节点若已是零拷贝本地路径引用则不会被覆盖。**注释准确性（记录，非缺陷）**：nodeExecutor.ts:386-405 的清单已从 r1 的『只有三点』补到 6 点，我逐条核对——withRunRecords、clearQueuedMarker、返回值映射、取消映射、错误文案变更（『缺少必需的提示词输入』→『请连接提示词节点』，我在 before 树上实测确认旧文案属实）、provider 成功但无图片数据的假成功修复，六条**全部属实**且措辞不再有『只有 N 点』的穷举口吻残留；但标题仍写『**完整清单**』，而我的键集合对照显示还漏了上面两项（outputThumbPath(s) 新写入、输入节点 imagePath 新写入），故该穷举口吻仍**偏满**；同段 :403-405『既有节点渲染…不变』也不够准确——节点预览确实变得更优（ImageGeneratorNode.tsx:205-211 优先用 outputThumbPath，首次跑工作流后预览由全尺寸图变为缩略图）。这两处仅是注释精度问题：它们描述的行为都属验收既定范围（缩略图）或与手动路径一致的既有能力（输入图落盘），不构成行为缺陷，故不列为阻塞 finding，但建议后续把『完整清单』改为『已知差异清单』并补一行缩略图/输入图落盘。可维护性负担（记录）：queueStore.ts 的注释体量已远超代码量（本任务在其上继续加注），新增读者需区分本轮额度逻辑与 REQ-001/002 的标记不变式论证，建议后续把两套论证各自收敛到文档。",
+      "evidence_files": [
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/candidate-tree-fieldwrites.log",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/before-tree-fieldwrites.log",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/probe-node-field-writes.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/probe-thumb-overwrite.log",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/probe-thumb-overwrite.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/diff-nodeExecutor.txt",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/diff-workflowEngine.txt",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-003-r2/diff-queueStore.txt",
+        "src/services/nodeExecutor.ts",
+        "src/services/concurrencyLimiter.ts",
+        "src/services/workflowEngine.ts",
+        "src/stores/queueStore.ts"
+      ]
+    },
+    {
+      "area": "performance",
+      "status": "NOT_APPLICABLE",
+      "analysis": "本任务的质量目标把性能显式记为 not_applicable（REQ-009 暂缓、无代表性负载可定义），改动不触及渲染路径与数据规模。唯一与吞吐相关的效应是**有意**的：默认全局上限 4 低于修复前两条路径叠加的需求上限（队列 concurrency 最多 4 + 工作流 maxParallelNodes 3），因此『队列与工作流同时满载』这一组合下的吞吐被主动封顶——这正是 REQ-005 要修的缺陷（修复前最多 5 路同时打同一 API Key），不是性能回归；对单一队列路径，上限 4 等于 UI 允许的最大并发数，无其它占用时 4 路仍能跑满，UI 承诺不变。我未在本轮定义负载或做计时基准，故不宣称任何性能提升或回归。附一处**静态范围**内的观察（非实测结论、不据此判定）：复用后工作流路径会对被连接的输入图额外调用一次 saveImage（每个缺 imagePath 的输入节点一次，幂等），理论上增加一次 IPC 落盘；缩略图字段的写入本身不产生额外 IPC（thumb_path 由同一次 save_image 返回）。若需吞吐/开销结论，应由 REQ-009 另立任务在代表性负载下测量。",
+      "evidence_files": []
+    }
+  ],
+  "ui_review": null
+}

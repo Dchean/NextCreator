@@ -1,0 +1,45 @@
+第一批 B 修复轮 1（TASK-003）：独立审查 r1 判 FAIL 的 1 条 finding 已修复。
+
+## 审查发现（真实、确定性、可达）
+REQ-004 的复用使工作流路径开始写 `runRecords` 之外的节点字段 `queued`：执行器启动时**无条件**写
+`queued:false`，而改动前的 nodeExecutor 从不碰该字段。当该节点的队列任务仍停在 queued（队列暂停 /
+额度被别人占满 / concurrency 小于排队数）时，一次工作流运行会抹掉一份**合法**的排队标记 ——
+UI 显示未排队、生成按钮重新可点，而任务其实还在等。审查者以 before 树（git archive HEAD 逐字节还原）
+与候选跑同一探针做了对照，我复核其机制成立：`data.queued` 确属队列路径专有状态。
+
+## 修法（采用审查者建议的显式开关，而非复用它自己的 withRunRecords）
+- `ImageGenerationJobOptions` 新增 `clearQueuedMarker?: boolean`，**默认 false**。
+- 执行器三处 `queued:false` 全部改经 `queuedMarkerPatch`（默认空对象，不写该字段）。
+- `queueStore.pump()` 传 `clearQueuedMarker: true` —— 正在启动的就是该节点这个队列任务，标记该被消费。
+- 工作流路径（nodeExecutor）不传，因此**完全不碰** `data.queued`，恢复改造前行为。
+为什么不用 withRunRecords 代替：更简单，但它把两件语义不同的事（是否写运行记录 / 是否有权清队列标记）
+耦合在一起，将来任一方变化都会误伤另一方。显式开关让「谁有权写这个字段」在调用点可见。
+
+## 同时修正审查者指出的穷举口吻
+`nodeExecutor.ts` 的复用说明原写「差异只有三点」，实测漏了两项。已改为**完整清单**（6 条）：
+withRunRecords、clearQueuedMarker、返回值映射、取消语义、错误文案变化（「缺少必需的提示词输入」→
+「请连接提示词节点」，可接受的用户可见变化）、以及 provider 成功但无图片数据时旧实现假成功/新实现正确报错
+（属复用收益而非回归）。
+
+## 新增门禁用例 I（审查者要求的回归保护）
+`scripts/queue-regression.mjs` 新增「用例 I：工作流路径复用执行器时不得抹掉合法的 queued 标记」：
+节点上先建立真实的 queued 队列任务，再分别以工作流路径（不传 clearQueuedMarker）与队列路径
+（clearQueuedMarker:true）调用执行器，断言前者**保留** true、后者仍清为 falsy（既有语义不丢）。
+
+## 用例 I 的两次自纠（记录以便复用）
+1. 夹具顺序错误：初版先写节点数据（queued:true）再建 job，而 queueStore 的自愈订阅在 nodes 换身份时
+   复核标记且**只清不置位**，于是那次换身份把先写的标记当陈旧项清掉 —— 前提不成立导致假 FAIL。
+   已改为**先建活动任务、再写节点数据**，并加前提核对（前提不成立判 ERROR 而非 PASS/FAIL）。
+2. 取消短路导致空过：初版用「一开始就 abort 的 signal」调用，而执行器在 signal 已 aborted 时会提前
+   return，根本走不到启动写入 —— ablation 证实移除修复后用例 I 仍 PASS（空过）。已改为让其正常跑完，
+   只观察启动写入对标记的影响。
+
+## ablation（判据强度的唯一证明）
+三向 ablation 全部通过（仓库外 %TEMP% 副本、junction node_modules）：
+- 移除全局额度（tryAcquireGlobalSlot 恒返回空许可）→ **用例 G 判 FAIL**
+- 移除成功写回前的 abort 复查 → **用例 H 判 FAIL**
+- 把执行器的 queued 清除改回无条件 → **用例 I 判 FAIL**
+基线 9/9 PASS，恢复后 9/9 PASS。三条新用例的判红点互不重叠，均非空过断言。
+
+## 当期门禁
+tsc --noEmit exit 0；queue-regression.mjs **9/9 PASS exit 0**。

@@ -279,7 +279,8 @@
     "owner_decision_ids": [
       "DEC-d87feeca5ee34c42a23a2538bc0aaa53"
     ],
-    "merge_ref": "not_applicable：改动仍在工作区未提交（TASK-002 的 5 条路径）；提交/推送/tag 属独立批准项，待用户指示"
+    "merge_ref": "not_applicable：改动仍在工作区未提交（TASK-002 的 5 条路径）；提交/推送/tag 属独立批准项，待用户指示",
+    "continued_by": "TASK-003"
   },
   "snapshot_paths": [
     ".workflow-kit/tasks/evidence/probe-queue-store.mjs",

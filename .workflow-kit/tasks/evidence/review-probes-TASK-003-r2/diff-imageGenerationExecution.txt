@@ -1,0 +1,121 @@
+﻿diff --git a/src/services/imageGenerationExecution.ts b/src/services/imageGenerationExecution.ts
+index e26a7ed..a053aae 100644
+--- a/src/services/imageGenerationExecution.ts
++++ b/src/services/imageGenerationExecution.ts
+@@ -3,7 +3,18 @@
+  * 供手动生成、生成队列、批量生成共用：
+  * - 画布感知的输入解析（节点在后台画布也能正确执行）
+  * - 运行记录、元数据（模型）落盘、缩略图路径
+- * - 取消（AbortSignal，开始前与结果返回后检查）
++ * - 取消（AbortSignal）
++ *
++ * ⚠ 取消的**真实边界**（REQ-006 要求明确说明，不得夸大）：
++ *   本执行器能保证的是 —— 取消后**不把结果写回**：不写节点状态、不写运行记录、不把这次结果
++ *   持久化到画布/app-data.json。为此在请求前、请求返回后、以及每个 await 落盘步骤之后都复查
++ *   `signal.aborted`（这些复查点缺一不可：await 期间取消是最常见的真实窗口）。
++ *   本执行器**不能**做到的是 —— 中止已经发出的 HTTP 请求：Tauri 的 `invoke` 没有 signal/abort
++ *   通道（providers 也只能在发起前检查），后端也没有取消命令。因此：
++ *     · 在途请求会继续跑完，**可能仍然产生计费**；
++ *     · 若取消落在落盘阶段，图片文件可能已经写入磁盘（本执行器不回收它）；
++ *     · 请求返回后我们只是**丢弃**它，不落状态、不落记录。
++ *   任何注释、文档与提交信息都不得声称"已中止在途请求"。
+  */
+ 
+ import { generateImage, editImage } from "@/services/imageGeneration";
+@@ -33,6 +44,19 @@ export interface ImageGenerationJobOptions {
+   canvasId: string | null;
+   /** 是否写入节点 runRecords（手动生成 true，工作流执行 false） */
+   withRunRecords?: boolean;
++  /**
++   * 是否允许本执行器清除节点的 `data.queued` 排队标记。**默认 false**。
++   *
++   * 为什么必须由调用方决定（REQ-004 的复用后果，由独立审查 r1 实测发现）：
++   * `data.queued` 是**队列路径专有**的状态 —— 它由 useImageGeneratorExecution 在入队时写下，
++   * 只在"该节点确实还有 queued||running 任务"时才允许清除（见 queueStore 的标记不变式）。
++   * 队列路径调用本执行器时，清除是合法的：正在跑的正是那个队列任务，标记该被它的启动消费掉。
++   * 但工作流路径**不经过 enqueue**，它与队列任务无关：若它也清，就会在"该节点队列里仍有任务
++   * 在等"时抹掉一份**合法**标记，让 UI 显示未排队、生成按钮重新可点 —— 用户继续点击只会被入队
++   * 守卫拦下。改动前的 nodeExecutor 从不碰这个字段，所以工作流路径必须保持这一行为。
++   * 因此改为显式开关：只有队列路径传 true。
++   */
++  clearQueuedMarker?: boolean;
+   /** 取消信号（队列取消用） */
+   signal?: AbortSignal;
+   /** 覆盖节点参数（批量拆分时用 n=1） */
+@@ -177,7 +201,13 @@ export async function executeImageGeneration(
+   nodeId: string,
+   options: ImageGenerationJobOptions
+ ): Promise<ImageGenerationJobResult> {
+-  const { canvasId, withRunRecords = true, signal, dataOverride } = options;
++  const { canvasId, withRunRecords = true, clearQueuedMarker = false, signal, dataOverride } = options;
++
++  /**
++   * 只有队列路径才有权清 `data.queued`（见 ImageGenerationJobOptions.clearQueuedMarker 的说明）。
++   * 工作流路径（clearQueuedMarker 未传 / false）必须原样保留该标记，否则会抹掉一份合法标记。
++   */
++  const queuedMarkerPatch = clearQueuedMarker ? { queued: false as const } : {};
+ 
+   const node = readNodeFromCanvas(nodeId, canvasId);
+   if (!node) {
+@@ -210,7 +240,7 @@ export async function executeImageGeneration(
+     updateNodeDataWithCanvas<ImageGeneratorNodeData>(nodeId, canvasId, {
+       status: "error",
+       error: "请连接提示词节点",
+-      queued: false,
++      ...queuedMarkerPatch,
+     });
+     return { success: false, error: "请连接提示词节点" };
+   }
+@@ -224,7 +254,7 @@ export async function executeImageGeneration(
+     updateNodeDataWithCanvas<ImageGeneratorNodeData>(nodeId, canvasId, {
+       status: "error",
+       error: sizeValidationError,
+-      queued: false,
++      ...queuedMarkerPatch,
+     });
+     return { success: false, error: sizeValidationError };
+   }
+@@ -264,7 +294,8 @@ export async function executeImageGeneration(
+ 
+   updateNodeDataWithCanvas<ImageGeneratorNodeData>(nodeId, canvasId, {
+     status: "loading",
+-    queued: false,
++    // 只有队列路径清 `queued`：见 clearQueuedMarker 的说明（工作流路径必须保留该标记）。
++    ...queuedMarkerPatch,
+     error: undefined,
+     ...(withRunRecords
+       ? { runRecords: trimRunRecords([baseRecord, ...(data.runRecords || [])]) }
+@@ -360,6 +391,14 @@ export async function executeImageGeneration(
+     if (canvasId) {
+       try {
+         const inputImagesMetadata = await persistInputImages(canvasId, connectedImageDetails);
++        // REQ-006：这里是"检查取消"与"写回结果"之间最后一个 await 之后的位置之前的一步。
++        // 取消可能恰好落在 await 期间（例如用户刚点了取消），因此**每个** await 返回后都要
++        // 重新确认，否则会出现"已取消却仍把结果写进节点/运行记录"。
++        if (signal?.aborted) {
++          updateNodeDataWithCanvas<ImageGeneratorNodeData>(nodeId, canvasId, { status: "idle" });
++          upsertRecord({ finishedAt: Date.now(), status: "error", error: "已取消" });
++          return { success: false, cancelled: true };
++        }
+         const imagesToSave = response.imageDataList?.length
+           ? response.imageDataList
+           : [response.imageData];
+@@ -410,6 +449,18 @@ export async function executeImageGeneration(
+       });
+     }
+ 
++    // REQ-006：写回成功结果之前的**最后一次**复查。
++    // 上面的 persistInputImages / saveImage 都是真实 IPC 往返，取消完全可能落在其中；
++    // 那时图片可能已经写到磁盘（无法撤回，见文件顶部的取消边界说明），但绝不能让节点状态与
++    // 运行记录显示成功 —— 否则用户点了取消却看到"生成成功"，并且该结果会被画布持久化到
++    // app-data.json。本复查只阻止"状态与记录写回"，不删除已写出的图片文件，也不宣称已中止
++    // 在途请求。
++    if (signal?.aborted) {
++      updateNodeDataWithCanvas<ImageGeneratorNodeData>(nodeId, canvasId, { status: "idle" });
++      upsertRecord({ finishedAt: Date.now(), status: "error", error: "已取消" });
++      return { success: false, cancelled: true };
++    }
++
+     const finishedAt = Date.now();
+     updateNodeDataWithCanvas<ImageGeneratorNodeData>(nodeId, canvasId, {
+       status: "success",

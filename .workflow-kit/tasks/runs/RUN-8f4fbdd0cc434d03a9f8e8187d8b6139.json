@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "id": "RUN-8f4fbdd0cc434d03a9f8e8187d8b6139",
+  "task_id": "TASK-003",
+  "kind": "implementation",
+  "outcome": "blocked",
+  "executor": {
+    "harness": "current_agent",
+    "model": null,
+    "context_id": "manager-lead-batch-B-finish3"
+  },
+  "started_at_utc": "2026-09-29T11:00:02.025625Z",
+  "finished_at_utc": "2026-09-29T11:00:03.777155Z",
+  "exit_code": null,
+  "timed_out": false,
+  "input_digest": "085a4d420c9260fb9007d1ad642a37b42295bf5242275fafcdef2a47427bf58c",
+  "candidate_digest": null,
+  "raw_output_refs": [
+    ".workflow-kit/tasks/evidence/RUN-8f4fbdd0cc434d03a9f8e8187d8b6139-worker-result.json"
+  ],
+  "checks": [],
+  "review": {
+    "mode": null,
+    "verdict": null,
+    "report": null,
+    "candidate_digest": null
+  },
+  "estimated_cost_usd": null,
+  "scope_manifest": ".workflow-kit/tasks/evidence/RUN-8f4fbdd0cc434d03a9f8e8187d8b6139-scope.json",
+  "baseline_manifest": ".workflow-kit/tasks/evidence/RUN-521d1a09a82c4dbea5da62b06b936478-scope.json",
+  "failure_kind": "action_required",
+  "failure_reason": "Worker requests manager action; inspect the result"
+}
