@@ -1,0 +1,34 @@
+TASK-006 独立审查结论 FAIL，总控逐条独立复现后确认结论正确（第六位审查者 8a402362）
+
+## 审查结论：FAIL（五项检查 requirements/regression/failure_paths/maintainability = FAIL，performance = PASS）
+审查者 8a402362 为全新上下文（前五位审查者 288b57de/466d0e5e/9d26b852/194aa201/2cb39439 全部排除复用）。报告存 .workflow-kit/tasks/evidence/review-TASK-006.json（5 条 findings）。
+
+审查者先确认了本任务的正面事实（总控采信，且此前总控已在自己的核验中独立得到相同结论）：
+- 门禁 6/6 PASS exit 0、--expect-red exit 1、归档基线 0/6 exit 1、tsc exit 0、候选快照 10 个文件哈希全部匹配 —— 声明的证据全部为真。
+- 门禁加固是真的：不读 process.env（NC_QUEUE_MUTANT 伪造路径已封闭），此前五类假绿确实被排除。
+- 门禁看不见的六条人工约束 (a)-(f) 全部满足：paused 从不参与判定、同步在 enqueue 内、按点击整批原子、只看活动任务、非仅 running、按节点而非全局单飞。REQ-002 的核心机制是正确的。
+
+## 三条致命发现（总控用自己的手逐条复现，不是采信审查者的结论）
+总控把审查者放在仓库外的探针复制到临时目录并自行运行，三条全部复现：
+
+1. **REQ-001 只修了一半，用户可见症状仍在。** 恢复逻辑清除的是 flowStore 上的 data.queued，但 **flowStore 根本不持久化**（flowStore.ts 里没有 persist/createJSONStorage），该写在恢复时是空操作；真正跨重启存活的是持久化的 canvasStore（canvasStore.ts:150-159，name: next-creator-canvases），而 updateNodeQueuedState 对「当前画布」提前 return（queueStore.ts:433）。残留标记随后被 App.tsx:154 的 setNodes(nodes) 重新灌回 flowStore，而 ImageGeneratorNode.tsx:215 的 canRun 读的正是它。结果：重启后节点仍显示「排队中」、按钮禁用。总控复现输出：恢复后 job.status=error「节点不存在」、canvasStore 里 data.queued=true、模拟 setNodes 后 canRun=false。
+   门禁为何看不见：用例 A 在 import queueStore **之前**预置了 flowStore 节点（queue-regression.mjs:388-398）且只断言那一份（:414-415），从不预置/检查 canvasStore，也不模拟 App 的 setNodes。且其 job 断言是「因为错误的原因」通过的 —— 任务落到 error(节点不存在) 而非真正执行。审查者如实检查了竞态：只有当队列水合比 canvasStore 慢 1 个以上 React 渲染时才自愈；默认模块顺序落在被锁的分支（在 App 加载延迟 0/50/100/200/900/1200ms 下稳定复现）。
+
+2. **守卫引入了新的永久锁 —— 正是 REQ-001 要消除的症状，且这次由普通点击即可触发（最严重）。** 新契约是 enqueue 拒绝时返回 ""，但两个生产调用方（useImageGeneratorExecution.ts:63、:76）**忽略返回值**，并在 :86-90 无条件写入 {queued:true,status:"idle"}；而执行器只在任务**开始**时清 queued（imageGenerationExecution.ts:265-272），**成功结束时不清**（:414-423）。因此「最后一个任务已开始之后到来的拒绝」会让节点永久停在 queued，队列里没有任何活动任务能清除它；重启也无效（该标记在持久化画布副本里，而队列里没有可供恢复逻辑处理的 queued 任务）。总控复现输出：批量 n=2、concurrency=2 → 捕获按钮可用窗口（active=1、queued=false、canRun=true）→ 此时点击 → 守卫拒绝（同节点 job 2→2）但 hook 仍写 queued=true → 所有任务结束后 active=0、queued=true、canRun=false → 节点永久锁死，用户唯一出路是删除节点。
+
+3. **守卫对画布不敏感（只按 nodeId）。** hasActiveJobForNode（queueStore.ts:106-108）与 batchChains（:237）都忽略 job.canvasId，而 duplicateCanvas（canvasStore.ts:111-117）复制画布时保留所有 node.id。总控复现：画布 X 点击一次（n=2）→ X 上 2 个 job；切到画布 Y 点击一次（n=2）→ Y 上 0 个 job（合法生成被静默拒绝），叠加发现 2 的 hook 行为，Y 的节点还会被永久标记为「排队中」。
+
+## 两条 LOW
+4. 潜伏的批次链失步：模块级 batchChains 存在未强制的不变量；若批量循环中途被打断，后续同形状的一次点击会被误读为续传并额外入队（审查者实测多入队 3 个）。当前不可达（循环是同步的、不会抛错），故列为潜伏；batchChains 也从不清理/重置。
+5. scripts/queue-regression.selfcheck.mjs 现报 21/27（6 条基线相对断言失败）。这是修复与「修复前基线」断言共存后的预期结果，但意味着「断言有牙齿」的证据在本候选上不再可直接复现，需要固定修复前版本 —— 这是一个需要决策的 harness/基线问题。
+
+## 总控处置
+按 RECOVERY 在原任务内处理已定位问题：不新建任务、不重置时钟与预算。修复轮 0/3 → 本轮为第 1 轮（review_failure 可重试类别）。剩余预算 63 分钟，deadline 2026-09-28T09:24:59Z。
+
+修复方向（来自审查者建议，总控已核对代码确认可行，但不由总控自行改代码）：
+- 发现 1：把标记清除同时作用于持久化的 canvasStore 副本（去掉/放宽 canvasId===activeCanvasId 的提前 return），并/或让 waitForCanvasReady 真正等待当前画布的节点出现在 flowStore（而不是 _hasHydrated 就返回）。
+- 发现 2：让 hook 遵守 "" 契约（仅在至少 1 个 job 被接纳时才写 queued:true），或由 enqueue 在拒绝时自行清除标记。
+- 发现 3：守卫按 canvasId+nodeId 定键。
+- 发现 4/5：批次链不变量与自检基线固定，作为 LOW 一并处理或明确记录。
+
+诚实性说明：本次审查再次证明「门禁全绿 ≠ 缺陷已修」。上一轮总控曾据 6/6 PASS 与逐条代码核对判断修复可信；审查者用「不改门禁、只看真实链路」的方式找出了门禁结构上无法覆盖的两条真实缺陷（其中一条是本次修复**新引入**的）。这与 TASK-005 五轮假绿的教训同源，说明本任务真正的验收依据是**端到端链路**而非门禁用例，因此实机验证清单不可省略。

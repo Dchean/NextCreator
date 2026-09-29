@@ -1,0 +1,14 @@
+{
+  "task_id": "TASK-006",
+  "run_id": "RUN-7620fe743b1b494d9e500c8e0687e35f",
+  "status": "ready_for_verification",
+  "summary": "Closure run recording the repair-round-7 candidate. No file edits in this run by design, so changed_files is empty and matches this run observed changes. Candidate: src/stores/queueStore.ts (998 lines; 256 at task start), produced by the worker under RUN-b8fb023eed4b4153982600d8d1eea207. Zero-cost closeout: the MAX_HEAL_PASSES check moved AFTER the zero-candidate rescan (order now if(!healPending) break -> healPending=false -> rescan -> zero-candidate break -> cap check), cap block verbatim and MAX_HEAL_PASSES left at 8 with no new mechanism; the dependency-count comment corrected from 21 to 22. Manager verification on the static tree: gate 6/6 PASS exit 0, tsc --noEmit exit 0, loop order confirmed by reading the source. The worker proved and the manager verified by reading the code that the placement move removes a confirmed false alarm (prefix did 7 rescans and exited via the cap while the marker was already false yet warned that stale markers remained; fixed does 8 rescans, exits via zero-candidate, 0 warnings at N=7) while the cap stays load-bearing (unbounded writer stops at exactly 8 passes in 0-1ms; an Infinity mutant ran 401). The worker also REFUTED the manager dispatch premise that N=9/N=12 would heal after the move: passes+=1 sits at the loop top so a pass equals one treatment plus one rescan, the cap bounds passes, and the healing frontier is identical in both versions (N<=7 heals, N>=8 stuck), meaning the swallowing is the MAX_HEAL_PASSES value itself and not the placement. The manager accepts the refutation: this round fixed a real bug but did NOT eliminate the N>=8 residual, which remains the cap value honest cost, unreachable in-repo since every repo writer is one-shot; raising the cap is a scope decision for the user. A fresh independent reviewer is REQUIRED and none is claimed.",
+  "changed_files": [],
+  "validation_requests": [
+    "typecheck",
+    "behavior-regression"
+  ],
+  "requested_actions": [],
+  "unresolved_items": [],
+  "blocked_reason": null
+}

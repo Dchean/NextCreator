@@ -8,7 +8,10 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "regression:queue": "node --experimental-strip-types scripts/queue-regression.mjs",
+    "regression:queue:red": "node --experimental-strip-types scripts/queue-regression.mjs --expect-red",
+    "regression:queue:selfcheck": "node scripts/queue-regression.selfcheck.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.17",

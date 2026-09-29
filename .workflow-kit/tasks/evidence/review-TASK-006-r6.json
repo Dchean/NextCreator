@@ -1,0 +1,83 @@
+{
+  "task_id": "TASK-006",
+  "candidate_digest": "78fb89b0457ca6494d9ea4af8121a8903ded80769d5332c05625473a8d685c2c",
+  "verification_run": "RUN-e47f10027ac54a3d9a3bf392e79356b9",
+  "verdict": "FAIL",
+  "summary": "F-R5-1 与 F-R5-2 的**功能性**修复我确认为真的：独立探针（自建夹具，非 worker 探针）证明 (a) n=4/concurrency=1/未暂停的正常路径下『按钮可点但点击必被拒』的窗口真实可达（1ms 粒度采样命中 5 次），5/5 被拒点击各产生 1 条 toast.info，被拒点击不写任何节点数据字段、不新增任务，被接受的点击不产生提示（无误报）；(b) 嵌套写入在治疗期间新引入的陈旧 true（节点 Y）被延后的一轮纠正，flowStore 与画布副本均变 false，而把 :863-866 改回旧的 `return`（丢弃）后同一探针在 Y 上判 FAIL —— 探针非空跑，F-R5-2 确实闭合。F-R4-1 保持闭合：probe-r4-undo-cancel 运行期与重启两阶段均『未复现』（我在自己的副本里修了 addNode 缺第三参数与 %TEMP%\\review-r4 目录两个夹具 bug），probe-r4-undo-restart 两阶段均『未复现』（额外发现：该探针的阶段开关是 process.env.R4_PHASE，不是 argv，按文档用 argv 传 restart 会静默跑 run 阶段两次）。其余 11 个既有探针全部保持我预期的结论（r4-guard2 12/12、batch-chain 15/15、cross-canvas、req001-coldstart、cancel-abort-lock、reject-timeline、reject-erases-marker、r3-stranded-canvas-copy、lock-via-ui、r3-erased-while-queued-paused 均未复现/未形成永久锁；r3-finally-churn 0 subscribe 命中、无身份变化），门禁 6/6 PASS 退出码 0、tsc --noEmit 退出码 0。但**本轮修复新引入了一条可证明不终止的路径，并伴随三处新的/遗留的散文过度声称**，因此判 FAIL。最重要的一条：把旧的『丢弃嵌套通知』改成 `for (;;)` 延后循环后，循环的终止论证不成立。实测在**正常路径**（1 个候选、无任何第三方写入方）上，置位 healPending 的不是别的订阅者，而是**治疗自身的写入**（clearNodeQueuedMarkerIfNoActiveJob → flowStore.updateNodeData → set(nodes) → 同步通知本订阅 → 此刻 healingQueuedMarkers===true → 必然 healPending=true），所以循环不是靠『没有新通知』退出，而是靠第二轮候选为空才退出。更关键的是：我构造了一个**自身有界**的条件型写入方 W（只在『当前看不到任何 queued:true』时才写回一个 true；单独运行时写 1 次即停），它与自愈组合后互激 —— 同步栈内 10ms 就跑了 202 轮（我设的硬闸 200 触顶），直接否证了 :837『唯一能让它不退出的是每收到一次通知就再写一次的写入方，而那种写入方自身就是无界的』这一全称判断。该情形在当前仓库**没有实例**（全仓库 .subscribe 只有 App.tsx:170 与 queueStore.ts:895 两处，而 App.tsx 的订阅回调只做 clearTimeout/setTimeout、800ms 后才从 flowStore 读值写 canvasStore，不回写 flowStore.nodes），所以今天没有活缺陷；但循环缺一个轮数上限，且它以同步阻塞主线程的方式运行，一旦将来出现任何一个『在 nodes 通知里同步回写 nodes』的订阅者（注释 :670-671 自己就预期了这类未来写入方），代价是 UI 冻结而不是漏一次治疗。另三处过度声称：(1) :646 以『实测…组合集合 = {undefined|idle, false|loading, false|success}』的形式给出**穷举**，实测还包含 `true|idle` —— 而这正是 hook 在 :131-135 写下的、最常见的『排队等待中』常规状态，不变式注释自己在 :664-665 也承认了这条置位路径；(2) :883『没有就退出（正常路径只跑一轮…）』所描述的退出机制与实测不符（见上，真正的退出条件是第二轮候选为空）；(3) 遗留自第 4 轮的 hook:74-76『成功/失败/取消路径都不写』字面不成立 —— imageGenerationExecution.ts:213/:227 的失败路径（无提示词 / 尺寸非法）也写 queued:false，只是那两处仅对『已入队并已开始』的任务可达，故该论证的结论（被拒点击若写 queued:true 就没人清）仍然成立。另有一处次要数目偏差：:818『23 个传递静态依赖』我实测为 21 个仓库内文件（回边 0 条这一实质结论成立，flowStore 确实不 import queueStore，无初始化环）。单向不变式本身（queued:true ⟹ ≥1 queued||running 任务；反向有意不成立）我逐条核对为**正确**，F-R5-1 的实质修复方向（补入口反馈而非改 canRun）也正确；本轮 PASS 未达成的唯一原因是上述不终止路径与新的过度声称。",
+  "findings": [
+    "位置：src/stores/queueStore.ts:876-889（healStaleQueuedMarkers 的 for(;;) 延后循环）与 :832-838（循环终止论证注释）\n触发条件：某个 flowStore 订阅者在本轮治疗的同步写入里**有条件地**回写 nodes 并重新引入一个 queued:true 候选。该写入方自身有界也不够：只要它在新一轮治疗清掉候选之后、再看一眼『当前有没有 true』并补写一个 true，就会无限互激。最小实例：`useFlowStore.subscribe(() => { if (!nodes.some(n => n.data?.queued === true)) setState({ nodes: [...置 X.queued = true] }) })` —— 单独运行时写 1 次即停（有界），与自愈组合后不终止。\n影响：同步 `for(;;)` 在写线程上死循环 ⇒ UI 冻结（不是漏一次治疗，而是比旧行为更严重的挂起）。当前仓库无此写入方（.subscribe 仅 App.tsx:170 与 queueStore.ts:895，前者不回写 flowStore.nodes），故今天不可达；但 :670-671 的注释明确预期『未来任何整数组写入 nodes 的路径（导入、粘贴、模板、时间旅行调试）』，而 :837 的全称判断会让后来的维护者以为『只有自身无界的写入方才危险』，从而不去加轮数上限。旧实现（round 5 的 `if (healingQueuedMarkers) return;`）根本没有循环，因此这一不终止面是**本轮新引入**的。\n建议：给循环加一个显式的轮数上限（例如 `const MAX_HEAL_PASSES = 8`，超出即 break 并在 dev 下 console.warn），把终止性从『依赖写入方行为』变成『本函数自我保证』；同时把 :832-838 的论证改成可证的形式：『每轮至少清除该轮候选集合；新增轮次仅由本轮内的嵌套写入触发；轮数上限 H 保证同步栈有界，最坏情况是漏掉第 H 轮之后的治疗，由下一次 nodes 身份变化兜底』。",
+    "位置：src/stores/queueStore.ts:833-838 与 :883（终止论证与『正常路径只跑一轮』的退出机制说明）\n触发条件：任何一次命中候选的治疗（正常路径即可，无需第三方写入方）。\n影响：论证的事实基础是错的：实测（插桩副本计数，1 个候选、无外部写入方）嵌套通知被延后 __HEAL_DEFER__ = 1 次，且置位者就是治疗自身的写入 —— clearNodeQueuedMarkerIfNoActiveJob → flowStore.updateNodeData → set(nodes) → 订阅在 set() 内同步回调 → 此时 healingQueuedMarkers===true → `healPending = true`。因此 `if (!healPending) break;` 在正常路径上**从不** break，真正的退出条件是下一轮的 `candidates.length === 0`。注释 :836『没有新通知 → healPending 保持 false → 退出』和 :883『没有就退出』都把退出归因于错误的条件。可观测的 F-R3-2 性质未被破坏（实测 for(;;) 体只执行 1 次、同步栈身份变化仍只有触发那 1 次、第二轮零写入），被破坏的是**论证**——而论证正是本条修复的全部依据。\n建议：把 :833-838 与 :883 改写为与代码一致的表述：『治疗自身的写入必然置位 healPending，故循环的退出实际由'下一轮候选为空'给出；第三方嵌套写入只影响'下一轮是否仍有候选'。』这与第 1 条的上限建议配套。",
+    "位置：src/stores/queueStore.ts:646（不变式注释：「实测 (marker|status) 组合集合 = {undefined|idle, false|loading, false|success}」）\n触发条件：跑一次真实的 n=4 / concurrency=1 批量并在整个生命周期内 1ms 粒度采样 (flowStore marker | flowStore status)。\n影响：该集合被以『实测』『组合集合 = {…}』的形式写成**穷举**，但实测集合还包含 `true|idle` —— 即排队等待中、status 仍为 idle 的**常规**排队态，由 hook 在 useImageGeneratorExecution.ts:131-135 的 `{ queued: true, status: \"idle\" }` 写下，也是不变式注释自己在 :664-665 承认的『常规置位路径』。这条注释是本轮为改正 F-R5-1 的『当且仅当』而新写的，却引入了一处新的、自相矛盾的过度声称（F-R4-2 / F-R5-1 的同类）。注意：单向不变式本身的结论不受影响 —— `false|loading` 单独就足以否证『有 active 任务 ⟹ marker=true』。\n建议：改为非穷举表述，例如：『实测至少覆盖 {undefined|idle, true|idle, false|loading, false|success}；其中 false|loading 已足以否证反向』，或直接删掉集合而只保留 `false|loading` 这个反例。",
+    "位置：src/hooks/useImageGeneratorExecution.ts:74-76（「执行器只在任务**开始**时写 queued:false，成功/失败/取消路径都不写」）\n触发条件：静态核对 imageGenerationExecution.ts 的全部 `queued:` 写入点。\n影响：实际有 3 处写 queued:false：:267（任务开始，注释承认的这一处）、:213（无提示词失败路径）、:227（尺寸非法失败路径）。因此『失败路径都不写』字面不成立。该句并非本轮新增（round 3 备份的同位注释已含此措辞），但本轮把它扩写为 admitted 守卫的论证依据，故一并记录。论证的**结论**仍然成立：:213/:227 只对『已入队并已开始』的任务可达，而被拒的点击根本不产生任务、进不到执行器，所以『被拒点击若写下 queued:true 就无人清除』这一危险判断不受影响。\n建议：把该括号改为『执行器只在任务开始/入队后失败时写 queued:false；被拒的点击不产生任务，故不会有任何执行路径来清它』，或直接引用 :213/:227/:267 三处。",
+    "位置：src/stores/queueStore.ts:818（「queueStore 的 23 个传递静态依赖里 0 条回边」）\n触发条件：对 queueStore.ts 做传递静态 import 闭包统计（仅计仓库内 .ts/.tsx 文件，排除自身）。\n影响：实测为 21 个仓库内传递依赖（另有 7 个外部裸模块：zustand、zustand/middleware、@tauri-apps/api/core、@xyflow/react、lucide-react、uuid、./prompts）。数目与 23 不符（除非采用『21 个文件 + 2 个 zustand 入口』等另一种计数口径，注释未说明）。实质结论我逐条验证**成立**：回边 0 条，flowStore 不 import queueStore，故不构成模块初始化环。属低severity 的数目不精确。\n建议：改为『20+ 个传递静态依赖』这类不写死数字的表述，或注明计数口径。",
+    "位置：.workflow-kit/tasks/evidence/review-probes-r5/probe-r3-erased-while-queued-paused.mjs:180-185（证据卫生，非候选缺陷）\n触发条件：该探针步骤 5 调用真实的 `handleGenerate()`（:113-114 取得），随后以『用户看不到任何'排队中'反馈，点击被 REQ-002 守卫静默丢弃』作为结论行。\n影响：本轮加入 toast.info 后该结论行已**过时且有误导性**：该点击现在会弹出提示（与任务说明中已标注的 probe-r5-silent-drop-window.mjs / probe-r5-invariant-ux.mjs 同类）。其事实断言（同节点 job 数不增长）仍然正确，但结论措辞会让人误判 F-R5-1 未修。\n建议：在该探针的结论行标注『（反馈通道由本轮新增的 toast 承担，此行仅指任务计数未增长）』，或迁移到 worker 的 probe-r5fix1-feedback.mjs 口径。"
+  ],
+  "review_checks": [
+    {
+      "area": "requirements",
+      "status": "PASS",
+      "analysis": "REQ-001（重启后遗留 queued 任务不执行、节点永久卡『排队中』且按钮禁用）与 REQ-002（同一节点重复点击产生并发任务）本身均确认达成，且本轮未回退。REQ-002：独立探针在 n=4/concurrency=1/未暂停下 1ms 粒度采样命中『canRun 谓词为 true 但点击被拒』5 次，全部不新增任务（守卫生效）；probe-r4-guard2 12/12（含『存在 queued 无 running 时拒绝』『非全局单飞』『paused 不参与判定』『暂停时连点仍被拒』）；probe-batch-chain 15/15；probe-cross-canvas 两画布各 2 个 job 互不干扰。REQ-001：probe-req001-coldstart 结论『节点可用（REQ-001 已修复）』，恢复后落盘副本 data.queued=false、setNodes 后 canRun=true。REQ-001 的另一半（按钮不能永久禁用）由自愈订阅兜住，F-R4-1 两阶段未复现即为证据。",
+      "evidence_files": [
+        "src/stores/queueStore.ts",
+        "src/hooks/useImageGeneratorExecution.ts",
+        "src/App.tsx",
+        ".workflow-kit/tasks/evidence/review-probes-r5/probe-batch-chain.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r4/probe-r4-guard2.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r5/probe-req001-coldstart.mjs"
+      ]
+    },
+    {
+      "area": "regression",
+      "status": "PASS",
+      "analysis": "既有行为无回退。门禁 `node --experimental-strip-types scripts/queue-regression.mjs` 6/6 PASS、退出码 0；`node node_modules/typescript/bin/tsc --noEmit` 退出码 0、零诊断（注：门禁不调用 undo/redo/saveToHistory，对 F-R4-1/F-R5-2 类是盲的，故绿不等于这两条已验）。11 个既有探针全部保持预期结论：probe-r4-undo-cancel 运行期与重启均『未复现』（我在 %TEMP% 副本中修复了两处已知夹具 bug：addNode 缺第三参数 data、以及 %TEMP%\\review-r4 状态目录不存在）、probe-r4-undo-restart 两阶段均『未复现』（阶段开关实为 env R4_PHASE 而非 argv，这是第三处夹具 bug）、probe-r4-undo-restart 重启阶段落盘 queued=false、canRun=true、可恢复任务 0、probe-cross-canvas、probe-req001-coldstart、probe-cancel-abort-lock（未形成永久锁）、probe-reject-timeline（未捕获不一致）、probe-reject-erases-marker（未复现）、probe-r3-stranded-canvas-copy（未复现）、probe-lock-via-ui（未形成永久锁）、probe-r3-erased-while-queued-paused（未复现）。F-R3-2 零 churn 实测保持：标记本就 falsy 时传入数组未被替换、画布身份未变、for(;;) 体执行 0 次、无身份变化；probe-r3-finally-churn 测到 0 次 subscribe 命中。F-R5-1 的 toast 通道也未引入 UI 回归：hook 返回键集合仍为 handleGenerate,model,resolvedSize,sizeValidationError，toast 仅在整批 admitted===false 时触发。",
+      "evidence_files": [
+        "scripts/queue-regression.mjs",
+        "src/hooks/useImageGeneratorExecution.ts",
+        ".workflow-kit/tasks/runs/RUN-e47f10027ac54a3d9a3bf392e79356b9.json",
+        ".workflow-kit/tasks/evidence/RUN-e47f10027ac54a3d9a3bf392e79356b9-behavior-regression.stdout.txt",
+        ".workflow-kit/tasks/evidence/RUN-e47f10027ac54a3d9a3bf392e79356b9-typecheck.stdout.txt",
+        ".workflow-kit/tasks/evidence/review-probes-r5/probe-r3-finally-churn.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r4/probe-r4-undo-cancel.mjs"
+      ]
+    },
+    {
+      "area": "failure_paths",
+      "status": "FAIL",
+      "analysis": "已闭合：F-R5-1（自建探针在真实窗口内命中 5 次 canRun=true 的点击，5/5 被拒且 5/5 各产生 1 条 toast.info，被拒点击不写任何节点数据字段、不新增任务；对照组额度空闲时点击被接受且无提示 ⇒ 无误报）、F-R5-2（自建探针：嵌套写入在治疗期间新引入的陈旧 true 于节点 Y 被延后的一轮纠正，flowStore 与画布副本均 false；把 :863-866 改回旧的 `return` 丢弃行为后同一探针在 Y 上判 FAIL ⇒ 探针非空跑、非空洞）、F-R4-1（undo-cancel 与 undo-restart 两阶段均未复现，复活陈旧 true 被自愈当场收回且落盘副本读 false）、F-R3-1/F-R2-2（另一画布同名节点有 queued 任务时合法标记被保留，三处载体均 true，未误清；仅 running 时同样保留）、F1（clearNodeQueuedMarker 同时覆盖 flowStore 与 canvasStore 载体）。仍然失败：**本轮新引入的 for(;;) 延后循环不终止**。实测正常路径上 healPending 由治疗自身写入置位（__HEAL_DEFER__=1），循环靠第二轮候选为空退出而非靠『无新通知』；并构造出反例——一个**自身有界**的条件型写入方（只在看不到任何 true 时补写一个）与自愈同步互激，10ms 内跑满 202 轮（硬闸触顶），否证 :837 的全称判断。当前仓库无该写入方（.subscribe 仅 App.tsx:170 与 queueStore.ts:895，前者回调只 clearTimeout/setTimeout、不回写 flowStore.nodes），故非现网活缺陷，但循环以同步阻塞方式运行且无轮数上限，注释 :670-671 自身预期了未来的整数组写入方。另有 3 处散文过度声称（:646 穷举集合漏 `true|idle`；:833-838/:883 退出机制；hook:74-76 失败路径措辞）与 1 处数目偏差（:818 的 23 vs 实测 21）。",
+      "evidence_files": [
+        "src/stores/queueStore.ts",
+        "src/hooks/useImageGeneratorExecution.ts",
+        "src/services/imageGenerationExecution.ts",
+        "src/components/nodes/ImageGeneratorNode.tsx",
+        "src/App.tsx",
+        ".workflow-kit/tasks/evidence/review-probes-r5/probe-r3-finally-churn.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r4/probe-r4-guard2.mjs"
+      ]
+    },
+    {
+      "area": "maintainability",
+      "status": "FAIL",
+      "analysis": "结构与分层是好的：唯一谓词（clearNodeQueuedMarkerIfNoActiveJob 按 nodeId）与唯一清除落点（clearNodeQueuedMarker 覆盖全部载体）配对，作用域不会漂移；候选筛选与判定分离；自愈订阅注册在模块顶层且依赖方向无环（我独立复核：回边 0 条、flowStore 不 import queueStore）；toast 通道复用仓库既有全局反馈（toastStore 只依赖 zustand，无 DOM/无环，ToastContainer 已在 App.tsx:259 挂载），不新增依赖、不改布局、不碰 canRun、不写节点数据字段——这些都是正确的工程选择。但注释密度已达 900 行文件中约 250 行解释性文字，且本轮再次出现**注释与代码不一致**：(a) :832-838 的终止论证与 :883 的退出机制描述都与实测机制不符（真正的退出条件是第二轮候选为空；healPending 由治疗自身写入置位）；(b) :646 以『实测』给出却被自己 :664-665 承认的置位路径所否证的穷举集合；(c) :818 写死的依赖数与实测不符。此类注释正是 F-R4-2 与 F-R5-1 的成因，本轮在改正『当且仅当』的同时又引入了新的同类过度声称，说明该文件的注释仍在『声称强度超过代码可保证的范围』。另：循环缺少防御性的轮数上限，把终止性寄托于对写入方行为的假设，是可维护性上的具体弱点。 建议：① 为 for(;;) 加显式轮数上限并声明最坏语义；② 把注释里所有『实测/组合集合/唯一/当且仅当』式的强断言改为与代码同宽的表述，或改为可由探针复现的精确引用（含探针名）；③ 把对『未来整数组写入方』的期望写成该函数的契约（输入假设 + 超出假设时的行为），而不是写成已被证明的结论。",
+      "evidence_files": [
+        "src/stores/queueStore.ts",
+        "src/stores/toastStore.ts",
+        "src/components/ui/Toast.tsx",
+        "src/App.tsx",
+        "src/hooks/useImageGeneratorExecution.ts"
+      ]
+    },
+    {
+      "area": "performance",
+      "status": "PASS",
+      "analysis": "正常路径的零 churn 性质实测保持：标记本就 falsy 时 for(;;) 体执行 0 次、传入数组身份未被替换、canvasStore.canvases 身份未变、无 persist 写入（probe-r3-finally-churn 测到 0 次 subscribe 命中 ⇒ 不触发 App.tsx:170 的 800ms 防抖回写）。toast 的成本可忽略：addToast 只是 set 一个新数组 + 一条 setTimeout（toastStore.ts:35-49，3s 后自动 removeToast），且只在 admitted===false 时触发；N 次被拒点击 = N 条文案相同的提示，不泄漏到非 UI/测试环境（仅静态 import 一个 zustand store，无 DOM 访问、无副作用），不改变 hook 返回形状。自愈的开销与候选数成正比且候选为空时早退。唯一性能风险是**本轮新增的**：for(;;) 在写入方回激时会同步阻塞主线程（实测 10ms/202 轮，即约 0.05ms/轮；无上限则可能冻结 UI），属失败路径而非正常路径开销。",
+      "evidence_files": [
+        "src/stores/toastStore.ts",
+        "src/stores/queueStore.ts",
+        "src/App.tsx",
+        "src/components/panels/QueuePanel.tsx",
+        ".workflow-kit/tasks/evidence/review-probes-r5/probe-r3-finally-churn.mjs"
+      ]
+    }
+  ],
+  "ui_review": null
+}

@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "RUN-f578b371e4ca4745b3ab5f247803136b",
+  "task_id": "TASK-006",
+  "kind": "review",
+  "outcome": "blocked",
+  "executor": {
+    "harness": "current_agent",
+    "model": null,
+    "context_id": "Fresh independent reviewer f545fa31 (round 5; all prior reviewers excluded: 8a402362, c62af427, fb656bb5, 860b2b93, 2b119b83, 288b57de, 466d0e5e, 9d26b852, 194aa201, 2cb39439). Verdict FAIL but the closest yet: requirements=PASS, regression=PASS, performance=PASS; failure_paths=FAIL, maintainability=FAIL. KEY POSITIVES the reviewer established independently: (1) the round-4 defect IS genuinely closed - with the real entry sequence (pause, click, addNode during the wait, cancel, Ctrl+Z) the resurrected stale queued:true is retracted INSIDE undo() synchronous stack, and both the debounced write-back and the restart phase read false; (2) the self-healing design is directionally SOUND and not a maintainability defect per se - it only clears, candidates are confined to flowStore queued===true, everything routes through the single nodeId-scoped predicate, so it can under-clear but provably CANNOT over-clear (reviewer attacked it: another canvas queued job kept, running-only kept, other nodeIds irrelevant); coverage gaps excluded (a stale true living only in a non-active canvas copy heals the moment that canvas loads and before that it is not rendered; no-subsequent-identity-change is unreachable because every writer produces a new array/object, and grep shows no in-place data.queued write); hydration order safe (when canvasStore._hasHydrated flips, queue.jobs is already populated so a legitimate pre-restart marker is not misread as stale); performance fine (400 nodes/200 identity changes/1 candidate = 3.23ms; 400 candidates = 6.41ms); F-R3-2 preserved (0 writes, 0 identity changes, 0 subscriber hits); module-level subscription registers exactly once with no init cycle (import.meta.hot.accept appears 0 times in src) and does not keep the process alive; nested set into canvasStore from inside the flowStore notification lands correctly with subscribers notified once and no zustand warning (verified against zustand v5.0.9 listeners.forEach). TWO NEW DEFECTS, both created by this round new prose (the F-R4-2 class) plus one latent mechanism gap, all cheap: F-R5-1 (maintainability) queueStore.ts:639 asserts the marker invariant as 当且仅当 (iff) and its reverse direction is falsified for the ENTIRE running phase because the executor writes queued:false at job start (imageGenerationExecution.ts:265-267; measured (marker|status) set = {undefined|idle, false|loading, false|success}); worse, :687-695 frames button-enabled-but-clicks-silently-dropped as a symptom conditional clearing exists to avoid, yet that symptom is reachable WITHOUT pausing (one click with n=4 at concurrency=1, after image 1 finishes status=success and marker=false while 3 jobs still queue, so canRun=true and the next click is rejected by the guard with zero feedback - reviewer measured the window 6/6). F-R5-2 (failure_paths) the reentrancy flag at :797 returns early and thereby DROPS a nested notification, causing a MISSED heal rather than merely skipped work (reviewer constructed it: a flowStore subscriber writing nodes during the heal leaves a newly-introduced stale true permanently - X cleared, Y stuck true, canvas copy cleared to empty proving the skip rather than the clear is the gap); the comment claim correctness does not depend on this flag is therefore false, and its convergence argument assumes this function is the only writer, which :651-662 in the same file explicitly denies; latent in-repo (App.tsx:170 subscriber writes canvasStore not flowStore; hook/executor node writes happen after awaits) but a real defect; suggested fix is a healPending flag re-run once in finally. F-R5-3 is evidence-quality only, not a candidate defect. MANAGER INDEPENDENTLY VERIFIED both new findings by reading the code: the iff wording is present at :639, the executor start-write queued:false is present at imageGenerationExecution.ts:265-267 (so the reverse direction is indeed false), and the early return at :797 does drop nested notifications rather than deferring them. DISPUTED ITEMS ADJUDICATED by the reviewer and accepted: the three crashing probes (undo-attrib/attrib2) die on their own mojibake RESULT templates with ZERO stdout so they never reach an assertion, and decisive dies at its e.activeAt.join line (patching only that line restored full signal and its verdict SUPPORTS the worker: faithful-mode wrongful clears = 0); probe-r3-null-canvas-scope flip and probe-r3-finally-churn part 2 flip are fixture-caused (the latter prints a hard-coded string, not a measurement); probe-r4-import2 F2 over-clear FAIL is a broken fixture confirmed independently of the manager (anyTrue() was false BEFORE cancelling A, making the keep-assertion vacuous); and probe-r4-own B-segment FAILs are over-strict assertions (=== false vs the correct !== true short-circuit leaving undefined). Gate honesty: queue-regression.mjs 6/6 PASS exit 0 and tsc exit 0 both reproduce, and the reviewer verified the gate NEVER calls undo/redo/saveToHistory, so green is no evidence for the round-4 finding."
+  },
+  "started_at_utc": "2026-09-28T14:44:33.921537Z",
+  "finished_at_utc": "2026-09-28T14:44:33.977502Z",
+  "exit_code": null,
+  "timed_out": false,
+  "input_digest": "0d1e84bb9ef92149c761104cec4da4c861023db16721cdb3480b100b7325fd2e",
+  "candidate_digest": "394e0ed49c87571db449da3181b1ced03445bc63b11dfd6ca4c55b2a1bd4006b",
+  "raw_output_refs": [
+    ".workflow-kit/tasks/evidence/RUN-f578b371e4ca4745b3ab5f247803136b-review.json"
+  ],
+  "checks": [],
+  "review": {
+    "mode": "independent",
+    "verdict": "FAIL",
+    "report": ".workflow-kit/tasks/evidence/RUN-f578b371e4ca4745b3ab5f247803136b-review.json",
+    "candidate_digest": "394e0ed49c87571db449da3181b1ced03445bc63b11dfd6ca4c55b2a1bd4006b"
+  },
+  "estimated_cost_usd": null,
+  "failure_kind": "review_failure",
+  "failure_reason": "Review requires changes; inspect the findings"
+}

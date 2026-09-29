@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "id": "RUN-19101ba9138542049e38500aad3b5c63",
+  "task_id": "TASK-006",
+  "kind": "implementation",
+  "outcome": "blocked",
+  "executor": {
+    "harness": "current_agent",
+    "model": null,
+    "context_id": "Closure run for TASK-006 repair round 6. The self-healing deferral loop now has an explicit pass cap (MAX_HEAL_PASSES at queueStore.ts:882, passes counter :915/:918, warn+break :939) and the four prose over-claims from review round 6 are corrected, plus two the worker caught itself. No new coding call is made in this run: the work was done by worker eaf3d192 under RUN-27b991ac86e24e7fb5d2d54fe4cfde4d, which was blocked ONLY by a scope finding for the MANAGER-authored checklist .workflow-kit/docs/TASK-006-MANUAL-VERIFICATION.md; ownership is declared and the file is now committed as 818b5ab. Candidate: src/stores/queueStore.ts (966 lines) and src/hooks/useImageGeneratorExecution.ts. Manager verified on the static tree: gate 6/6 PASS exit 0, tsc --noEmit exit 0, and the cap is genuinely present in the source. Changed_files for this closure run is EMPTY by design (no edits here)."
+  },
+  "started_at_utc": "2026-09-28T15:59:06.941152Z",
+  "finished_at_utc": "2026-09-28T15:59:12.246403Z",
+  "exit_code": null,
+  "timed_out": false,
+  "input_digest": "0d1e84bb9ef92149c761104cec4da4c861023db16721cdb3480b100b7325fd2e",
+  "candidate_digest": null,
+  "raw_output_refs": [
+    ".workflow-kit/tasks/evidence/RUN-19101ba9138542049e38500aad3b5c63-worker-result.json"
+  ],
+  "checks": [],
+  "review": {
+    "mode": null,
+    "verdict": null,
+    "report": null,
+    "candidate_digest": null
+  },
+  "estimated_cost_usd": null,
+  "scope_manifest": ".workflow-kit/tasks/evidence/RUN-19101ba9138542049e38500aad3b5c63-scope.json",
+  "baseline_manifest": ".workflow-kit/tasks/evidence/RUN-27b991ac86e24e7fb5d2d54fe4cfde4d-scope.json",
+  "failure_kind": "scope",
+  "failure_reason": "Out-of-scope changes: .workflow-kit/docs/TASK-006-MANUAL-VERIFICATION.md (allowed: src/stores/queueStore.ts, src/hooks/useImageGeneratorExecution.ts, src/App.tsx, src/main.tsx)"
+}

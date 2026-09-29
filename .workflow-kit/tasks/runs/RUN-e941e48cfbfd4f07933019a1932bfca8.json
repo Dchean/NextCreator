@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "RUN-e941e48cfbfd4f07933019a1932bfca8",
+  "task_id": "TASK-006",
+  "kind": "review",
+  "outcome": "blocked",
+  "executor": {
+    "harness": "current_agent",
+    "model": null,
+    "context_id": "Fresh independent reviewer fb656bb5 (round 3; all prior reviewers excluded: 8a402362, c62af427, 2b119b83, 288b57de, 466d0e5e, 9d26b852, 194aa201, 2cb39439). Verdict FAIL with 3 findings. Reviewer independently reproduced gate 6/6 exit 0 and tsc exit 0, verified candidate binding by sha256 (queueStore.ts 4e1ba6de..., useImageGeneratorExecution.ts 538f6ebe..., imageGenerationExecution.ts 9546b520... all match RUN-76cdf207e8c24ef08572a2bb94b2882d-candidate.json), and confirmed round-2 findings ARE genuinely closed (probe-cancel-abort-lock not-a-permanent-lock; probe-reject-timeline only (undefined|undefined)+(true|queued) with (false|queued) gone; probe-reject-erases-marker marker-consistent) plus all r2 probes still pass and guard properties hold. F-R3-1 (NEW defect introduced by the repair round 2; high, the reason for FAIL): the pump.finally recheck (queueStore.ts:511, same mismatch at :323 and :271) judges a canvas-AWARE scope in its predicate (:642-648) but the clear it triggers lands on nodeId alone in flowStore (:568-573) plus the ACTIVE canvas in canvasStore (:580-600); duplicateCanvas copies canvases preserving node.id, so two canvases hold same-id nodes and a job finishing on canvas A erases canvas B displayed marker. MANAGER INDEPENDENTLY REPRODUCED: the plain variant reported not-reproduced because B job had already settled (clearing was then correct), but the decisive paused variant (probe-r3-erased-while-queued-paused.mjs) reproduced it: with paused=true keeping B job stably queued, canvas A job completion left gen-x@canvas-b queued while flowStore.queued=false, canvasStore[B].queued=undefined, canRun=true, and a further click was silently discarded (jobs 3 -> 3) - exactly the UI-shows-not-queued-while-a-job-really-waits class the invariant comments declare forbidden. F-R3-2 (MEDIUM; the manager own candidate concern, CONFIRMED real by the reviewer): the unconditional .finally call pays 2 dynamic imports plus a full canvasStore.setState({canvases: map}) on EVERY job settle even when the marker is already false; measured identity changes in flowStore.nodes, the node object and canvases with unchanged data content, an App.tsx:170-shaped subscribe firing, the 800ms debounce, updateCanvasData, persist and store.save() of app-data.json - i.e. one extra whole-canvas persist per completed job for zero state change; cheap fix is an early return when the marker is already falsy. F-R3-3 (LOW-MEDIUM): cancel running-branch recheck (:386-387) is provably dead code because the cancelled job is still running and still in jobs, so the predicate always counts it as active and returns early; verified with paused=true in isolation - so the F-R2-1 guarantee rests solely on the .finally pass while comments at :637-640 assert a guarantee the code does not provide. Reviewer also noted non-findings: .finally is not airtight in principle for cancel of a queued job (that path clears unconditionally, which is fine), an executor promise that never settles, or store rehydration mid-flight (recovery clears unconditionally before dispatch). Reviewer suggested smallest correct fix: unify predicate and clear target on ONE scope resolution, preferably making the predicate ignore canvasId so it errs toward KEEPING the marker, plus the F-R3-2 early return which also shrinks F-R3-1 blast radius. Clock: about 11 minutes remained at submission."
+  },
+  "started_at_utc": "2026-09-28T09:13:57.730957Z",
+  "finished_at_utc": "2026-09-28T09:13:57.801281Z",
+  "exit_code": null,
+  "timed_out": false,
+  "input_digest": "0d1e84bb9ef92149c761104cec4da4c861023db16721cdb3480b100b7325fd2e",
+  "candidate_digest": "9f139d598cfab6d86660c15cd92ed0a420343bdcd6de648e63bd41d0d5a2ea30",
+  "raw_output_refs": [
+    ".workflow-kit/tasks/evidence/RUN-e941e48cfbfd4f07933019a1932bfca8-review.json"
+  ],
+  "checks": [],
+  "review": {
+    "mode": "independent",
+    "verdict": "FAIL",
+    "report": ".workflow-kit/tasks/evidence/RUN-e941e48cfbfd4f07933019a1932bfca8-review.json",
+    "candidate_digest": "9f139d598cfab6d86660c15cd92ed0a420343bdcd6de648e63bd41d0d5a2ea30"
+  },
+  "estimated_cost_usd": null,
+  "failure_kind": "review_failure",
+  "failure_reason": "Review requires changes; inspect the findings"
+}

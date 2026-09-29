@@ -1,0 +1,81 @@
+{
+  "task_id": "TASK-006",
+  "candidate_digest": "41bf840fd2a0d054f02e68ac51866cc8356fb7d17e5421ab63ffe557d4e9344b",
+  "verification_run": "RUN-ea6abe1f1d2545238089f8b609781df8",
+  "verdict": "FAIL",
+  "summary": "Round-7 的检查点后移是**真实的缺陷修复**（独立复核确认，非采信 worker 陈述）：我用同一份源码把上限块移回零候选重扫之前构造前缀突变体，插桩三处出口后 A/B 对比——前缀版在 N=7 时轮数=8、出口=cap、标记已被治愈（false）却发出 1 条「仍有陈旧标记未复核」警告；候选版同样 N=7 时轮数=8、出口=**zero**、**0 警告**、标记 false。误报在该（单候选）形态下确已消失。上限仍承载终止性：有界写入方停在恰好 8 轮（0–1ms，1 warn）；MAX_HEAL_PASSES=∞ 突变体在探针硬闸 400 下跑到 **401 轮**仍未返回（注释 :975 的「401 轮」数字实测吻合）。治愈边界如注释所述未移动：N≤7 治愈（轮数=N+1），N≥8 停在 8 轮+标记 true+1 warn；Infinity 突变体实测 N=9 需 10 轮、N=12 需 13 轮，与 :969 完全一致。N≥8 残留**不可由任何仓内写入方触达**：仓内 flowStore 订阅者只有 App.tsx:170（800ms 防抖回写 canvasStore，不写 nodes）与本文件自身，没有任何一个「每收到通知就重写 nodes」的写入方，故该残留是纯安全边际项、无复现的 App 内症状，作为已记录代价可接受。**但我发现了新的确证缺陷**（属第 3/4/5/6/7 轮反复命中、本轮仍未清的「注释过度断言」类，且我按指派专门核验了该条）：:972-973 自称「治好了就**绝不**报『未复核』」，:979 自称「走到这里时 candidates 非空，所以『仍有陈旧 queued 标记未复核』是**已核实的事实**」——**该推论无效**。candidates 的语义是「标记为 true 的节点」，而不是「陈旧的标记」；谓词在 :931-932 **有意**保留合法标记（该 nodeId 真有 queued||running 任务），所以合法标记会让 candidates 永远非空。复现（独立探针，%TEMP%\\r8probes\\r8-legal-marker-warn.mjs）：节点 LEGAL 有一个真 queued 任务 + 节点 X 为陈旧、由有界写入方补 7 次；结果 轮数=8、出口=cap、**X 已治愈=false**、LEGAL 合法保留=true、却仍发出 **1 条**「仍有陈旧 queued 标记未复核」警告。该形态在**前缀版与候选版上完全一致**（两版 ARM=7 都是 cap+1 warn），即轮-7 的移动修掉了单候选变体，却没修掉「合法标记共存」变体，而注释把后者也一并宣称解决了。影响仅限诊断信息与注释可信度（治疗本身完全正确：合法标记保留、陈旧标记清空、终止性不变），但按本轮判定口径（注释断言必须与代码相符，且「any real finding → FAIL」）这是真实缺陷。其余 Priority 2/3 全部通过：guard2 12/12、batch-chain 15/15、gate 6/6 exit 0、tsc --noEmit exit 0、REQ-001 冷启动/锁死/取消/拒绝/跨画布/搁浅副本/UI 锁/undo 系列均未复现；F-R3-2 零 churn（0 subscribe 命中、无身份变化）、F-R5-2 延后仍生效、F-R5-1 toast 仍在、F-R4-1 未复活。注释 :824-:835 的四个口径数字**全部实测吻合**（22 / 20 / 45 / 19），0 条回边、import.meta.hot 唯 1 处命中即该注释自身、7 个裸模块中第 7 个确为 tauriStorage.ts:28 的**动态** import（静态口径 6 个）——这一处 prose 修复是可信的。",
+  "findings": [
+    "位置：src/stores/queueStore.ts:972-973 与 :979（上限块内注释）；触发条件：**合法标记与陈旧标记共存**时的上限退出路径——某节点（LEGAL）真有 queued||running 任务因而被谓词有意保留（:931-932），另一节点（X）为陈旧 true 且被一个「看不到 true 就补回」的有界写入方补回 N 次；当 N=7 时，8 轮内 X 已被治愈，但重扫后 candidates 仍含 LEGAL 而恒非空，于是走到 :976 的上限块并发出警告。影响：:979 的推论「candidates 非空 ⟹ 仍有陈旧 queued 标记未复核是已核实的事实」**不成立**（candidates 含合法标记，这是设计使然，不是缺陷），于是该警告在**没有任何陈旧标记残留**时仍被打印——一条确证误报；:972-973「治好了就绝不报『未复核』」作为全称断言同样被否证。注意这**不是**轮-7 移动引入的，前缀版与候选版在该形态下行为完全相同（两版 ARM=7 均为出口=cap、X=false、1 warn），因此轮-7 注释把「误报已消除」的范围写大了：它只消除了单候选变体。治疗语义本身未受影响（合法标记保留、陈旧标记清空、终止性不变、无漏治）。建议：把 :979 改为弱断言（例如「走到这里时重扫后仍有 true 标记，其中**可能**包含被谓词有意保留的合法标记，故此处只提示『本轮未再收敛』，不宣称陈旧标记必然残留」），并把 :972-973 的「绝不」限定为「在候选集只由陈旧标记构成时」；若希望告警严格准确，可让上限分支只在「重扫候选中至少一个仍能被谓词判定为可清」时才打印（例如复用谓词的可清判定做一次计数）。证据：src/stores/queueStore.ts:929-985、src/App.tsx:170（仓内唯一第三方 nodes 订阅者，不写 nodes）；独立探针输出（模块来源=真实候选插桩副本，出口标签由三处 break 插桩得出）：ARM=1/2/3/5/6/7/8 → 轮数 3/4/5/7/8/8/8，X 最终 false/false/false/false/false/**false**/true，警告 0/0/0/0/0/**1**/1；同一探针指向前缀突变体时 ARM=7 亦为 cap+1 warn（证明该形态两版一致）。"
+  ],
+  "review_checks": [
+    {
+      "area": "requirements",
+      "status": "PASS",
+      "analysis": "REQ-001（重启后残留 queued 任务不跑、节点锁死显示「排队中」且按钮禁用）与 REQ-002（同一节点重复点击产生并发任务）均独立复核通过。REQ-001：probe-req001-coldstart.mjs → 「RESULT: 节点可用（REQ-001 已修复）」；probe-r4-undo-restart.mjs 的 restart 阶段（R4_PHASE=restart，非 argv）→ 「RESULT: 未复现」永久锁，画布副本 queued=false、canRun=true、可恢复任务数 0；probe-cancel-abort-lock.mjs → 「RESULT: 未形成永久锁」；probe-lock-via-ui.mjs → 「RESULT: 未形成永久锁（标记被后续任务清除）」；probe-r3-stranded-canvas-copy.mjs → 「RESULT: 未复现」。REQ-002：probe-r4-guard2.mjs 12/12 PASS（含暂停态假绿防线）；probe-batch-chain.mjs 15/15；probe-cross-canvas.mjs「RESULT: 两画布互不干扰」；probe-req001-race 系列与 gate 用例 A–F 覆盖 enqueue 内同步守卫。(canvasId ?? null) 作用域、仅计 queued||running、从不历史、从不 running-only、从不全局单飞、guard 不查 paused——由 probe-r3-unified-scope-verify.mjs「判定作用域与清除落点已统一（无任何误清）」、probe-r3-null-canvas-scope.mjs、probe-r5-heal-attack.mjs 子项（仅 B 画布有任务时保留、仅 running 时保留）逐条覆盖。",
+      "evidence_files": [
+        "src/stores/queueStore.ts",
+        "src/hooks/useImageGeneratorExecution.ts",
+        ".workflow-kit/tasks/evidence/review-probes-r4/probe-r4-guard2.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r2/probe-batch-chain.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r2/probe-req001-coldstart.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r2/probe-cross-canvas.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r2/probe-cancel-abort-lock.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r3fix/probe-r3-unified-scope-verify.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r5/probe-r5-heal-attack.mjs"
+      ]
+    },
+    {
+      "area": "regression",
+      "status": "PASS",
+      "analysis": "轮-7 移动未破坏任何此前关闭的性质，逐条实测：F-R3-2（标记本就为 false 时零写入/零身份变化/零 subscribe 命中）→ probe-r3-finally-churn.mjs「App.tsx:170 同构的 subscribe 命中次数=0」「flowStore.nodes 身份变化=false」「节点对象身份变化=false」「canvasStore.canvases 身份变化=false」；F-R5-2（治疗期间新引入的陈旧标记仍被延后纠正）→ r6-fix2-defer.mjs 的「Y 的陈旧 true 被延后的一轮纠正」「标记被清」「另一画布有 queued 任务 → 按 nodeId 口径保留合法标记」「只多出 1 次身份变化（实际 1）」全部 PASS（该探针唯一的 FAIL 是其已知缺陷 case ⑥ 期望 ≤3 轮而 cap 签名是 8，其伴随的 wWrites<=200 断言才是真检查，已 PASS；我用 r8-armN 独立确证收敛于 8）；F-R5-1（被拒点击有 toast、无误报）→ useImageGeneratorExecution.ts:133 toast.info 在位，probe-reject-timeline.mjs「RESULT: 未捕获到该不一致」、probe-reject-erases-marker.mjs「标记与活动任务一致（未复现）」；F-R4-1（undo/redo 复活陈旧标记）→ 修好两个已知夹具缺陷后的 probe-r4-undo-cancel.mjs（副本 r8-undo-cancel-fixed.mjs：补 addNode 第三参 data={label,status}、预建 %TEMP%\\review-r4）→「① 标记=true 按钮可用=false → ③ 取消后标记=false 按钮可用=true → ④ Ctrl+Z 后标记=false 活动任务=0 → ⑤ 画布副本 queued=false」，「RESULT[运行期]: 未复现」；F1（持久化的 canvasStore 副本被清理）→ 上述 ⑤ 与 probe-r5-notify.mjs C 段「载入即自愈（用户不会看到锁）」。gate：node --experimental-strip-types scripts/queue-regression.mjs = PASS 6/FAIL 0/ERROR 0，EXIT CODE: 0；node node_modules/typescript/bin/tsc --noEmit exit 0。（诚实声明：gate 从不调用 undo/redo/saveToHistory、也不断言轮-7 的两条性质，对轮-4…7 的发现是**盲的**，上述结论来自探针而非 gate 绿灯。）",
+      "evidence_files": [
+        "src/stores/queueStore.ts",
+        "src/hooks/useImageGeneratorExecution.ts",
+        "scripts/queue-regression.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r3/probe-r3-finally-churn.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r6/r6-fix2-defer.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r2/probe-reject-timeline.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r2/probe-reject-erases-marker.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r4/probe-r4-undo-cancel.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r4/probe-r4-undo-restart.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r2/probe-lock-via-ui.mjs"
+      ]
+    },
+    {
+      "area": "failure_paths",
+      "status": "FAIL",
+      "analysis": "终止性与「不漏治」正确，但上限分支的**诊断信号在一种可达形态下是误报**——这是本次 FAIL 的落点。逐项核验指派攻击面：(1) 重排后语序在每条路径上逻辑正确——no-pending 出口（:948）→ 清 healPending → 重扫 → zero 出口（:954）→ cap 出口（:976）；passes 仍在循环顶 :929 每轮恰好自增一次（插桩点命中数=1 已自检）；上限**不能被绕过**：cap 是 candidates 非空且 healPending 已清后唯一的出口，故最多 8 轮（实测有界写入方 8 轮、病态写入方 8 轮 0–1ms）。移动只让第 8 轮的重扫得以发生，**买到的是一次重扫而非一轮治疗**，治愈边界 N≤7 / N≥8 两版相同——这一点注释 :964-971 已如实写明。(2) **但 console.warn 语义并非「只在确有陈旧候选残留时发出」**：candidates 是「true 标记的节点」而非「陈旧标记」，谓词在 :931-932 有意保留合法标记，故合法标记使 candidates 恒非空；LEGAL（真 queued 任务）+ X（陈旧、补 7 次）→ 轮数=8、出口=cap、X 已治愈 false、**1 条警告**，而该轮并无任何陈旧标记残留。该形态前缀版与候选版完全一致（两版 ARM=7 都是 cap+1 warn），故轮-7 注释对「误报已消除」的范围作了过宽陈述。(3) 单候选变体确已修复：候选版 N=1/2/5/6/7 → 轮数 2/3/6/7/8、出口全为 **zero**、**0 警告**、标记 false；前缀版 N=7 → 轮数 8、出口 **cap**、标记 false、**1 警告**（确证误报，A/B 归因成立）。(4) 上限仍承重：MAX_HEAL_PASSES=∞ 突变体（同一份源码仅改该常量）在探针硬闸 400 下轮数=**401**、W 写入=402、10ms 仍未返回——注释 :975 的「401 轮」数字实测吻合。(5) N≥8 残留：N=8/9/12 → 轮数恒 8、标记停在 true、恰好 1 warn，与 :967-969 一致；Infinity 突变体 N=9→10 轮、N=12→13 轮，与 :969 逐字吻合。",
+      "evidence_files": [
+        "src/stores/queueStore.ts",
+        ".workflow-kit/tasks/evidence/review-probes-r7/r7-cap-armN.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r6/r6-fix2-defer.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r6/r6-heal-termination.mjs"
+      ]
+    },
+    {
+      "area": "maintainability",
+      "status": "FAIL",
+      "analysis": "轮-7 改动本身方向正确且注释的**大部分**技术断言实测吻合，但两条新写的注释断言为假，属第 3/4/5/6/7 轮反复命中的「prose accuracy」类，本轮仍未清。(a) :979「走到这里时 candidates 非空，所以『仍有陈旧 queued 标记未复核』是**已核实的事实**，不是猜测」——前半句为真（cap 确在重扫后 candidates 非空时才到达），但由它推出后半句**无效**：candidates 含被谓词有意保留的合法标记（:931-932），与「陈旧」不是同一集合；上面 LEGAL+X 的实测即反例（候选非空、却零陈旧残留、仍告警）。(b) :972-973「治好了就**绝不**报『未复核』」作为全称断言被否证，只在候选集纯由陈旧标记构成时成立。(c) 其余本轮触碰的注释经独立核对**正确**：:824-:835 的四个口径数字用 TS AST/静态遍历实测为 22 / 20 / 45 / 19（22 排除 src/types/** 后恰为 20；45 为追 export…from 再导出口径），回边 0 条（闭包内直接 import queueStore=0、传递可达=0），import.meta.hot 全仓命中恰 1 处且就是该注释自身，7 个裸模块中第 7 个 @tauri-apps/plugin-store 确由 tauriStorage.ts:28 的**动态** import() 引入（静态口径 6 个，注释如实标注）；:964-971 的边界与反例、:967-969 的 N=8/9/12 不治愈、:975 的 401 轮、:936-946 的「正常路径轮数=1/谓词=1/身份变化=1」均实测吻合。(d) 附带确认一处历史遗留的措辞张力（非本轮引入、不计入本轮判定）：注释称画布副本「不会成为漏网的一份」，而 probe-r5-notify.mjs B 段显示不触发载入时副本上的陈旧 true 会存活（C 段确认载入即自愈、用户不可见）。",
+      "evidence_files": [
+        "src/stores/queueStore.ts",
+        "src/utils/tauriStorage.ts",
+        "src/App.tsx",
+        ".workflow-kit/tasks/evidence/review-probes-r6/r6-static-claims.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r6/r6-prose-claims.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r5/probe-r5-notify.mjs"
+      ]
+    },
+    {
+      "area": "performance",
+      "status": "PASS",
+      "analysis": "上限把同步栈内的轮数钉死在 8，UI 线程不会被无界自愈循环冻死——这是本任务唯一承重的护栏。实测：病态写入方（每收到通知就补回 true）同步栈耗时 0–1ms、恰好 8 轮、W 写入 8 次后返回并告警 1 条；对照组 MAX_HEAL_PASSES=∞ 的同一份源码突变体在探针硬闸 200 下跑出 201 轮（6ms）、在硬闸 400 下跑出 **401 轮（10ms）仍未返回**，证明真实环境（无探针闸）会永不返回、钉死 UI——上限的必要性已证，非空跑论断。正常路径不付代价：轮数=1、谓词调用=1、治疗自身身份变化=1、0 subscribe 命中（F-R3-2 零 churn），故 8 的取值不影响常规性能。重排使 cap 分支只在重扫仍有候选时才到达，未引入额外扫描（每轮仍恰好一次谓词遍历 + 一次候选收集）。",
+      "evidence_files": [
+        "src/stores/queueStore.ts",
+        ".workflow-kit/tasks/evidence/review-probes-r7/r7-cap-armN.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r6/r6-heal-iters.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r6/r6-heal-termination.mjs"
+      ]
+    }
+  ],
+  "ui_review": null
+}

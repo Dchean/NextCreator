@@ -1,0 +1,17 @@
+{
+  "task_id": "TASK-006",
+  "run_id": "RUN-b993e0a8bf114540b928219a986f65a7",
+  "status": "ready_for_verification",
+  "summary": "TASK-006 done in two bounded dispatches under this single run (user decision route_5th = A: two bounded dispatches inside the SAME task, no new task ID, no clock/budget reset). Both modified only src/stores/queueStore.ts (256 -> 449 lines). PART 1 (REQ-001 restart recovery, worker 2c4ee3dc): removed the unreachable recovery branch in onRehydrateStorage (it filtered status === 'running' while partialize never persists 'running'); recovery now targets exactly status === 'queued' via isRecoverableJob so persisted intent and recovery logic agree; recovery lives at the store layer inside onRehydrateStorage, clears each job's node data.queued via the existing updateNodeQueuedState(nodeId, canvasId, false), waits for canvas readiness (canvasStore._hasHydrated plus per-job node resolvability, 25ms poll, 600ms bounded deadline), then calls pump(). Crash-loop brakes: recoveryStarted one-shot latch; recovery never retries and never re-enqueues; terminal statuses no longer match isRecoverableJob. Worker also hardened updateNodeQueuedState's two floating dynamic imports with .catch() so an unattended startup failure cannot become an unhandled rejection -> crash -> restart -> recover loop; accepted by manager. PART 2 (REQ-002 duplicate-enqueue guard, worker 2b35bfad): added a synchronous guard inside queueStore.enqueue (no await) keyed per nodeId and restricted to that node's ACTIVE jobs (queued || running), so historical jobs never block regenerate/retry. Whole-batch atomicity is handled by a per-node batch chain {shapeKey, nextIndex}: the batchIndex===1 call registers nextIndex=2, and a later call is admitted only as a continuation when the shape key matches AND batchIndex === nextIndex exactly, then nextIndex advances; a genuine second click restarts at batchIndex===1 which can never equal the advanced nextIndex, so it falls through to the active-job rejection. Single-image clicks have no batchIndex and are rejected by the same active-job rule. The guard does NOT reference paused at all (verified: paused appears only in the state field, its initializer, togglePaused and pump), satisfying the gate-invisible paused-state constraint. retry() sets an origin flag around its existing enqueue call so retry-originated calls never continue or open a batch chain (retry copies batchIndex/batchTotal, making a retried batch member field-identical to a continuation); the decision still happens synchronously inside enqueue. useImageGeneratorExecution.ts was deliberately NOT modified (no entry-level guard). enqueue's declared return type remains string and now yields '' on rejection; no caller consumes the return value, so this is backward compatible. Manager independently verified on a static tree (all workers stopped): gate 6/6 PASS exit 0, tsc --noEmit exit 0, --expect-red exit 1. Red->green evidence is archived: baseline red state 0/6 PASS exit 1 in .workflow-kit/tasks/evidence/BASELINE-gate-red-TASK-006.txt versus the post-fix 6/6 PASS run.",
+  "changed_files": [
+    "src/stores/queueStore.ts",
+    ".workflow-kit/docs/TASK-006-MANUAL-VERIFICATION.md"
+  ],
+  "validation_requests": [
+    "typecheck",
+    "behavior-regression"
+  ],
+  "requested_actions": [],
+  "unresolved_items": [],
+  "blocked_reason": null
+}

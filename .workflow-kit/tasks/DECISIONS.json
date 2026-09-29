@@ -429,6 +429,82 @@
         "workflow"
       ],
       "recorded_at_utc": "2026-09-28T06:24:48.779213Z"
+    },
+    {
+      "id": "DEC-bf739b8b6c1a4db0b14beaa94db2a412",
+      "issuer": "owner",
+      "status": "accepted",
+      "source": "用户决断（TASK-006 第 3 轮审查 FAIL 后，时钟将尽）：追加时钟，做最小收敛修复后重审；交付口径为「修到可验收再交」。\n\n用户通过提问工具的实际选择：\n- stop_loss_r3 = A. 追加时钟，做最小收敛修复后重审（推荐项）\n- delivery = 修到可验收再交（推荐项）\n\n含义与执行：\n1. 由总控执行 extend 追加约 60 分钟时钟（修复轮额度另行决定：本次仅需用掉最后 1 轮，故不追加修复轮）。\n2. 修复范围严格限定为第 3 轮审查指出的三条，采用审查者给出的最小正确修法，不做结构性重写：\n   (a) F-R3-1（HIGH，跨画布标记不一致，第 2 轮修复新引入）：让**判据与清除目标使用同一套作用域解析**。优先按审查者建议让判据**忽略 canvasId**（同一 nodeId 的任何 queued||running 任务都阻止清除），因为它偏向「保留标记」这一安全侧；或统一解析为同一个 canvasId 后两处都用它。\n   (b) F-R3-2（MEDIUM，每次任务结束的多余持久化）：clearNodeQueuedMarker 在标记已为 falsy 时**提前返回**，避免无谓的 setState 与整流画布落盘；该改动同时缩小 F-R3-1 的影响面。\n   (c) F-R3-3（LOW-MEDIUM，死代码与注释不实）：处理 cancel running 分支那次可证明无效的复核调用，并把注释改成与实现一致（不得再宣称代码未提供的保证）。\n3. 不接受把本次修复做成「结构性调整标记语义」（方案 B）——用户选择的是最小收敛路径，且当前时钟与修复轮额度不支持更大改动。\n4. 交付口径：**修到可验收再交**。即必须再经一轮**全新独立审查**通过（且总控亲自复跑探针与门禁），才向用户交付；在此之前不得声称完成，也不得用「门禁 6/6 全绿」替代验收。\n\n用户同时强调的约束（沿用既有授权，未变）：保留原文、旧任务、业务代码与未提交修改；不自行决定重构路线；推荐项不代替其决定；本决断的 source 为用户实际选项原文。\n\n时钟事实（记录备查）：原 deadline 2026-09-28T09:24:59Z；三轮审查全部 FAIL，每轮均发现新问题（第 1 轮 F1/F2/F3；第 2 轮 F-R2-1/F-R2-2；第 3 轮 F-R3-1/F-R3-2/F-R3-3），且连续三轮出现「修复自身引入新缺陷」。修复轮已用 2/3。\n",
+      "statement": "Owner extended this task's time/repair allowance; financial limits remain in force",
+      "scope": [
+        "TASK-006"
+      ],
+      "recorded_at_utc": "2026-09-28T10:04:39.124218Z",
+      "budget_extension": {
+        "decision_id": "DEC-bf739b8b6c1a4db0b14beaa94db2a412",
+        "recorded_at_utc": "2026-09-28T10:04:39.124218Z",
+        "minutes": 60,
+        "repair_rounds": 0,
+        "previous_deadline_at_utc": "2026-09-28T09:24:59.726013Z",
+        "deadline_at_utc": "2026-09-28T11:04:39.124218Z"
+      }
+    },
+    {
+      "id": "DEC-a6c962633da54a0cbdf176e624d4d084",
+      "issuer": "owner",
+      "status": "accepted",
+      "source": "用户决断（TASK-006 第 4 轮审查 FAIL、修复轮 3/3 用尽、时钟过期后）：追加时钟+1 轮做「自愈式」最小修复；并提前授权多轮推进到收敛。\n\n用户通过提问工具的实际选择：\n- r4_route = A. 追加时钟+1 轮，做「自愈式」最小修复（推荐项）\n- r4_fallback = 提前授权多轮，推到收敛\n\n含义：\n1. 不采用「再找一条路径补一次清除」的枚举式修法（四轮已证明不收敛），改为让标记对**任何**复活来源自愈：queueStore 内部订阅 flowStore（以及必要时 canvasStore）的节点变化，在「该 nodeId 没有 queued||running 任务」时重新断言不变量，使撤销/重做快照恢复、以及未来任何未知来源写回的陈旧 queued:true 都被自动纠正。该方案仍在 queueStore.ts（allowed_paths）内，不需扩权。\n2. 同时修正 queueStore.ts:651 处「置位只有一处」的过度声称（F-R4-2），使注释与实现一致。\n3. 用户提前授权多轮推进到收敛，故总控本次追加较充足的时钟与修复轮，不再每轮回来询问；但总控仍保留两条自我止损线并会如实上报：\n   (a) 若连续两轮在同一发现类别上无实质进展（方向不收敛），停下来向用户报告并重新评估；\n   (b) 若最小自愈方案被证明不可行、只剩结构性方案（需把 ImageGeneratorNode.tsx 等纳入 allowed_paths、属任务定义变更），必须回来取得用户批准，不擅自扩大权限范围。\n\n背景（为何选自愈而非继续枚举）：四轮审查全部 FAIL，失败点全部集中于同一结构成因 —— queued 标记是**独立可写的状态**，且同时存在于 flowStore.nodes[].data.queued（运行时不持久化，但会被撤销快照整体覆盖）与 canvasStore.canvases[].nodes[].data.queued（持久化，由 App.tsx:154 setNodes 载回）两份载体中，且画布可复制（duplicateCanvas 保留 node.id）。第 4 轮新发现 F-R4-1 正是「撤销快照复活陈旧标记 → 永久锁且跨重启存活」。因此自愈式订阅是本次选定的方向：它防御的是**不变量本身**，而不是一条条具体路径。\n\n已确认关闭、不得重开（第 4 轮审查者独立确认）：F-R3-1（跨画布标记不一致）、F-R3-2（每次任务结束的多余持久化 churn + 两条静态 import 无循环、三种 import 顺序得到同一批 store 实例）、F-R3-3（cancel running 分支死代码 + 注释过度声称）；以及第 1/2 轮全部发现。第 4 轮已裁决：probe-r3-abnormal-scope-clear.mjs 的残余「复现」是**判据结构性假阳性**（审查者以自建归因 + 阳性对照证明，queueStore 在标记下降瞬间执行 0 次清除）。\n\n本决断 source 为用户实际选项原文，非总控推荐代替决定。\n",
+      "statement": "Owner extended this task's time/repair allowance; financial limits remain in force",
+      "scope": [
+        "TASK-006"
+      ],
+      "recorded_at_utc": "2026-09-28T13:31:57.914138Z",
+      "budget_extension": {
+        "decision_id": "DEC-a6c962633da54a0cbdf176e624d4d084",
+        "recorded_at_utc": "2026-09-28T13:31:57.914138Z",
+        "minutes": 150,
+        "repair_rounds": 4,
+        "previous_deadline_at_utc": "2026-09-28T11:04:39.124218Z",
+        "deadline_at_utc": "2026-09-28T16:01:57.914138Z"
+      }
+    },
+    {
+      "id": "DEC-64acbfe77bfd43da83b93808cc52dc9e",
+      "issuer": "owner",
+      "status": "accepted",
+      "source": "用户决断（TASK-006 第 7 轮审查 FAIL、时钟过期后）：追加少量时钟做零代价收尾后审；并先交付已确认修复的部分。\n\n用户通过提问工具的实际选择：\n- r7_route = **A. 追加少量时钟，做零代价收尾后审**\n- r7_delivery = **先交已确认修复的部分**\n\n含义与执行：\n1. extend 追加少量时钟（总控取 40 分钟：足够一次零代价改动 + 一次验证 + 一轮审查，不追加修复轮——本任务还剩 1 轮政策额度，本次恰用处）。\n2. 修复范围严格限定为第 7 轮审查的两条发现，且**只做零代价改动**：\n   (a) FINDING 1（行为级，安全裕度）：把 queueStore.ts:938-947 的上限块移到 :953 零候选检查**之后**，使循环在第 8 轮结束后仍会重扫一次（恢复第 6 轮对所有有界写入者的结果），并消除 N=7 时的假警报。\n   (b) FINDING 2（措辞）：queueStore.ts:824 的依赖计数由 21 改为实测值 22（保留承重的「0 条回边」结论）。\n   明确**不得**重构守卫/判据/延后行为，不得改动任何此前已闭合性质。\n3. 之后派**全新**独立审查者做第 8 轮；只有它 PASS，才把本任务视为达到可验收状态。\n4. 交付口径（用户选择「先交已确认修复的部分」）：总控**现在就**把已确认修复的部分交用户实机确认，并**书面标明「任务未验收」**与两条已知缺口（上限位置的安全裕度、依赖计数措辞）。交付物为 .workflow-kit/docs/TASK-006-MANUAL-VERIFICATION.md 的 7 个场景 + 门禁实际输出；其中场景 6（撤销/重做）与场景 7（拒绝点击的反馈）是门禁结构上看不到的，必须在交付中说明其来历与判据。\n\n用户强调的既有约束（未变）：保留原文、旧任务、业务代码与未提交修改；推荐项不代替其决定；本轮 source 为用户实际选项原文。\n\n事实基线（记录备查）：七轮独立审查全部 FAIL，无一轮 PASS，故任务至今未验收。第 1-4 轮发现均属机制级（REQ-001 只修一半；守卫引入新永久锁；守卫对画布不敏感；跨画布标记不一致；撤销快照复活陈旧标记并跨重启存活）；第 5-7 轮属潜在隐患与措辞级（过度声称 + 潜在重入漏治；无上限同步循环；上限位置早一轮 + 一个计数）。机制缺陷在第 4/5 轮已止住。第 7 轮两条发现均**不在仓内可达**（仓内写入者都是一次性的）。\n",
+      "statement": "Owner extended this task's time/repair allowance; financial limits remain in force",
+      "scope": [
+        "TASK-006"
+      ],
+      "recorded_at_utc": "2026-09-28T16:26:59.439299Z",
+      "budget_extension": {
+        "decision_id": "DEC-64acbfe77bfd43da83b93808cc52dc9e",
+        "recorded_at_utc": "2026-09-28T16:26:59.439299Z",
+        "minutes": 40,
+        "repair_rounds": 0,
+        "previous_deadline_at_utc": "2026-09-28T16:01:57.914138Z",
+        "deadline_at_utc": "2026-09-28T17:06:59.439299Z"
+      }
+    },
+    {
+      "id": "DEC-3bd11d4f796348c4a56095f8c673aa72",
+      "issuer": "owner",
+      "status": "accepted",
+      "source": "用户决断（TASK-006 第 8 轮审查 FAIL、修复轮 7/7 用尽后）：追加最小额度只修这处注释后审；交付时机改为「等审查通过再交」。\n\n用户通过提问工具的实际选择：\n- r8_route = **A. 追加最小额度（~25 分钟 / 1 轮），只修这处注释后审**\n- r8_delivery = **等审查通过再交**（注意：这**改变**了此前 r7_delivery 的「先交已确认修复的部分」；以本次为准，交付推迟到第 9 轮审查 PASS 之后）\n\n含义与执行：\n1. extend 追加 25 分钟与 1 轮修复额度，仅用于第 8 轮审查指出的那一处注释口径问题（queueStore.ts:972-973 与 :979）。\n2. 修复范围严格限定为：\n   (a) :979 改为「重扫后仍有 true 标记，其中**可能**包含判据故意保留的合法标记，因此只表示**本轮未收敛**」；\n   (b) :972-973 的「治好了就绝不报未复核」限定为「候选集**仅由陈旧标记构成**时」；\n   (c) 可选（低风险）：让该警告改由「仍可清除的候选计数」把关，使警告只在确实有陈旧标记时发出。\n   明确**不得**回退或改动第 7 轮的代码改动（审查者明确要求保留：上限位置修正是真实修复），不得重构守卫/判据/延后行为。\n3. 之后派**全新**独立审查者做第 9 轮；**只有 PASS 才交付**（按本次用户选择）。\n4. 交付物（等 PASS 后交付）：.workflow-kit/docs/TASK-006-MANUAL-VERIFICATION.md 的 7 个场景（含门禁结构上看不到的「撤销/重做」与「被拒绝点击须有反馈」两条）+ 绑定最终候选摘要的门禁实际输出。\n\n依据：审查者 01b753b1 的明确结论 —— 第 7 轮代码改动正确、应保留、不要回退；剩余是小范围低风险注释修复；只修这一处，第 9 轮应能通过，因为它能测的每一项功能性质现在都成立（requirements/regression/performance 三项 PASS，唯一发现为注释口径）。\n\n用户强调的既有约束（未变）：保留原文、旧任务、业务代码与未提交修改；推荐项不代替其决定；本轮 source 为用户实际选项原文。\n\n事实基线：八轮独立审查全部 FAIL，无一轮 PASS。机制级缺陷在第 4/5 轮止住；第 5–8 轮均为「潜在隐患与措辞」；第 8 轮仅剩一条注释口径问题，且影响范围仅限诊断准确性与注释可信度（治疗语义、终止性、合法标记保留、不漏治均正确）。N≥8 残留在仓内不可达（审查者枚举全部写入者：唯一第三方订阅者 App.tsx:170 只写 canvasStore、从不写 nodes），属可接受且已记录的安全裕度成本。\n",
+      "statement": "Owner extended this task's time/repair allowance; financial limits remain in force",
+      "scope": [
+        "TASK-006"
+      ],
+      "recorded_at_utc": "2026-09-28T22:27:17.197077Z",
+      "budget_extension": {
+        "decision_id": "DEC-3bd11d4f796348c4a56095f8c673aa72",
+        "recorded_at_utc": "2026-09-28T22:27:17.197077Z",
+        "minutes": 25,
+        "repair_rounds": 1,
+        "previous_deadline_at_utc": "2026-09-28T17:06:59.439299Z",
+        "deadline_at_utc": "2026-09-28T22:52:17.197077Z"
+      }
     }
   ]
 }

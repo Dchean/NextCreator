@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "RUN-5d57d1e057ba4cba94c0b520d5cbe60e",
+  "task_id": "TASK-006",
+  "kind": "repair",
+  "outcome": "completed",
+  "executor": {
+    "harness": "current_agent",
+    "model": null,
+    "context_id": "REPAIR ROUND 8 of TASK-006 (repair_rounds_used 7 -> 8 via explicit user decision DEC-3bd11d4f796348c4a56095f8c673aa72, +25 min, +1 round). SCOPE IS ONE COMMENT/DIAGNOSTIC FIX ONLY. Round 8 independent review returned FAIL with exactly ONE finding and confirmed requirements=PASS, regression=PASS, performance=PASS, and that EVERY functional property it could test now holds; it explicitly stated the round-7 code change is correct and must NOT be reverted. THE FINDING: queueStore.ts:972-973 and :979 claim that when the cap branch is reached candidates is non-empty so the warning text is a verified fact, and that the heal-success case NEVER reports unreviewed - both invalid as universal statements, because collectQueuedMarkerCandidates (:896-907) collects nodes whose marker is TRUE, not nodes whose marker is STALE, while the predicate deliberately KEEPS legal markers (:931-932). Reviewer repro: a node with a genuine queued job plus a stale node re-armed 7 times gives passes=8, exit via cap, the stale node already healed to false, the legal node correctly kept true, yet one warning fires with zero stale markers left. Honest attribution: NOT introduced by the round-7 move - the prefix mutant behaves identically; round 7 error was SCOPE (it fixed only the single-candidate shape while the comment claimed outright elimination). Impact is limited to diagnostic accuracy and comment trustworthiness; healing semantics, termination, legal-marker preservation and no-missed-heal all remain correct. FIX (per reviewer suggestion): (a) :979 must say the rescan still has true markers which MAY include legal ones the predicate deliberately kept, so it only reports that this round did not reconverge; (b) :972-973 must scope the never-reports claim to the case where the candidate set consists SOLELY of stale markers; (c) OPTIONAL low-risk improvement: gate the warn on a predicate-based count of still-clearable candidates so it fires only when a genuinely stale marker remains. DO NOT revert or alter the round-7 placement change, do not change MAX_HEAL_PASSES, do not restructure the guard/predicate/deferral."
+  },
+  "started_at_utc": "2026-09-28T22:27:35.403552Z",
+  "finished_at_utc": "2026-09-28T22:47:59.101019Z",
+  "exit_code": 0,
+  "timed_out": false,
+  "input_digest": "0d1e84bb9ef92149c761104cec4da4c861023db16721cdb3480b100b7325fd2e",
+  "candidate_digest": "44d8d897ca9924cfe25adceae26c0b0375fcf77839d6419a9219bb19d263cbd7",
+  "raw_output_refs": [
+    ".workflow-kit/tasks/evidence/RUN-5d57d1e057ba4cba94c0b520d5cbe60e-worker-result.json"
+  ],
+  "checks": [],
+  "review": {
+    "mode": null,
+    "verdict": null,
+    "report": null,
+    "candidate_digest": null
+  },
+  "estimated_cost_usd": null,
+  "scope_manifest": ".workflow-kit/tasks/evidence/RUN-5d57d1e057ba4cba94c0b520d5cbe60e-scope.json",
+  "baseline_manifest": ".workflow-kit/tasks/evidence/RUN-7620fe743b1b494d9e500c8e0687e35f-scope.json"
+}

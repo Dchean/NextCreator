@@ -3,14 +3,14 @@
   "id": "RUN-aec32fac61174c848c35fe4cd52a8e32",
   "task_id": "TASK-006",
   "kind": "implementation",
-  "outcome": "running",
+  "outcome": "blocked",
   "executor": {
     "harness": "current_agent",
     "model": null,
     "context_id": "coder subagent #3 (fresh context, third attempt) with manager-extracted 3KB spec digest instead of the 68KB gate file; root cause of prior two failures was excessive pre-edit reading volume (112KB), a manager dispatch error"
   },
   "started_at_utc": "2026-09-28T06:43:54.400709Z",
-  "finished_at_utc": null,
+  "finished_at_utc": "2026-09-28T07:01:56.599151Z",
   "exit_code": null,
   "timed_out": false,
   "input_digest": "0d1e84bb9ef92149c761104cec4da4c861023db16721cdb3480b100b7325fd2e",
@@ -25,5 +25,13 @@
   },
   "estimated_cost_usd": null,
   "scope_manifest": ".workflow-kit/tasks/evidence/RUN-aec32fac61174c848c35fe4cd52a8e32-scope.json",
-  "baseline_manifest": ".workflow-kit/tasks/evidence/RUN-91fb3b24f5794c2b8a01c383044be8dd-scope.json"
+  "baseline_manifest": ".workflow-kit/tasks/evidence/RUN-91fb3b24f5794c2b8a01c383044be8dd-scope.json",
+  "recovery": {
+    "source": "Manager verified: coder subagent #3 (fresh context, 6KB spec digest + 12KB sources) ran out of context before finishing and left no closing message. Instance now inactive. git status --porcelain -- src/ is EMPTY (zero business-code changes, third consecutive attempt); run record shows commands=0, checks=0, finished_at_utc=null, candidate_digest=null. No candidate, no side effects; safe to close. THIRD identical failure. Prior diagnosis (112KB pre-edit reading volume) does NOT explain this one: required reading was only ~18KB. Manager is now testing a different hypothesis: workspace instruction auto-load (AGENTS.md workflow-kit entry telling any agent to read WORKFLOW-KIT.md and run resume/progress, whose output embeds RESUME.md + long JOURNAL notes) may consume a subagent context before it starts work. Next: minimal probe subagent to observe what a fresh subagent actually gets loaded.",
+    "observed_at_utc": "2026-09-28T07:01:56.319691Z",
+    "actual_process_finish_known": false,
+    "note": "finished_at marks record closure, not a fabricated process completion"
+  },
+  "failure_kind": "interrupted",
+  "failure_reason": "Interrupted run recovered: Manager verified: coder subagent #3 (fresh context, 6KB spec digest + 12KB sources) ran out of context before finishing and left no closing message. Instance now inactive. git status --porcelain -- src/ is EMPTY (zero business-code changes, third consecutive attempt); run record shows commands=0, checks=0, finished_at_utc=null, candidate_digest=null. No candidate, no side effects; safe to close. THIRD identical failure. Prior diagnosis (112KB pre-edit reading volume) does NOT explain this one: required reading was only ~18KB. Manager is now testing a different hypothesis: workspace instruction auto-load (AGENTS.md workflow-kit entry telling any agent to read WORKFLOW-KIT.md and run resume/progress, whose output embeds RESUME.md + long JOURNAL notes) may consume a subagent context before it starts work. Next: minimal probe subagent to observe what a fresh subagent actually gets loaded."
 }

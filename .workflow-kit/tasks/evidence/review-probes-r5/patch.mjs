@@ -1,0 +1,10 @@
+import { readFileSync, writeFileSync } from "node:fs";
+const src = process.argv[2];
+const dst = process.argv[3];
+let t = readFileSync(src, "utf8");
+const before = t.length;
+t = t.replaceAll('e.activeAt.join("|")', '(e.activeAt||[]).join("|")');
+writeFileSync(dst, t, "utf8");
+const out = readFileSync(dst, "utf8");
+console.log("len", before, "->", out.length, "contains patch:", out.includes("(e.activeAt||[])"));
+console.log("tmp-file-scratch-lines:", (out.match(/tmp-file-scratch/g) || []).length);

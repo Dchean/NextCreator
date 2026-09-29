@@ -1,7 +1,7 @@
 <!-- project-workflow: generated view; edit task JSON instead -->
 # TASK-006 · 修复 REQ-001 重启恢复与 REQ-002 重复入队保护（A 项收口，以 TASK-005 门禁验收）
 
-**状态**：running
+**状态**：blocked
 
 **目标**：修复 REQ-001（应用重启后遗留的 queued 任务永不执行、相关节点永久显示“排队中”并禁用生成）与 REQ-002（缺少同一节点的重复入队保护），并建立一份零新增依赖的行为回归门禁，使这两项缺陷有可执行的红→绿证据。
 
@@ -45,21 +45,22 @@
 
 - 首次开始：2026-09-28T06:24:59.726013Z
 - 原截止时间：2026-09-28T09:24:59.726013Z
-- 当前截止时间：2026-09-28T09:24:59.726013Z
-- 时钟：按活动时间计：已用 18 分钟 / 额度 180 分钟（等待、断网和只读门禁不计）
-- 已用修复轮：0
-- 阻塞：无
-- 下一步：完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify
+- 当前截止时间：2026-09-28T22:52:17.197077Z
+- 时钟：按活动时间计：已用 238 分钟 / 额度 455 分钟（等待、断网和只读门禁不计）
+- 已用修复轮：8
+- 阻塞：Review requires changes; inspect the findings
+- 下一步：先核对已有文件及原始日志，再处理 review_failure；不要新建任务或重置预算
 
 ## 最近检查点
 
-- 2026-09-28T06:24:59.795451Z：开始执行，保留原任务身份和截止时间；下一步：完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify
-- 2026-09-28T06:29:12.999843Z：Interrupted run recovered: 总控核对：用户澄清复用规则——代码编写应按问题类型复用子代理，而非连续占用同一个，以避免长上下文干扰。原编码子代理 cfe0eebd 上下文已极长（TASK-004 合并探针 + TASK-005 五轮返工），且当前 TASK-006 领域不同（状态管理修复 vs 测试基础设施）。总控已中断其工作，并核实 src/ 零改动、RUN 记录 commands=0、checks=0、finished_at_utc=null，故无候选、无副作用，可安全关闭后改派新子代理。；下一步：先核对已有文件及原始日志，再处理 interrupted；不要新建任务或重置预算
-- 2026-09-28T06:29:19.164261Z：阻塞已处置（interrupted）：核对：原编码子代理 cfe0eebd 上下文极长（TASK-004 合并探针 + TASK-005 五轮返工），且 TASK-006 领域不同（src/stores 状态管理修复 vs scripts 测试基础设施）。已中断其工作并确认 src/ 零改动、RUN 记录 commands=0/checks=0/finished_at_utc=null，无候选无副作用。任务定义、预算与时钟保留，改派新子代理继续。；下一步：begin 重新实现
-- 2026-09-28T06:29:38.121636Z：开始执行，保留原任务身份和截止时间；沿用本任务先前的范围基线，changed_files 为本任务累计改动；下一步：完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify
-- 2026-09-28T06:43:37.639387Z：Interrupted run recovered: 总控核对：新编码子代理上下文耗尽退出且无收尾消息；实例 inactive；git diff -- src 为空（业务代码零改动）；RUN 记录 commands=0、finished_at_utc=null。根因诊断为总控派发错误：我要求子代理先读 scripts/queue-regression.mjs（68037 字节 / 1075 行）作为规格，加上 4 个源文件共约 112KB 的动笔前阅读量，超出其上下文预算。已改为由总控提取精简规格（约 3KB）后重新派发。故本次运行无候选、无副作用，可安全关闭。；下一步：先核对已有文件及原始日志，再处理 interrupted；不要新建任务或重置预算
-- 2026-09-28T06:43:53.743435Z：阻塞已处置（interrupted）：核对：两次失败均 src/ 零改动（git diff -- src 为空）、RUN 记录 commands=0，无候选无副作用。任务定义、预算、时钟与 allowed_paths 保留，未新建任务。；下一步：begin 重新实现
-- 2026-09-28T06:43:54.475201Z：开始执行，保留原任务身份和截止时间；沿用本任务先前的范围基线，changed_files 为本任务累计改动；下一步：完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify
+- 2026-09-28T16:42:38.658139Z：编码结果已记录，差异范围已核对：无文件变化；下一步：运行 verify；代码完成尚未等于验收通过
+- 2026-09-28T16:42:50.233970Z：预先定义的必需测试全部通过，日志已保存；下一步：审查当前候选；独立审查使用没有参与编码的新上下文
+- 2026-09-28T16:54:30.956977Z：Review requires changes; inspect the findings；下一步：先核对已有文件及原始日志，再处理 review_failure；不要新建任务或重置预算
+- 2026-09-28T22:27:18.005847Z：依据新决定追加预算；原始时钟与失败记录保留；下一步：先核对已有成果，再按原任务范围继续
+- 2026-09-28T22:27:35.541732Z：开始执行，保留原任务身份和截止时间；沿用本任务先前的范围基线，changed_files 为本任务累计改动；下一步：完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify
+- 2026-09-28T22:47:59.172327Z：编码结果已记录，差异范围已核对：src/stores/queueStore.ts；下一步：运行 verify；代码完成尚未等于验收通过
+- 2026-09-28T22:48:10.936468Z：预先定义的必需测试全部通过，日志已保存；下一步：审查当前候选；独立审查使用没有参与编码的新上下文
+- 2026-09-28T23:06:18.718004Z：Review requires changes; inspect the findings；下一步：先核对已有文件及原始日志，再处理 review_failure；不要新建任务或重置预算
 
 ## 原始证据
 
@@ -68,5 +69,40 @@
 - [RUN-0aa58b4b10944472990efaef53e574f4](../runs/RUN-0aa58b4b10944472990efaef53e574f4.json)
 - [RUN-91fb3b24f5794c2b8a01c383044be8dd](../runs/RUN-91fb3b24f5794c2b8a01c383044be8dd.json)
 - [RUN-aec32fac61174c848c35fe4cd52a8e32](../runs/RUN-aec32fac61174c848c35fe4cd52a8e32.json)
+- [RUN-91b31552313e494a93fb7b830bd2efe9](../runs/RUN-91b31552313e494a93fb7b830bd2efe9.json)
+- [RUN-b993e0a8bf114540b928219a986f65a7](../runs/RUN-b993e0a8bf114540b928219a986f65a7.json)
+- [RUN-b46fc7ad1ea44a9288670196c6cdebb1](../runs/RUN-b46fc7ad1ea44a9288670196c6cdebb1.json)
+- [RUN-c2ba8c81ae33415b86da5a69773ce83e](../runs/RUN-c2ba8c81ae33415b86da5a69773ce83e.json)
+- [RUN-ac04e620492e43a9b51fe890da6c4e4c](../runs/RUN-ac04e620492e43a9b51fe890da6c4e4c.json)
+- [RUN-365a88f543cc472e8bf6faa479d069a6](../runs/RUN-365a88f543cc472e8bf6faa479d069a6.json)
+- [RUN-8956d5d1afd849958ae34dff4633c4a0](../runs/RUN-8956d5d1afd849958ae34dff4633c4a0.json)
+- [RUN-f1967f3c03794e1ebd2570263fd57850](../runs/RUN-f1967f3c03794e1ebd2570263fd57850.json)
+- [RUN-e9d33ed7705e4c1c958875018a710480](../runs/RUN-e9d33ed7705e4c1c958875018a710480.json)
+- [RUN-e0bd69e2a5e84f5fb544f6e3c8c77572](../runs/RUN-e0bd69e2a5e84f5fb544f6e3c8c77572.json)
+- [RUN-f743ec046a6e4958af6529925fe1b129](../runs/RUN-f743ec046a6e4958af6529925fe1b129.json)
+- [RUN-76cdf207e8c24ef08572a2bb94b2882d](../runs/RUN-76cdf207e8c24ef08572a2bb94b2882d.json)
+- [RUN-e941e48cfbfd4f07933019a1932bfca8](../runs/RUN-e941e48cfbfd4f07933019a1932bfca8.json)
+- [RUN-7801e633680d4486897b42c854759b99](../runs/RUN-7801e633680d4486897b42c854759b99.json)
+- [RUN-b5b080dd4a174fa78c0bfb626659b9b7](../runs/RUN-b5b080dd4a174fa78c0bfb626659b9b7.json)
+- [RUN-b8635b7958134b5e85f58c45e5ec0b19](../runs/RUN-b8635b7958134b5e85f58c45e5ec0b19.json)
+- [RUN-35beb9f3089449c0afba93c8529dc107](../runs/RUN-35beb9f3089449c0afba93c8529dc107.json)
+- [RUN-16747aa77a504e4a80e021422ac5be5d](../runs/RUN-16747aa77a504e4a80e021422ac5be5d.json)
+- [RUN-f578b371e4ca4745b3ab5f247803136b](../runs/RUN-f578b371e4ca4745b3ab5f247803136b.json)
+- [RUN-f1989c3509f5446fabb4a6ee38392db8](../runs/RUN-f1989c3509f5446fabb4a6ee38392db8.json)
+- [RUN-e47f10027ac54a3d9a3bf392e79356b9](../runs/RUN-e47f10027ac54a3d9a3bf392e79356b9.json)
+- [RUN-06d6f04858c94beabcca1ea72a7e7062](../runs/RUN-06d6f04858c94beabcca1ea72a7e7062.json)
+- [RUN-27b991ac86e24e7fb5d2d54fe4cfde4d](../runs/RUN-27b991ac86e24e7fb5d2d54fe4cfde4d.json)
+- [RUN-19101ba9138542049e38500aad3b5c63](../runs/RUN-19101ba9138542049e38500aad3b5c63.json)
+- [RUN-1b4066e469e74547a148809ae2aa689c](../runs/RUN-1b4066e469e74547a148809ae2aa689c.json)
+- [RUN-a4f7128d1c714343bdf14498955028d4](../runs/RUN-a4f7128d1c714343bdf14498955028d4.json)
+- [RUN-6448242260e945379b5d9410582dc79b](../runs/RUN-6448242260e945379b5d9410582dc79b.json)
+- [RUN-b8fb023eed4b4153982600d8d1eea207](../runs/RUN-b8fb023eed4b4153982600d8d1eea207.json)
+- [RUN-9a2827e09045460194bbe0d50f99f481](../runs/RUN-9a2827e09045460194bbe0d50f99f481.json)
+- [RUN-7620fe743b1b494d9e500c8e0687e35f](../runs/RUN-7620fe743b1b494d9e500c8e0687e35f.json)
+- [RUN-ea6abe1f1d2545238089f8b609781df8](../runs/RUN-ea6abe1f1d2545238089f8b609781df8.json)
+- [RUN-18de4b402836488a8054a1424794a1f5](../runs/RUN-18de4b402836488a8054a1424794a1f5.json)
+- [RUN-5d57d1e057ba4cba94c0b520d5cbe60e](../runs/RUN-5d57d1e057ba4cba94c0b520d5cbe60e.json)
+- [RUN-48b9bcc879c44c7d9a5ac0ce076cf409](../runs/RUN-48b9bcc879c44c7d9a5ac0ce076cf409.json)
+- [RUN-08ea6aa5677c461495265159cf50dec2](../runs/RUN-08ea6aa5677c461495265159cf50dec2.json)
 
 卡片是自动生成的视图。Agent 修改任务记录、执行命令或保存检查点后重新生成；不手工把状态改成通过。

@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "id": "RUN-91b31552313e494a93fb7b830bd2efe9",
+  "task_id": "TASK-006",
+  "kind": "implementation",
+  "outcome": "blocked",
+  "executor": {
+    "harness": "current_agent",
+    "model": null,
+    "context_id": "Coder subagent #4 for TASK-006 (fourth attempt). Manager fixed the real root cause of three prior zero-edit failures: the root AGENTS.md workflow-kit entry block is force-injected into every subagent and orders it to read WORKFLOW-KIT.md and run resume (18.8KB output embedding RESUME.md 59.5KB and JOURNAL.md 69.6KB), and the nested .workflow-kit/AGENTS.md+CLAUDE.md fire on any path under .workflow-kit/ (ordering PROJECT_STATE 11KB, POLICY 2.6KB, DECISIONS 35KB, WORKFLOW 2.2KB). A controlled probe with an explicit narrow instruction declined resume, used 3-5%% context and wrote a file successfully - so the trap is overridable. This dispatch therefore INLINES the full task-006 spec directly in the prompt (no file reads needed for the spec) and EXPLICITLY states the workflow entry block does not apply to the worker. User decisions (asked after the 3rd failure): entry_block=mitigate-per-dispatch-and-defer-the-structural-fix; route_4th=A inline spec + explicit override, re-dispatch TASK-006 unchanged. Task definition, acceptance, allowed_paths, budget and clock all preserved; repair_rounds_used still 0."
+  },
+  "started_at_utc": "2026-09-28T07:09:09.090891Z",
+  "finished_at_utc": "2026-09-28T07:12:30.474841Z",
+  "exit_code": null,
+  "timed_out": false,
+  "input_digest": "0d1e84bb9ef92149c761104cec4da4c861023db16721cdb3480b100b7325fd2e",
+  "candidate_digest": null,
+  "raw_output_refs": [],
+  "checks": [],
+  "review": {
+    "mode": null,
+    "verdict": null,
+    "report": null,
+    "candidate_digest": null
+  },
+  "estimated_cost_usd": null,
+  "scope_manifest": ".workflow-kit/tasks/evidence/RUN-91b31552313e494a93fb7b830bd2efe9-scope.json",
+  "baseline_manifest": ".workflow-kit/tasks/evidence/RUN-aec32fac61174c848c35fe4cd52a8e32-scope.json",
+  "recovery": {
+    "source": "Manager verified: coder subagent #4 (RUN-91b31552313e494a93fb7b830bd2efe9) ran out of room before finishing, no closing message. git status --porcelain -- src/ is EMPTY (fourth consecutive zero-edit failure); no candidate, no side effects, repair_rounds_used still 0. CRITICAL: this attempt had the spec fully INLINED in the dispatch prompt (no spec file reads needed) and the workflow entry block EXPLICITLY overridden, yet still failed - so the manager 2nd hypothesis (entry block only) is also incomplete. A controlled micro-probe succeeded with 2 tool calls at 3-5%% context, so small dispatches work. The manager is now testing whether the real wall is total steps/context for a task of this size, and whether the task must be decomposed or the executor switched (codex-cli 0.154.0 and claude 2.1.272 are installed locally but the user had chosen agent_only). Recovering via the interrupted exit to preserve task definition, budget, clock and allowed_paths; not resetting the clock or creating a new task ID.",
+    "observed_at_utc": "2026-09-28T07:12:30.156710Z",
+    "actual_process_finish_known": false,
+    "note": "finished_at marks record closure, not a fabricated process completion"
+  },
+  "failure_kind": "scope",
+  "failure_reason": "Interrupted run recovered: Manager verified: coder subagent #4 (RUN-91b31552313e494a93fb7b830bd2efe9) ran out of room before finishing, no closing message. git status --porcelain -- src/ is EMPTY (fourth consecutive zero-edit failure); no candidate, no side effects, repair_rounds_used still 0. CRITICAL: this attempt had the spec fully INLINED in the dispatch prompt (no spec file reads needed) and the workflow entry block EXPLICITLY overridden, yet still failed - so the manager 2nd hypothesis (entry block only) is also incomplete. A controlled micro-probe succeeded with 2 tool calls at 3-5%% context, so small dispatches work. The manager is now testing whether the real wall is total steps/context for a task of this size, and whether the task must be decomposed or the executor switched (codex-cli 0.154.0 and claude 2.1.272 are installed locally but the user had chosen agent_only). Recovering via the interrupted exit to preserve task definition, budget, clock and allowed_paths; not resetting the clock or creating a new task ID.; out-of-scope changes: .workflow-kit/docs/TASK-006-MANUAL-VERIFICATION.md"
+}

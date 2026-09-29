@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "RUN-08ea6aa5677c461495265159cf50dec2",
+  "task_id": "TASK-006",
+  "kind": "review",
+  "outcome": "blocked",
+  "executor": {
+    "harness": "current_agent",
+    "model": null,
+    "context_id": "Fresh independent reviewer d77f7941 (round 9; all eight prior reviewers excluded: 01b753b1, cdf343a5, 078b67a7, f545fa31, 860b2b93, fb656bb5, c62af427, 8a402362, 2b119b83, 288b57de, 466d0e5e, 9d26b852, 194aa201, 2cb39439). Verdict FAIL with exactly ONE finding, and this is the strongest result yet: requirements=PASS, regression=PASS, failure_paths=PASS (previously FAIL), performance=PASS; ONLY maintainability FAILs, caused solely by one falsifiable necessity claim in a COMMENT. The reviewer states plainly that if the intent was behavioural correctness the candidate already meets it, that it could find no new mechanism-level defect, and that the round-7 checkpoint move and the round-8 stillClearable gate are both verified correct and must NOT be reverted. THE FINDING: queueStore.ts:977-978 claims that with one more legal marker present the rescan is permanently non-empty and the exit NECESSARILY falls to the cap. That is false because it accounts only for the zero-candidate break at :954 and OMITS :948 if (!healPending) break, which fires BEFORE the rescan whenever the round produced no nested write - and only-legal-markers-remain necessarily means nothing is written. MANAGER VERIFIED THE SELF-CONTRADICTION BY READING THE SOURCE: line :947, untouched this round, already states the !healPending branch fires precisely when candidates are all kept by the predicate and nobody wrote nodes, which is exactly the shape the new :978 claims goes to the cap; tracing the code confirms :978 is wrong (only legal markers remain, the predicate writes nothing, healPending stays false, break at :948 with exit nopending, cap never reached). Reviewer measured counterexamples with a forced single instance: LEGAL plus already-healed stale with NO pathological writer gives passes=2 exit nopending; a one-shot whole-array undo write gives passes=3 exit nopending; cap is reached only when a writer re-arms every round. Impact is comment correctness only - warning behaviour, termination and treatment semantics are unaffected, and :979's conclusion (the cap warning must not treat non-empty candidates as proof that stale markers remain) stays correct and is exactly what justifies the new gate. Suggested fix is comment-only: replace the necessity claim with the code-accurate version stating that candidates.length===0 never hits and the actual exit depends on whether the round performed a nested write (if yes continue to the cap; if no exit first via :948 as nopending, which is the exit when the stale marker has been healed and only legal markers remain), aligning it with :947. THE NEW GATE WAS ATTACKED AND SURVIVED ALL FOUR MANAGER-DIRECTED ATTACKS (reviewer own probe, 29/29 assertions, single instance forced and asserted): it cannot fire spuriously (warn iff a genuinely clearable stale marker remains across six arms; ARM<=7 with a legal marker gives 0 warnings, so round 8 single false positive is gone and r8-legal-marker-warn.mjs now exits 0); it cannot MISS a stale marker living only on the persisted canvasStore copy (that shape never reaches the cap block at all because once only predicate-preserved legal markers remain nothing is written so healPending is never set and the break happens at :948 - measured by placing the stale true ONLY on the canvas copy with a writer re-arming the LEGAL marker at N=4 and N=20 giving passes=1 exit nopending 0 warnings, versus a re-arm-X control giving passes=8 exit cap gateCount=1 one warning - so the gate flowStore-only scope is sound); it is truly read-only and synchronous (after reaching the cap: 0 flowStore identity changes, 0 canvasStore identity changes, 0 subscriber hits, no writes, no awaits; F-R3-2 zero-churn intact); scope is nodeId only matching the predicate with no second scope convention and the canvas-aware guard not regressed (guard2 12/12); and termination is independent of the gate (break unconditional and after it, passes never exceeded 8, pathological unbounded writer still 8 passes 0-1ms with 1 warning). REGRESSIONS ALL GREEN: gate 6/6 PASS exit 0 and tsc --noEmit exit 0 (blind to the cap warning and to undo/redo, used only as no-regression evidence), guard2 12/12, batch-chain 15/15, cross-canvas two-canvases-independent, req001-coldstart node-usable, cancel-abort-lock not-a-permanent-lock, reject-timeline no-inconsistency, reject-erases-marker not-reproduced, r3-stranded-canvas-copy not-reproduced, lock-via-ui not-a-permanent-lock, r3-erased-while-queued-paused not-reproduced, r3-finally-churn 0 subscribe hits, r6-fix2-defer case 5 one extra identity change (F-R5-2), F-R5-1 toast confirmed at useImageGeneratorExecution.ts:132-135, and both undo probes pass after the known fixture bugs were fixed. BUDGET: repair rounds are exhausted at 8/8 and the clock has expired, so closing this needs a user decision; the manager is stopping and bringing it to the user, noting that the required edit is a single comment sentence that cannot affect any verified behaviour."
+  },
+  "started_at_utc": "2026-09-28T23:06:18.577376Z",
+  "finished_at_utc": "2026-09-28T23:06:18.650115Z",
+  "exit_code": null,
+  "timed_out": false,
+  "input_digest": "0d1e84bb9ef92149c761104cec4da4c861023db16721cdb3480b100b7325fd2e",
+  "candidate_digest": "44d8d897ca9924cfe25adceae26c0b0375fcf77839d6419a9219bb19d263cbd7",
+  "raw_output_refs": [
+    ".workflow-kit/tasks/evidence/RUN-08ea6aa5677c461495265159cf50dec2-review.json"
+  ],
+  "checks": [],
+  "review": {
+    "mode": "independent",
+    "verdict": "FAIL",
+    "report": ".workflow-kit/tasks/evidence/RUN-08ea6aa5677c461495265159cf50dec2-review.json",
+    "candidate_digest": "44d8d897ca9924cfe25adceae26c0b0375fcf77839d6419a9219bb19d263cbd7"
+  },
+  "estimated_cost_usd": null,
+  "failure_kind": "review_failure",
+  "failure_reason": "Review requires changes; inspect the findings"
+}

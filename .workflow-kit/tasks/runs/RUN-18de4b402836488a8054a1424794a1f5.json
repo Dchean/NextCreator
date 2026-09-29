@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "RUN-18de4b402836488a8054a1424794a1f5",
+  "task_id": "TASK-006",
+  "kind": "review",
+  "outcome": "blocked",
+  "executor": {
+    "harness": "current_agent",
+    "model": null,
+    "context_id": "Fresh independent reviewer 01b753b1 (round 8; all prior reviewers excluded: cdf343a5, 078b67a7, f545fa31, 860b2b93, fb656bb5, c62af427, 8a402362, 2b119b83, 288b57de, 466d0e5e, 9d26b852, 194aa201, 2cb39439). Verdict FAIL with exactly ONE finding. CLOSEST YET: requirements=PASS, regression=PASS, performance=PASS; only failure_paths and maintainability fail, and the sole finding is a COMMENT-SCOPE defect. The reviewer INDEPENDENTLY REBUILT the pre-fix order itself and instrumented all three loop exits on both versions, establishing: round-7 placement change IS a genuine bug fix (at N=7 the candidate exits via zero-candidate with 0 warns while the prefix mutant exits via the cap with 1 warn while the marker was already false); the cap is still load-bearing (bounded writer stops at exactly 8 passes in 0-1ms; the Infinity mutant ran 401 passes / 10ms and never returned, matching the :975 figure exactly); the healing frontier is unmoved as documented (N<=7 heals with passes=N+1, N>=8 stuck at 8 passes with marker true and 1 warn, Infinity needs 10 passes for N=9 and 13 for N=12); passes still increments exactly once per iteration at :929 and the cap cannot be bypassed. THE ONE FINDING: queueStore.ts:972-973 and :979 claim that when the cap branch is reached candidates is non-empty so the warning '仍有陈旧 queued 标记未复核' is a verified fact, and that '治好了就绝不报未复核' - BOTH are invalid as universal statements because collectQueuedMarkerCandidates (:896-907) collects nodes whose marker is TRUE, not nodes whose marker is STALE, and the predicate deliberately KEEPS legal markers (:931-932), so a legal marker makes candidates permanently non-empty and drives the loop into the cap branch with the warning even when nothing stale remains. MANAGER VERIFIED THE MECHANISM BY READING THE CODE: collectQueuedMarkerCandidates filters on queued !== true, so candidates means 'marker true' rather than 'stale', confirming the claim is wrong. Reviewer repro (forced single-instance, real candidate plus instrumentation): a node LEGAL with a genuine queued job plus a stale node X re-armed 7 times gives passes=8, exit=cap, X healed to false, LEGAL correctly kept true, yet 1 warning fires with ZERO stale markers left; sweep N=1/2/3/5/6/7/8 gives X final false/false/false/false/false/false/true with warns 0/0/0/0/0/1/1. HONEST ATTRIBUTION by the reviewer: this is NOT introduced by the move - the same probe against the prefix mutant gives cap+1 warn at N=7 too; round 7 error was SCOPE, in that the move eliminated the false alarm only in the single-candidate shape while the new comment claims it eliminated it outright. Impact is limited to diagnostic accuracy and comment trustworthiness; healing semantics, termination, legal-marker preservation and no-missed-heal all remain correct. Suggested fix: weaken :979 to say the rescan still has true markers which MAY include legal ones the predicate deliberately kept, so it only reports did-not-reconverge-this-round, and scope :972-973's 绝不 to the solely-stale case, optionally gating the warn on a predicate-based count of still-clearable candidates. PROSE THE REVIEWER VERIFIED CORRECT THIS ROUND (so the :824 repair is trustworthy): 22/20/45/19 all reproduce exactly under their stated definitions (22 minus src/types = 20), 0 back-edges, import.meta.hot has exactly 1 repo hit which is that comment itself, and of the 7 bare externals the 7th is @tauri-apps/plugin-store genuinely a dynamic import at tauriStorage.ts:28. Also correct: the :964-971 boundary/refutation, :967-969 for N=8/9/12, and :936-946 normal-path figures. PRIORITY 2/3 CLEAN: the N>=8 residual is NOT reachable by any in-repo writer (the reviewer enumerated the writers: the only third-party useFlowStore subscriber is App.tsx:170 which writes canvasStore and never nodes), so it is an acceptable documented safety-margin cost; gate 6/6 PASS exit 0 and tsc exit 0 both reproduce and the gate is confirmed BLIND to rounds 4-7; F-R3-2 zero churn, F-R5-2 deferral works, F-R5-1 toast present, F-R4-1 not resurrected; guard2 12/12, batch-chain 15/15, req001-coldstart node-usable, cancel-abort-lock and lock-via-ui not-a-permanent-lock, r3-stranded-canvas-copy not-reproduced, reject-timeline and reject-erases-marker not-reproduced, r3-unified-scope-verify no-wrongful-clears. The reviewer bottom line: the round-7 code change is correct and worth keeping and must NOT be reverted; what remains is a small low-risk COMMENT/SCOPE repair, after which round 9 should be able to pass on the code as-is plus corrected prose, since every functional property it could test now holds."
+  },
+  "started_at_utc": "2026-09-28T16:54:30.805142Z",
+  "finished_at_utc": "2026-09-28T16:54:30.891433Z",
+  "exit_code": null,
+  "timed_out": false,
+  "input_digest": "0d1e84bb9ef92149c761104cec4da4c861023db16721cdb3480b100b7325fd2e",
+  "candidate_digest": "41bf840fd2a0d054f02e68ac51866cc8356fb7d17e5421ab63ffe557d4e9344b",
+  "raw_output_refs": [
+    ".workflow-kit/tasks/evidence/RUN-18de4b402836488a8054a1424794a1f5-review.json"
+  ],
+  "checks": [],
+  "review": {
+    "mode": "independent",
+    "verdict": "FAIL",
+    "report": ".workflow-kit/tasks/evidence/RUN-18de4b402836488a8054a1424794a1f5-review.json",
+    "candidate_digest": "41bf840fd2a0d054f02e68ac51866cc8356fb7d17e5421ab63ffe557d4e9344b"
+  },
+  "estimated_cost_usd": null,
+  "failure_kind": "review_failure",
+  "failure_reason": "Review requires changes; inspect the findings"
+}

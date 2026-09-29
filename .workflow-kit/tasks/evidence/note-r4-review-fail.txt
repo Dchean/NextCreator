@@ -1,0 +1,38 @@
+TASK-006 第 4 轮独立审查 FAIL（新发现 F-R4-1：撤销可复活陈旧标记，造成可跨重启的永久锁）；修复轮 3/3 已用尽、时钟已过，必须由用户决断
+
+## 审查结论：FAIL（requirements=FAIL、failure_paths=FAIL；regression/maintainability/performance=PASS）
+审查者 860b2b93（全新上下文；前几轮 8a402362/c62af427/fb656bb5 及更早 2b119b83/288b57de/466d0e5e/9d26b852/194aa201/2cb39439 全部排除复用）。报告存于其 %TEMP%；探针已由总控复制到 .workflow-kit/tasks/evidence/review-probes-r4/。
+
+## 优先项裁决：争议探针的残余「复现」确为噪声（审查者独立裁决，非采信编码者）
+审查者没有采信编码者那三个控制探针，而是**自建归因**：monkey-patch useFlowStore.updateNodeData / useFlowStore.setState / useCanvasStore.setState，按「调用栈中是否出现 queueStore.ts」给每次写入分类，并**先做阳性对照**（静默执行器 + 故意陈旧的 true 标记 → 那次清除确实被记录，探针报告「拦截有效」），因此其零计数是有意义的。结果：忠实执行器下、形态 1 与形态 2，在标记 true→false 的每个瞬间，queueStore 执行 **0 次**清除；所有下降都来自执行器在任务**开始**时的合法写（status→loading、queued:false），而该任务此刻自身即 running；单画布单节点对照显示 100% 正确实现同样会触发该判据（结构性必然）。静默执行器隔离进一步确认不存在误清。
+结论：probe-r3-abnormal-scope-clear.mjs 的「复现=true」是**判据假阳性**，不是真实缺陷。总控采纳该裁决（它满足「不采信作者、自建归因、阳性对照」三项要求）。
+
+## 第 3 轮三条发现：全部确认关闭（请勿重开）
+- F-R3-1 关闭：nodeId 判据 + 全载体清除后，A 结束不再抹掉 B 的合法标记（B 的 queued 窗口内标记保持 true）；任何时刻都不存在「该 nodeId 仍有活动任务却被清除」的情形（计数 0）；stranded-canvas-copy 探针现为「未复现」（持久化副本不再卡在 true）。
+- F-R3-2 关闭：机械 BFS 遍历 queueStore 的 23 文件传递静态闭包 → **0 条回边**，闭包内无任何文件提及 queueStore；canvasStore/imageGenerationExecution 都不 import queueStore。模块初始化顺序安全：3 种 import 顺序 + 冷启动均得到就绪 store，且**是同一批 store 实例**（关键：若实例被替换，清除会落到 App/hook 看不见的 store 上）。提前返回在三种边界上均正确（flow=false 但 canvas=true 仍会清 canvas；flow 无该节点而 canvas 副本是唯一载体时仍会清；两者皆 falsy → 0 次写入、无身份变化）。
+- F-R3-3 关闭：cancel 的 running 分支确实已无复核；复位是**一步**依赖 pump.finally。cancel 的 **queued** 分支（该路径无 .finally）在条件式形式下仍能正确清除：单画布 PASS、双画布保留 B 的标记 PASS、canvas 副本为唯一载体 PASS。
+
+## F-R4-1（本次判 FAIL 的真实新缺陷）：flowStore 撤销快照复活陈旧的 queued:true，造成可跨重启的 REQ-001 类永久锁
+触发序列（全部为真实入口）：队列暂停（或并发占满）→ 点击生成 → 节点显示「排队中」、写入 queued:true → 用户在等待窗口内做**任意可撤销的画布编辑**（addNode/removeNode/connect/align/duplicate 都会调用 saveToHistory，而 saveToHistory 存的是 flowStore.nodes 的**完整快照**，含 queued:true；窗口 = 整个排队等待期，暂停时无上限）→ 用户取消该排队任务（标记被正确清为 false）→ 用户按 **Ctrl+Z**（FlowCanvas.tsx:184 与工具栏按钮均绑定）→ 快照把 queued:true 写回 flowStore。此时活动任务数 == 0，且**没有任何路径会再清除它**：pump.finally 不会再触发，重启恢复只处理 status==='queued'（该任务已是 cancelled），cancel/reject 复核都需要存在活动任务或新的入队。随后 App.tsx:170 的 800ms 防抖把 true 落盘进画布副本，重启后由 App.tsx:154 setNodes 载回 → 节点永久显示「排队中」、ImageGeneratorNode.tsx:215 canRun=false、按钮永久禁用。唯一出路是对 error/cancelled 任务点「重试」（QueuePanel.tsx:196-222）——那会发起真实计费 API 调用。
+
+总控独立验证（读源码确认机制，并用审查者探针复现关键链条）：
+- flowStore.ts:78-102 createLightweightSnapshot：非「重数据」节点**原样返回**（:84），随后 structuredClone(lightNodes)（:99）—— 因此 queued:true 确实进入历史快照。
+- flowStore.ts:736-757 undo：:749-752 `set({ nodes: previousState.nodes, ... })` —— **整体恢复**快照节点，含 queued:true。
+- 运行审查者探针 probe-r4-undo-cancel.mjs 与 probe-r4-undo-restart.mjs，崩溃前打印的决定性链条完全一致：① 暂停下点击生成 → 标记=true、队列=queued；② 等待期新增节点 → history=1、**快照含 queued:true=true**；③ 取消后 → 标记=false；④ Ctrl+Z → **标记=true、活动=0**；⑤ 防抖回写画布副本后 → **canvasStore.queued=true**（这份会落盘并被 setNodes 载回）。
+- 两个探针随后崩溃，但原因均为**环境/harness 问题**（我的 %TEMP% 与审查者不同，探针内的临时路径与 fixture 缺 data 字段），**非遗漏机制失败**；关键判据在崩溃前已打印。
+
+诚实归因（审查者主动声明、总控认同）：该复活路径在 HEAD 基线上**同样存在**（基线只有 cancel 的 queued 分支 + 执行器启动时清除），因此**不是本轮修复引入的回归**；它是 REQ-001 类锁在本次任务中**未被覆盖**的一条路径，而本候选新写的不变量注释（queueStore.ts:651「置位只有一处——hook 在 enqueue 返回非空之后写 queued:true」）**在文字上否认了该路径存在**。
+F-R4-2（维护性，同一断言）：queueStore.ts:651 的「单一置位点」说法**过度声称**，与第 3 轮注释过度声称属同一失败模式。
+F-R4-3（仅观察项，不判 FAIL）：batchChains 模块级 Map 无上限（探针场景 14：500 节点 → 500 条链），属既有问题。
+
+## 其余全部 PASS
+所有指定回归探针均复现其声称结果；审查者自建的 12 项断言守卫探针 **12/12 PASS**（含「暂停态不被读取」这一历史假绿防线、非全局单飞、null 与真实 canvasId 隔离、历史状态不锁死重生成）；F1 仍成立（flowStore 不持久化，标记确实清在 canvasStore 副本上，冷启动走查：持久化副本 queued=false → canRun=true）；门禁 6/6 exit 0 与 tsc exit 0 均复现，且**两者对 F-R4-1 是盲的**。
+
+## 额度与时钟事实（决定下一步必须由用户决断）
+- 修复轮：**3/3 已用尽**（POLICY budget.max_repair_rounds=3）。总控**无法再修**，除非用户 extend 追加修复轮。
+- 时钟：生效 deadline 2026-09-28T11:04:39.124218Z，当前已过（约 -12 分钟）。修复（implementation/repair/probe）受严格时钟约束；verify 与 review 不受限。
+- 因此总控按既有承诺**停下来交用户决定**：不自行 extend、不新建任务清零、不用门禁全绿冒充验收。
+
+## 修复方向（审查者建议，总控尚未执行）
+优先把标记改为**派生量/以队列为权威**（ImageGeneratorNode 的 isQueued 同时参考「该 nodeId 是否存在 queued||running 任务」），从根本上消除「两份可写副本 + 可被快照复活」这一整类不一致；最小修法是在 flowStore 的 undo/redo 之后重新执行一次 clearNodeQueuedMarkerIfNoActiveJob，并**修正或删除 queueStore.ts:651 的过度声称**。
+总控附注（结构性判断，供用户决策）：四轮审查的失败点全部集中于同一结构成因 —— queued 标记是**独立可写的状态**、且分散在 flowStore（可被撤销快照整体覆盖）与持久化 canvasStore 两份副本中，同时画布可复制。逐条打补丁已连续四轮未能收敛到零；建议考虑审查者提出的**权威来源/派生量**方案（这属于结构性改动，需用户明确批准，且需新的预算与审查安排）。

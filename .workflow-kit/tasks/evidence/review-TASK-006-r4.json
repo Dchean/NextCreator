@@ -1,0 +1,87 @@
+{
+  "task_id": "TASK-006",
+  "candidate_digest": "82904bb687236f44d451f8f7a92b3ac990b98a915a39d01a4279c961e2bd61f8",
+  "verification_run": "RUN-b5b080dd4a174fa78c0bfb626659b9b7",
+  "verdict": "FAIL",
+  "summary": "PRIORITY 1 裁定：probe-r3-abnormal-scope-clear.mjs 残留的 复现=true 是**判据的必然假阳性**，worker 的解释成立——我用调用栈归因（拦截 useFlowStore.updateNodeData / canvasStore.setState，用栈里是否含 queueStore.ts 判定发起方）独立复核：在 faithful 执行器下，形态1/形态2 里「标记 true→false」的时刻，queueStore 一次都没有发起过清除（0 次），掉标记全部来自执行器启动时合法写 queued:false；而形态判据「掉标记时是否仍有同 nodeId 的活动任务」在单画布单节点的、100% 正确的对照上也必然为真，因为那一刻该任务正以 running 存在。把执行器换成完全不写节点数据的版本做隔离后，「标记 true」在整个 queued 窗口内保持，且唯一一次清除发生在活动任务数=0 时——即不存在误清。**PRIORITY 1 的真缺陷不成立。** 本轮三项修复的裁定：F-R3-1（谓词去掉 canvas 子句、作用域统一为 nodeId）**真正闭合**——A 运行 + B 同 nodeId 排队时 A 收尾不再抹掉 B 的合法标记（silent 隔离下标记保持 true），且没有任何路径出现「仍有活动任务却被清」；F-R3-2（先读后写早退 + 两个静态 import）**闭合**——无循环依赖（传递闭包 23 个文件、0 条回边，三种 import 顺序与冷启动下 store 实例同一且可用），早退三种边界（flow 为 false 但副本为 true、flow 无该节点而副本为 true、全部 falsy）都正确：该清的仍清，全部 falsy 时不产生任何写入与身份变化；F-R3-3（删除 cancel 的 running 分支死复核、注释改述为一步依赖）**闭合**——running 分支确无复核，复位由 pump 的 .finally 完成，且 cancel 的 **queued** 分支（无 .finally）在有条件的判断下仍能正确清（单画布 PASS／两画布保留 PASS／仅副本为唯一载体 PASS）。三份控制探针我全部复跑，结论与 worker 声明一致。**但我发现了一个新的、可复现的真实缺陷（新在于它否证了本轮新写的标记不变式断言，并仍是 REQ-001 的「永久排队中 + 按钮禁用」，且跨重启存活）：flowStore 的撤销历史快照会复活陈旧的 queued:true。** 序列：队列暂停（或额度占满）时点击生成 → 节点进入「排队中」并写下 queued:true → 用户在这段等待窗口里做任意一次可撤销的画布编辑（saveToHistory 保存的是 flowStore.nodes 全量快照，含 queued:true）→ 取消该排队任务（cancel 的 queued 分支把标记清成 false，正确）→ 用户 Ctrl+Z 撤销 → 快照把 queued:true 写回 flowStore → 此刻队列里已无任何活动任务，也没有任何路径会再清它（pump.finally 不再触发；重启恢复只处理 status==='queued'，而该任务已是 cancelled；cancel/enqueue 拒绝分支都需要活动任务或新的入队），经 App.tsx:170 的 800ms 防抖回写后写进落盘的画布副本，重启后被 App.tsx:154 setNodes 载回 → 节点永久显示「排队中」、canRun=false，与 REQ-001 的症状完全一致。这就是本轮新写的断言「置位只有一处 —— hook 在 enqueue 返回非空之后写 queued:true」的事实反例（该断言见 queueStore.ts:651）。归因诚实说明：该复活路径在 HEAD 基线上同样存在（基线只有 cancel 的 queued 分支与执行器启动两处会清标记，一样挡不住撤销复活），因此它不是本轮修复**引入**的回归，而是本轮**未能覆盖**、且被本轮新写的「单一置位点」不变式明确否认的一条 REQ-001 类永久锁；按契约「任何真实 finding → FAIL」，且 requirements 不得为 NOT_APPLICABLE，故判 FAIL。门禁 scripts/queue-regression.mjs 6/6 PASS、tsc --noEmit exit 0 均复现属实，但对上述路径全部盲。",
+  "findings": [
+    "F-R4-1（真实缺陷，FAIL 依据 / requirements + failure_paths）：flowStore 的撤销快照可复活陈旧的 queued:true，形成跨重启存活的 REQ-001 永久锁。位置：src/stores/flowStore.ts:718-757（saveToHistory 保存 nodes 全量快照；undo 把快照写回 nodes）、src/stores/queueStore.ts:651（本轮新写的断言「置位只有一处」被此路径否证）、src/stores/queueStore.ts:193-195 与 255-272（恢复只处理 status==='queued'，故不处置该标记）、src/App.tsx:154 与 170-179（防抖把 flowStore.nodes 回写画布副本、重启时又载回 flowStore）。触发：队列暂停（或并发额度被占满、任务长时间停在 queued）→ 点击生成（hook 写 queued:true，按钮变「排队中」且禁用）→ 在等待窗口内做任意一次可撤销编辑（addNode/removeNode/连接/对齐/复制等都调用 saveToHistory；窗口 = 整个排队时长，暂停时无限长）→ 取消该排队任务（标记被正确清为 false）→ Ctrl+Z 撤销。由此 queued:true 回到 flowStore，而队列已无活动任务。影响：节点永久显示「排队中」、ImageGeneratorNode.tsx:215 的 canRun 恒为 false、生成按钮永久禁用；该 true 经防抖落盘到 canvasStore 并被 App.tsx:154 载回，重启也不会自愈（恢复逻辑只处理 status==='queued'）；唯一出路是在队列面板对一个 error/cancelled 任务点「重试」（QueuePanel.tsx:196-222），而那会发起一次真实且付费的 API 调用，用户也无从得知。建议：把标记复位从「任务收尾时清」升级为「状态派生」——例如让 ImageGeneratorNode 的 isQueued 直接由队列查询（该 nodeId 是否存在 queued||running 任务）+ flowStore 局部标记共同决定，使任何快照复活都会被队列真相覆盖；最小改动版本是在 flowStore.undo/redo 之后（或在其 subscribe 中）对受影响的节点重跑一次 clearNodeQueuedMarkerIfNoActiveJob；无论取哪条，都必须同步修正 queueStore.ts:651 的「置位只有一处」断言，或删掉该断言。",
+    "F-R4-2（文档过度声称 / maintainability，不单独改变结论）：queueStore.ts:651 的「置位只有一处 —— hook 在 enqueue 返回非空之后写 queued:true」是不变式章节的基石之一，但它只覆盖了 hook 这一条写路径，遗漏了 flowStore 撤销/重做快照这条同样会写 queued:true 的路径（F-R4-1 即其反例）。这正是 R3 已经出现过的失误类型（注释声称代码没做的/做不到的事）。建议：把该条改述为「标记的置位来自节点数据快照（hook 入队后写、以及 flowStore 的撤销/重做快照），因此复位不能只依赖任务收尾」，或按 F-R4-1 的建议把标记改为派生值后删除该断言。",
+    "F-R4-3（观察项，非缺陷 / performance）：probe-batch-chain.mjs 场景14 显示批次链 batchChains 是模块级 Map 且无上限（500 个节点留下 500 条链），但探针自身把它标注为「观察项，非断言失败」，本轮新增代码也未改变该结构。仅记录，不作为 FAIL 依据。"
+  ],
+  "review_checks": [
+    {
+      "area": "requirements",
+      "status": "FAIL",
+      "analysis": "REQ-002（同一节点重复入队保护）经 12 项独立守卫属性探针全部 PASS：(1) 同步性——同一 tick 内连点 3 次只放行 1 个（返回 [id,'','']）；(2) 作用域 = 同 nodeId 且同 (canvasId ?? null)——同 nodeId 不同画布放行、null 标注与具体画布互不串味、同 nodeId 同画布拒绝、不同 nodeId 同画布放行、null 与 null 视为同一作用域；(3) 只认 queued||running——存在 queued（无 running）时拒绝、存在 running 时拒绝、仅历史 success 时放行（不锁死重生成）；(4) 非「仅判定 running」；(5) 非全局单飞——额度被 n4 占住时 n5 仍可入队；(6) paused 不参与判定——暂停时首次点击放行、暂停时连点仍被拒（暂停态假绿的防线）。门禁 scripts/queue-regression.mjs 6/6 PASS 且退出码 0，与候选声明一致。REQ-001（重启后遗留 queued 任务被处置、节点不再被 data.queued 永久锁死）在探针覆盖的路径上 PASS：probe-req001-coldstart.mjs 显示冷启动（flowStore 为空）后任务落到 error 而非卡 queued，落盘副本 queued=false，App.tsx:154 setNodes 后 canRun=true；probe-req001-race.mjs 在 delay=0 的最坏时序下同样达标；probe-restart-final.mjs、probe-timeline.mjs 一致。**但 REQ-001 的达标不完整**：存在一条不经重启即可进入、且跨重启存活的永久锁路径（F-R4-1，撤销快照复活陈旧 queued:true），使「相关节点不再被 data.queued 永久锁死」这一条在真实操作下仍可被违反。",
+      "evidence_files": [
+        "src/stores/queueStore.ts",
+        "src/hooks/useImageGeneratorExecution.ts",
+        "src/stores/flowStore.ts",
+        "src/App.tsx",
+        "src/components/nodes/ImageGeneratorNode.tsx",
+        ".workflow-kit/tasks/evidence/review-probes-r3fix/probe-req001-coldstart.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r3fix/probe-req001-race.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r3fix/probe-restart-final.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r3fix/probe-batch-chain.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r3fix/probe-cross-canvas.mjs"
+      ]
+    },
+    {
+      "area": "regression",
+      "status": "PASS",
+      "analysis": "既定回归探针全部复跑，结论与候选声明一致：probe-cancel-abort-lock.mjs「未形成永久锁」（解析窗口内取消运行中任务后 queued=false、canRun=true）；probe-reject-timeline.mjs 采样 90 次只出现 (undefined|undefined) 与 (true|queued) 两种组合，未捕获不一致；probe-reject-erases-marker.mjs「未复现」（被拒的第二击不再抹掉第一击的合法标记）；probe-r3-erased-while-queued-paused.mjs「未复现」（暂停态下另一画布同 nodeId 的排队标记不被抹掉）；probe-r3-finally-churn.mjs——标记本来就是 false 时任务收尾不产生 flowStore/canvasStore 身份变化、subscribe 命中 0 次，每个任务一次整画布持久化的老毛病已消除；probe-r3-stranded-canvas-copy.mjs「未复现」（所有载体的标记都已复位，落盘副本不再永久留在 true）；probe-cross-canvas.mjs 两画布互不干扰（各 2 个 job）；probe-batch-chain.mjs 15/15。我另跑 12 项守卫属性探针 12/12 PASS（见 requirements）。F-R3-2 的早退语义独立复核通过：flowStore 已 false 而画布副本为 true 时仍会清副本（C1）；flowStore 无该节点、副本为唯一载体时取消排队任务仍会把副本清成 false（早退判据取「这一份是不是 falsy」，不会漏掉 true）；全部载体 falsy 时 queueStore 写入次数=0 且 nodes/canvases 身份均保持不变。F-R3-3 复核：cancel 的 running 分支确无复核（abort 后任务仍 running，任何按活动任务判定的复核都必然早退），我实测「取消后 job 仍为 running、标记仍 true」，真正复位的是 pump 的 .finally（任务离开 active 后）。缺陷 F-R4-1 不是本轮引入的回归（HEAD 基线上同样存在该复活路径），故本项不因它判 FAIL。",
+      "evidence_files": [
+        "src/stores/queueStore.ts",
+        ".workflow-kit/tasks/evidence/review-probes-r3fix/probe-cancel-abort-lock.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r3fix/probe-reject-timeline.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r3fix/probe-reject-erases-marker.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r3fix/probe-r3-erased-while-queued-paused.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r3fix/probe-r3-finally-churn.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r3fix/probe-r3-stranded-canvas-copy.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r3fix/probe-cross-canvas.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r3fix/probe-batch-chain.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r3fix/probe-lock-via-ui.mjs"
+      ]
+    },
+    {
+      "area": "failure_paths",
+      "status": "FAIL",
+      "analysis": "已穷举并逐一实测标记的置位/复位路径。复位路径：(a) pump 的 .finally → clearNodeQueuedMarkerIfNoActiveJob（success/error/cancelled 全覆盖，silent 执行器下唯一一次清除就发生在活动任务数=0 时，正确）；(b) cancel 的 queued 分支（无 .finally，但有条件复核；单画布 PASS、两画布保留 PASS、副本为唯一载体 PASS）；(c) 重启恢复的两次复核（派发前无条件清、派发后条件清）。cancel 的 running 分支与 enqueue 被拒分支的复核确为 no-op，二者都以诚实注释标注，我复核其停滞位置与不变量一致，不构成误导。**漏掉的置位路径：flowStore 的撤销/重做快照。** saveToHistory 保存的是 flowStore.nodes 的全量快照（createLightweightSnapshot 仅在含 imageImage/outputImage 等重字段时才裁剪，queued 会被完整保留），我实测快照中确实含该节点 queued:true；取消排队任务后 Ctrl+Z 撤销，queued:true 被写回 flowStore，此刻活动任务数=0，而所有复位路径都要求「有任务正在收尾」或「有新的入队」，均不触发；该 true 经 App.tsx:170 的 800ms 防抖（nodes 身份变化必然命中）写入 canvasStore 落盘副本，重启后被 App.tsx:154 setNodes 载回 flowStore，而恢复逻辑只处理 status==='queued'（该任务已是 cancelled），故不处置——永久锁跨重启存活，症状与 REQ-001 完全一致（「排队中」+ 按钮禁用 + 无自愈路径）。另：撤回复活后 generate 按钮本身已禁用，用户无法用「再点一次生成」自愈；唯一出路是队列面板对 error/cancelled 任务点「重试」，而那会触发一次真实付费 API 调用。",
+      "evidence_files": [
+        "src/stores/queueStore.ts",
+        "src/stores/flowStore.ts",
+        "src/App.tsx",
+        "src/components/panels/QueuePanel.tsx",
+        ".workflow-kit/tasks/evidence/review-probes-r3fix/probe-cancel-abort-lock.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r3fix/probe-r3-reject-recheck-dead.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r3fix/probe-lock-via-ui.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r3fix/probe-lock-escape.mjs"
+      ]
+    },
+    {
+      "area": "maintainability",
+      "status": "PASS",
+      "analysis": "两个新增静态 import（queueStore.ts:11-12）经机械 BFS 验证无循环依赖：queueStore 的传递静态依赖闭包共 23 个文件，回到 queueStore 的回边 0 条，闭包内也没有任何文件提及 queueStore；canvasStore 只 import zustand/uuid/types/tauriStorage，imageGenerationExecution 静态 import flowStore 与 canvasStore 且二者都不反向 import queueStore。模块初始化顺序无隐患：三种 import 顺序（queue-first / canvas-first / flow-first）下，queueStore 载入后其静态依赖均已就绪（canvases 与 nodes 均为数组），且与外部 import 拿到的是**同一个 store 实例**（canvas=true、flow=true）——这一点对清除落点至关重要，因为替换实例会让清除写到一个 App/hook 看不见的 store 上。冷启动（模拟重启：预置遗留 queued 任务 + 画布副本陈旧 true，只 import queueStore 触发水合与 onRehydrateStorage）实测：恢复派发后落盘副本 queued=false，静态 import 没有把恢复窗口的可用性变差。清除多载体用一次 setState、且只对命中的画布换身份（C1 实测：兄弟节点保身份、兄弟 data.custom 保留、edges 保身份、画布额外字段保留、无关画布保身份），既修掉了我上一轮关注的「逐张写」问题，也没有破坏无关字段。注释质量整体高于同项目平均水平，且对两处「恒为 no-op」的复核做了诚实标注（cancel running 分支、enqueue 被拒分支），这正是 R3 缺失的东西。唯一扣分项是 F-R4-2 的过度声称（「置位只有一处」），已在 findings 中单列；按契约整体仍判 PASS，但它与 F-R4-1 是同一条断言的两种表现。",
+      "evidence_files": [
+        "src/stores/queueStore.ts",
+        "src/stores/canvasStore.ts",
+        "src/services/imageGenerationExecution.ts",
+        ".workflow-kit/tasks/evidence/review-probes-r3fix/probe-r3-finally-churn.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r3fix/probe-r3-unified-scope-verify.mjs"
+      ]
+    },
+    {
+      "area": "performance",
+      "status": "PASS",
+      "analysis": "F-R3-2 的短路（先同步读两个载体、全 falsy 则不做任何写入/不 import）在本轮实测有效：probe-r3-finally-churn.mjs 显示标记本来就是 false 时，任务自然结束不产生 flowStore.nodes 身份变化、不产生节点对象身份变化、不产生 canvasStore.canvases 身份变化，App.tsx:170 同构的 subscribe 命中 0 次（即不再触发 800ms 防抖 → updateCanvasData → tauriStorage 落盘 app-data.json）。我用调用栈拦截独立复核：全部载体都 falsy 时 queueStore 发起的写入次数=0，nodes 与 canvases 身份均不变——「每个任务一次整画布持久化写入」的 churn 确实已消除，这同时说明静态 import 并未把惰性求值的成本提前成运行时成本（读是同步的、且只在需要时写）。多载体路径改为单次 setState，命中 n 张画布只写一次。守卫为同步判定、无额外异步开销，batchChains 为 O(1) 查表。probe-batch-chain.mjs 场景14 记录 batchChains 无上限（500 节点 500 条链），但那是模块级 Map 的既有结构、非本轮引入，探针自身标注为观察项，仅作记录（见 F-R4-3）。",
+      "evidence_files": [
+        "src/stores/queueStore.ts",
+        "src/App.tsx",
+        ".workflow-kit/tasks/evidence/review-probes-r3fix/probe-r3-finally-churn.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r3fix/probe-batch-chain.mjs"
+      ]
+    }
+  ],
+  "ui_review": null
+}

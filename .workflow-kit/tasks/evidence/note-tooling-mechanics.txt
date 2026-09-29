@@ -1,0 +1,24 @@
+TASK-006 候选已记录并开始独立审查；同时记录本工具链的三处机制细节（总控踩坑后读源码确认）
+
+## 当前状态
+- 候选：src/stores/queueStore.ts，sha256=0a88a6735c27b2fc2452fc02cc62af0234b8a0e7be4e1882c9bd8ea0e484feb6，449 行（原 256）。
+- candidate_digest（工具从当前快照计算）：cb724f62212a17dd94a29ce7c24067aae4edba6c9cdbc57e22cf54684c493c4a。
+- 验证 run RUN-365a88f543cc472e8bf6faa479d069a6：typecheck PASS(exit 0)、behavior-regression PASS(exit 0)，均绑定当前候选。归档日志 6/6 PASS。
+- 任务状态：review（已派发全新独立审查者 8a402362，前五位审查者 288b57de/466d0e5e/9d26b852/194aa201/2cb39439 全部排除复用）。
+
+## 机制细节一：finish 的候选摘要来自 selected_snapshot，不是来自 diff
+读 workflow_runtime.py:1050-1054 确认：finish 通过 selected_snapshot(root, task) 生成候选清单，其 digest 写入 run.candidate_digest 与 task.evidence.candidate_digest。因此「某次运行没有 diff」并不妨碍候选绑定 —— 候选是当前快照，不是本次差异。另见 :1037：declared 只要等于「本任务累计改动」**或**「本次运行改动」其一即可通过（错误信息会同时给出两个列表）。
+
+## 机制细节二：scope 检查以 begin 时的快照为基线，总控自己新建的文件会被判越界
+连续两次 finish 都被判 `Out-of-scope changes: .workflow-kit/docs/TASK-006-MANUAL-VERIFICATION.md`。该文件是总控为 verify_mode_006 写的实机验证清单（总控产物，非编码者产物），但它出现在 diff 中就被 scope 检查拦下。按 RECOVERY.md:29 的固定出口处置：确认归属 -> unblock --task --source --note。总控已两次声明归属并 unblock。
+最终解法（更干净）：把总控产物 commit 掉（322f033），使其成为已跟踪且干净的文件，不再作为「未跟踪的新增」出现在后续 diff 里。此后 begin+finish 不再被拦。
+教训：总控在任务进行中新建的文件，若放在 allowed_paths 之外，会在后续 finish 时反复触发 scope 阻塞；应尽早 commit 或从一开始就纳入任务范围。
+
+## 机制细节三：unblock 会终结当前 run，不能靠「unblock 后再 finish 同一个 run」续跑
+总控曾尝试在 scope/protocol 阻塞后直接对同一 run 再 finish，得到 `Only an active implementation run can finish`（workflow_runtime.py:1019 要求 outcome=="running" 且 kind 属 implementation/repair）。unblock 之后任务回到 ready，须重新 begin 再 finish。这一点与 RECOVERY 的描述（任务回到 ready 或 verifying）一致，只是「回到 verifying」不是本项目当前这条路径的结果。
+
+## 机制细节四（与验收直接相关）：protocol 阻塞的另一种成因是「没有改动的运行却申报了 changed_files」
+closure run 申报 src/stores/queueStore.ts 时被判 `declared but unchanged`，因为该 run 实际零改动。当某次运行确实不改文件时，changed_files 应申报 []（匹配「本次运行改动」这一支）。WORKER 约定也允许填 "auto" 由工具按 diff 填入。
+
+## 关联的既有教训（第二次同类，已记录）
+总控曾在编码者仍在编辑时读到中途快照（82/12），误当作最终结果；实际最终为 107/31。验收必须在子代理确认结束、工作树静止后进行。本次已遵守：所有子代理均已 inactive 后才复跑门禁与 tsc。

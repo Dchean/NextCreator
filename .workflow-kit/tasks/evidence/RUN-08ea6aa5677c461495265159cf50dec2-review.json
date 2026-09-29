@@ -1,0 +1,74 @@
+{
+  "task_id": "TASK-006",
+  "candidate_digest": "44d8d897ca9924cfe25adceae26c0b0375fcf77839d6419a9219bb19d263cbd7",
+  "verification_run": "RUN-48b9bcc879c44c7d9a5ac0ce076cf409",
+  "verdict": "FAIL",
+  "summary": "第 8 轮的修复在**行为与诊断两个层面都真实有效，且我未能找到任何新的机制性缺陷**；但本轮新写的注释里出现了一条**可复现证伪的必然性断言**，属第 3/4/5/6/7/8 轮反复命中的同一类（prose accuracy），故仍判 FAIL。逐项结论：(1) **round-8 的发现确已关闭**——我自建探针（单实例强制，import 同一 QS 的 useQueueStore === 已加载实例 = true）复现其形状：LEGAL 节点持真 queued 任务 + 陈旧节点 X 被有界写入方补 N 次；N=7 时 8 轮、X=false、LEGAL=true、**0 警告**（round-8 的 1 条误报消失）；N=8/12 时出口 cap、真值=1、**1 警告**且措辞改为「仍有 1 个**可清的**陈旧 queued 标记未复核完」并内联陈述判据。(2) **新闸门是可靠的**：我 29 条断言全 PASS——告警 ⟺ 上限处确有可清陈旧标记（legal=false/true × ARM=8/9/12 六臂全部一致，0 漏报 0 误报）；病态无上限写入方仍恰好 8 轮、出口 cap、1 警告（诊断未失能）。(3) **闸门不会漏掉只存在于持久化 canvasStore 副本上的陈旧标记**——不是因为它够宽，而是因为**该形状根本到不了上限块**：一旦只剩合法标记，某一轮内谓词不写任何东西 ⇒ healPending 不置位 ⇒ 在 :948 就 break，出口是 `nopending` 而非 cap；我把 X 的陈旧 true 只放在 canvasStore 副本、并驱动写入方改去重写 LEGAL 标记（N=4/N=20），实测 passes=1、exit=nopending、0 警告、gateCount 未定义（上限块从未进入），而同一写入方改回重新武装 X 的对照组才是 passes=8/exit=cap/gateCount=1/1 警告。**这正是我的新发现所在**。(4) **新发现（本轮唯一阻塞项）**：:977-978 新写的「只要场景里再多一个合法标记…重扫就永远非空、这一行永远不命中，**出口必然落到下面的上限拦停**」**作为必然性断言为假**——它只考虑了 :954 的零候选 break，漏掉了 :948 的 `if (!healPending) break;`，而后者在「本轮无任何嵌套写入」时**先于**重扫触发，恰是「剩余候选只有被谓词有意保留的合法标记」的必然结果。**决定性内证**：同一循环内**未被本轮改动**的 :947 原文即写明「本行只在『本轮压根没有嵌套写入』时才命中（例如**候选全被谓词放行保留、谁都没写 nodes** 的情形）」——正是我实测的形状；新写的 :978 却称该形状必然走 cap，两处注释在同一循环体内自相矛盾且与代码不符。实测（同一单实例插桩探针，出口标签由三处 break 插桩）：`LEGAL(真 queued 任务) + 陈旧 X 已治愈` 在**完全没有病态写入方**时 passes=2、**exit=nopending**；一次性整数组写入（撤销形状）时 passes=3、exit=nopending；仅合法标记时 passes=1、exit=nopending。即该注释描述的「必然 cap」在**最平凡的这一形状**上就不成立。影响仅限注释正确性（告警行为、终止性、治疗语义均不受影响；:979 的结论「上限告警不能拿候选非空当陈旧标记仍在的证明」依然正确且正是闸门的依据），但该类已连续 6 轮各产生一次发现，且本轮指令把 :972-979 的限定句列为逐句核对对象。(5) 闸门**确实只读且同步**：到达上限后 flowStore 身份变化=0、canvasStore 身份变化=0、零订阅命中；不破坏 F-R3-2 零 churn。(6) **口径未引入第二套约定**：`stillClearable` 用 nodeId（与谓词 :765 一致），未回退 canvas-aware 守卫（guard2 12/12 PASS）。(7) **终止性不依赖闸门**：:982 块内 break **无条件**在闸门之后，轮数实测恒 ≤8（病态写入方恰好 8）。(8) 回归：门禁 6/6 PASS exit 0、tsc --noEmit exit 0（但门禁对 cap 告警与 undo/redo **盲**，不作为该条证据）；batch-chain 15/15、guard2 12/12、cross-canvas/req001-coldstart/cancel-abort-lock/reject-timeline/reject-erases-marker/r3-stranded-canvas-copy/lock-via-ui/r3-erased-while-queued-paused/r3-finally-churn 全部「未复现/未形成永久锁」exit 0；两个 undo 探针在我修好其已知 fixture 缺陷（addNode 第三参数、%TEMP%\\review-r4 目录、R4_PHASE=restart）后均「未复现」exit 0。**若本轮唯一意图是行为正确性，候选已达标；判 FAIL 只因这条新注释断言为假**——修正它（把「出口必然落到上限拦停」改为「零候选 break 永不命中；实际出口取决于该轮是否有嵌套写入——无嵌套写入时由 :948 以 nopending 退出」）即可关闭。",
+  "findings": [
+    "位置：src/stores/queueStore.ts:977-978（本轮新写的限定句内）。触发条件：自愈候选集里除陈旧标记外**还存在一个合法标记**（另一节点真有 queued||running 任务，谓词在 :931-932 有意保留它），且**某一轮治疗期间没有任何嵌套写入**（例如陈旧标记已被治好、只剩该合法标记时，谓词放行失败→不写 nodes→healPending 不置位）。影响：注释声称「所以只要场景里再多一个合法标记（例如另一节点真有 queued 任务），重扫就永远非空、这一行永远不命中，**出口必然落到下面的上限拦停** —— 即便陈旧的那一个已经治好」。**「必然」为假**：它只覆盖 :954 的零候选 break，漏掉 :948 的 `if (!healPending) break;`；后者在无嵌套写入时先于重扫触发，而「只剩合法标记」恰恰必然导致该轮无写入。**决定性内证**：同一循环内**未被本轮改动**的 :947 原文即写明「本行只在『本轮压根没有嵌套写入』时才命中（例如**候选全被谓词放行保留、谁都没写 nodes** 的情形）」——它描述的正是我的实测形状；新写的 :978 却称该形状「出口**必然**落到上限拦停」，两处注释在同一个循环体内自相矛盾，且与代码不符。实测反例（单实例强制、三处 break 插桩标定出口；LEGAL 持真 queued 任务）：LEGAL + 陈旧 X 已治愈、**无任何病态写入方**时 passes=2、**exit=nopending**、LEGAL=true、X=false、0 警告；一次性整数组写入（撤销形状）时 passes=3、**exit=nopending**；仅合法标记时 passes=1、**exit=nopending**。即注释描述的「必然 cap」在最平凡的形状上即不成立（cap 只在写入方持续补回、healPending 每轮被置位时才到达）。注意这**不是**行为缺陷：告警行为、终止性（:982 块内 break 无条件）、治疗语义、以及 :979「上限告警不得把 candidates 非空当作陈旧标记仍在的证据」这一结论**均不受影响**，闸门本身经我独立探针验证可靠。建议：把 :977-978 的「出口必然落到下面的上限拦停」改为与代码一致的说法——「`candidates.length === 0` 这一行永不命中；**实际出口取决于该轮是否发生过嵌套写入**：有则继续下一轮直至上限（:982，告警由只读判据把关），无则先由 :948 的 `!healPending` 分支以 nopending 退出（这正是『陈旧者已治好、只剩合法标记』时的实际出口）」。证据：src/stores/queueStore.ts:947（未改动的原文，描述同一形状的 nopending 出口）、:948、:950、:954、:982、:997-1012（候选快照 44d8d897…，queueStore.ts sha256 e0948f501d0d8ede4c5b403fb29ec8e7ee2dd3c8cccbcb216454b60eea046d49）；.workflow-kit/tasks/evidence/review-probes-r8/r8-armN.mjs（探针骨架与三处出口插桩锚点）、.workflow-kit/tasks/evidence/review-probes-r8/r8-legal-marker-warn.mjs（round-8 原探针，在候选上 exit 0）；独立探针产物位于 %TEMP%\\r9probes\\r9-mixed.mjs、r9-gate.mjs、r9-canvas.mjs、r9-decide.mjs（按规则不入库，故不作为 evidence_files 引用）。"
+  ],
+  "review_checks": [
+    {
+      "area": "requirements",
+      "status": "PASS",
+      "analysis": "REQ-001（重启后遗留 queued 任务不执行、节点永久锁死显示「排队中」且按钮禁用）与 REQ-002（同一节点重复点击产生同节点并发任务）在候选上均成立，且不依赖 worker 陈述：REQ-001 —— probe-req001-coldstart.mjs 报「节点可用（REQ-001 已修复）」，probe-order-heal.mjs 确认冷启动真实顺序（canvasStore 先水合、恢复先派发）下也可自愈，probe-r4-undo-restart.mjs（R4_PHASE=restart）报「未复现」：重启后画布副本（落盘那份）queued=false、App.tsx setNodes 之后 flowStore.queued=false、canRun=true；我另用 r9-gate.mjs 的 F 段独立确认「flowStore 一旦载入该 true，flowStore 与画布副本两个载体被一并清除」=F1（持久化副本被清，因 flowStore 自身不持久化）。REQ-002 —— probe-r4-guard2.mjs 12/12 PASS，含「只有历史终态时允许重新生成」「不是全局单飞」「paused 不参与判定」；probe-batch-chain.mjs 15/15 PASS。守卫六条standing 性质经 guard2 逐条确认：守卫在 enqueue 内同步；作用域 = 同 nodeId 且同 (canvasId ?? null)；只计 queued||running；不计历史；非 running-only；非全局单飞；paused 不被守卫读取。",
+      "evidence_files": [
+        "src/stores/queueStore.ts",
+        "src/hooks/useImageGeneratorExecution.ts",
+        ".workflow-kit/tasks/evidence/review-probes-r8/probe-r4-guard2.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r8/probe-batch-chain.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r8/probe-req001-coldstart.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r8/probe-order-heal.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r8/probe-r4-undo-restart.mjs"
+      ]
+    },
+    {
+      "area": "regression",
+      "status": "PASS",
+      "analysis": "无回归。门禁诚实复核：`node --experimental-strip-types scripts/queue-regression.mjs` = PASS 6 / FAIL 0 / ERROR 0（含用例 F「重试不得让同节点并发任务增长」：连续 retry 3 次仅新增 1）；`node node_modules/typescript/bin/tsc --noEmit` exit 0。按指令，门禁**不检查 cap 告警、也不执行 undo/redo/saveToHistory**，故其全绿不作为 round-4…8 相关发现的证据，仅作无回归佐证。既有性质探针复核（全部 exit 0）：F-R2-1/F-R2-2/F-R3-1/F-R3-3 —— probe-cross-canvas.mjs「两画布互不干扰。」、probe-r3-stranded-canvas-copy.mjs「未复现（该 nodeId 无活动任务时，所有载体的标记都已复位）」、probe-reject-timeline.mjs「未捕获到该不一致」、probe-reject-erases-marker.mjs「标记与活动任务一致（未复现）」；F-R3-2 零 churn —— probe-r3-finally-churn.mjs ①「flowStore.nodes 身份变化=false、节点对象身份变化=false、canvasStore.canvases 身份变化=false、App.tsx:170 同构 subscribe 命中次数=**0**」；F-R4-1 —— probe-r4-undo-cancel.mjs（已修其两处已知 fixture 缺陷：addNode 补第三参数 {}、预建 %TEMP%\\review-r4）运行期与重启期均「未复现」；F-R5-1 —— useImageGeneratorExecution.ts:132-135 的 `admitted === false` → toast.info，probe-ignored-rejection.mjs 确认被拒点击不再产生永久锁（「标记被后续任务清除」）；F-R5-2 —— r6-fix2-defer.mjs ⑤「标记被清」「只多出 1 次身份变化（实际 1）→ 延后机制未产生额外写入」，⑥ 的 cap 签名 8 轮（该用例「≤3 次」断言为已知 fixture 误设，其 wWrites<=200 伴随断言才是真检查，实测 8）。probe-cancel-abort-lock.mjs「未形成永久锁」、probe-lock-via-ui.mjs「未形成永久锁」。",
+      "evidence_files": [
+        "scripts/queue-regression.mjs",
+        "src/stores/queueStore.ts",
+        "src/hooks/useImageGeneratorExecution.ts",
+        ".workflow-kit/tasks/evidence/review-probes-r8/probe-r3-finally-churn.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r8/probe-cross-canvas.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r8/probe-r3-stranded-canvas-copy.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r8/probe-cancel-abort-lock.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r8/probe-lock-via-ui.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r8/r6-fix2-defer.mjs"
+      ]
+    },
+    {
+      "area": "failure_paths",
+      "status": "PASS",
+      "analysis": "本轮重点攻击的新闸门（:997-1012）四条失败路径全部被排除，且我**未能构造出漏报**。(1) 漏报（陈旧标记只剩 canvasStore 副本）：**该形状到不了上限块**——一旦只剩被谓词有意保留的合法标记，该轮谓词不写 nodes ⇒ healPending 不置位 ⇒ :948 先 break，出口 nopending；实测把 X 的陈旧 true 只放 canvasStore 副本、写入方改去重写 LEGAL（N=4/N=20）时 passes=1、exit=nopending、0 警告、上限块从未进入；同一写入方改回武装 X 的对照组才 passes=8/exit=cap/gateCount=1/1 警告。故闸门口径（只读 flowStore）不会造成「副本有陈旧而闸门报 0」的漏报——因为不会有告警被期望发出。**但**：新注释 :977-978 把该形状描述成「出口必然落到上限拦停」，实测为 `nopending`（见 findings，纯注释缺陷）。(2) 误报：六臂（legal=false/true × ARM=8/9/12）告警 ⟺ 上限处真值>0 全部一致；ARM≤7 + 合法标记时 0 警告（round-8 的误报已消失，r8-legal-marker-warn.mjs 在候选上 exit 0）。(3) 只读性：到达上限后 flowStore 身份变化=0、canvasStore 身份变化=0、零订阅命中；闸门仅读 jobs/nodes、不写状态、不引入 await/时序依赖。(4) 口径：nodeId（与谓词 :765 同处解析），未引入第二套约定，也未回退 (canvasId,nodeId) 的 canvas-aware 守卫。(5) 终止性独立于闸门：:982 块内 break 无条件且在闸门之后；有界写入方 N≤7 治愈、N≥8 停 8 轮；病态无上限写入方恰好 8 轮 0–1ms 退出（round-8 已用 MAX_HEAL_PASSES=∞ 突变体在硬闸 400 下跑到 401 轮未返回反证上限必要）。另一独立失败路径亦已闭合：`healPending` 为模块级、finally 必清，异常解卷下不残留。",
+      "evidence_files": [
+        "src/stores/queueStore.ts",
+        ".workflow-kit/tasks/evidence/review-probes-r8/r8-armN.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r8/r8-legal-marker-warn.mjs",
+        ".workflow-kit/tasks/runs/RUN-48b9bcc879c44c7d9a5ac0ce076cf409.json"
+      ]
+    },
+    {
+      "area": "maintainability",
+      "status": "FAIL",
+      "analysis": "存在一条**确证缺陷：新注释的必然性断言与代码不符**（findings 第 1 条），属第 3/4/5/6/7/8 轮反复命中的 prose accuracy 类。:977-978 声称「只要场景里再多一个合法标记…出口**必然**落到下面的上限拦停」，而代码里 :948 的 `if (!healPending) break;` 在无嵌套写入时先于重扫触发——「只剩合法标记」恰恰必然导致该轮无写入，于是实际出口是 `nopending`（实测：LEGAL+已治愈陈旧、无写入方 → passes=2/exit=nopending；一次性整数组写入 → passes=3/exit=nopending；仅合法标记 → passes=1/exit=nopending），cap 只在写入方持续补回时才到达。该断言会误导后续维护者以为「带合法标记的场景恒定走 cap 告警路径」，从而在排查诊断噪声时找错分支。其余本轮改动经核对**正确**：:974-976 的限定（候选口径是 marker 为 true 而非陈旧、谓词有意保留合法标记）与 :931-932/:896-907 完全一致；:982-1012 的只读判据注释「marker 在 flowStore 里仍为 true 且该 nodeId 没有 queued||running 任务」与代码 :997-1002 逐字对应；:994 明示「只影响是否打印，break 无条件执行，终止性绝不依赖这个判据」与代码 :1011 一致；告警措辞「仍有 N 个**可清的**陈旧 queued 标记未复核完」+ 内联判据与闸门语义一致（N 实测=1，不多算合法标记）。**另需注意**：:978 与同循环内未改动的 :947 自相矛盾——后者原文即写明 `!healPending` 分支在「候选全被谓词放行保留、谁都没写 nodes」时命中，即新注释所否定的那个出口；修正时应与 :947 对齐。未触碰的约定仍自洽：谓词按 nodeId、清除落点覆盖所有载体、守卫按 (canvasId,nodeId)，三处口径在注释中已显式区分（:658-666）。代码可读性与单一谓词原则（复核只经 clearNodeQueuedMarkerIfNoActiveJob）保持完好。",
+      "evidence_files": [
+        "src/stores/queueStore.ts",
+        ".workflow-kit/tasks/evidence/review-probes-r8/r8-armN.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r8/r8-legal-marker-warn.mjs"
+      ]
+    },
+    {
+      "area": "performance",
+      "status": "PASS",
+      "analysis": "本轮 +27 行全在注释与闸门内，热路径开销可忽略且未新增写入。正常路径实测（插桩）：轮数=1、谓词调用=1、治疗自身引起的身份变化=1；F-R3-2 零 churn 保持——标记本来就 falsy 时 probe-r3-finally-churn.mjs 测得 flowStore.nodes 身份变化=false、节点对象身份变化=false、canvasStore.canvases 身份变化=false、App.tsx:170 同构 subscribe 命中 **0** 次（即不触发 800ms 防抖 → 不产生每个任务一次的整画布落盘）。新闸门只在**到达上限**时才执行，且是 O(candidates × nodes + candidates × jobs) 的纯读扫描：到达上限后实测 flowStore 身份变化=0、canvasStore 身份变化=0、零订阅命中，不引发额外持久化或渲染。上限仍钉死同步栈：病态无上限写入方恰好 8 轮、0–1ms 退出（对照 MAX_HEAL_PASSES=∞ 突变体在硬闸 400 下 401 轮未返回），UI 线程不被钉死这一本轮唯一实质修复目标保持成立。治疗边界如注释所述未移动（N≤7 治愈、N≥8 停在上限），未新增回归。",
+      "evidence_files": [
+        "src/stores/queueStore.ts",
+        ".workflow-kit/tasks/evidence/review-probes-r8/probe-r3-finally-churn.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-r8/r8-armN.mjs"
+      ]
+    }
+  ],
+  "ui_review": null
+}

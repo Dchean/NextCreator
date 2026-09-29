@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "id": "RUN-c2ba8c81ae33415b86da5a69773ce83e",
+  "task_id": "TASK-006",
+  "kind": "implementation",
+  "outcome": "blocked",
+  "executor": {
+    "harness": "current_agent",
+    "model": null,
+    "context_id": "Closure run for TASK-006. No new coding call and no file edit in this run; the candidate was produced by two bounded dispatches under RUN-b993e0a8bf114540b928219a986f65a7 (user decision route_5th = A). Candidate src/stores/queueStore.ts sha256=0a88a6735c27b2fc2452fc02cc62af0234b8a0e7be4e1882c9bd8ea0e484feb6, 449 lines (was 256). Manager independently ran on the static tree: gate 6/6 PASS exit 0, tsc --noEmit exit 0, --expect-red exit 1; baseline red state 0/6 PASS archived. The previously flagged manager-authored checklist has been committed (322f033) so it is now a tracked, clean artifact rather than an untracked outlier in the diff. Independent review by a fresh reviewer context is still pending and is not claimed."
+  },
+  "started_at_utc": "2026-09-28T07:31:58.503009Z",
+  "finished_at_utc": "2026-09-28T07:32:04.116560Z",
+  "exit_code": null,
+  "timed_out": false,
+  "input_digest": "0d1e84bb9ef92149c761104cec4da4c861023db16721cdb3480b100b7325fd2e",
+  "candidate_digest": null,
+  "raw_output_refs": [
+    ".workflow-kit/tasks/evidence/RUN-c2ba8c81ae33415b86da5a69773ce83e-worker-result.json"
+  ],
+  "checks": [],
+  "review": {
+    "mode": null,
+    "verdict": null,
+    "report": null,
+    "candidate_digest": null
+  },
+  "estimated_cost_usd": null,
+  "scope_manifest": ".workflow-kit/tasks/evidence/RUN-c2ba8c81ae33415b86da5a69773ce83e-scope.json",
+  "baseline_manifest": ".workflow-kit/tasks/evidence/RUN-b46fc7ad1ea44a9288670196c6cdebb1-scope.json",
+  "failure_kind": "protocol",
+  "failure_reason": "Worker changed_files does not match the observed diff; declared but unchanged: src/stores/queueStore.ts; declare either the task's cumulative changes [] or this run's changes []"
+}

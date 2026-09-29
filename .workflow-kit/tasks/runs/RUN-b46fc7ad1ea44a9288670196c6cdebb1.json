@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "id": "RUN-b46fc7ad1ea44a9288670196c6cdebb1",
+  "task_id": "TASK-006",
+  "kind": "implementation",
+  "outcome": "blocked",
+  "executor": {
+    "harness": "current_agent",
+    "model": null,
+    "context_id": "Closure run. Two bounded dispatches of TASK-006 (REQ-001 then REQ-002, user decision route_5th = A) both landed in src/stores/queueStore.ts (256 -> 449 lines) under the previous run RUN-b993e0a8bf114540b928219a986f65a7, which was blocked only by a scope finding for the MANAGER-authored checklist .workflow-kit/docs/TASK-006-MANUAL-VERIFICATION.md; ownership was declared and the block cleared via unblock. No new coder work is requested or performed here (no fresh coding call). The candidate is unchanged: src/stores/queueStore.ts sha256=0a88a6735c27b2fc2452fc02cc62af0234b8a0e7be4e1882c9bd8ea0e484feb6. Manager independently ran, on this exact static tree: gate 6/6 PASS exit 0, tsc --noEmit exit 0, --expect-red exit 1; baseline red state 0/6 PASS is archived. This run exists to record the candidate and carry it into verification."
+  },
+  "started_at_utc": "2026-09-28T07:30:26.283610Z",
+  "finished_at_utc": "2026-09-28T07:30:37.623923Z",
+  "exit_code": null,
+  "timed_out": false,
+  "input_digest": "0d1e84bb9ef92149c761104cec4da4c861023db16721cdb3480b100b7325fd2e",
+  "candidate_digest": null,
+  "raw_output_refs": [
+    ".workflow-kit/tasks/evidence/RUN-b46fc7ad1ea44a9288670196c6cdebb1-worker-result.json"
+  ],
+  "checks": [],
+  "review": {
+    "mode": null,
+    "verdict": null,
+    "report": null,
+    "candidate_digest": null
+  },
+  "estimated_cost_usd": null,
+  "scope_manifest": ".workflow-kit/tasks/evidence/RUN-b46fc7ad1ea44a9288670196c6cdebb1-scope.json",
+  "baseline_manifest": ".workflow-kit/tasks/evidence/RUN-b993e0a8bf114540b928219a986f65a7-scope.json",
+  "failure_kind": "scope",
+  "failure_reason": "Out-of-scope changes: .workflow-kit/docs/TASK-006-MANUAL-VERIFICATION.md (allowed: src/stores/queueStore.ts, src/hooks/useImageGeneratorExecution.ts, src/App.tsx, src/main.tsx)"
+}

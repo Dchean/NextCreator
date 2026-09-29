@@ -1,0 +1,113 @@
+{
+  "schema_version": 1,
+  "id": "RUN-76cdf207e8c24ef08572a2bb94b2882d",
+  "task_id": "TASK-006",
+  "kind": "verification",
+  "outcome": "completed",
+  "executor": {
+    "harness": "local_process",
+    "model": null,
+    "context_id": "tool-a965f5680a5f484d99db3a4f00cbcc72"
+  },
+  "started_at_utc": "2026-09-28T09:04:59.827219Z",
+  "finished_at_utc": "2026-09-28T09:05:03.368605Z",
+  "exit_code": 0,
+  "timed_out": false,
+  "input_digest": "0d1e84bb9ef92149c761104cec4da4c861023db16721cdb3480b100b7325fd2e",
+  "candidate_digest": "9f139d598cfab6d86660c15cd92ed0a420343bdcd6de648e63bd41d0d5a2ea30",
+  "raw_output_refs": [
+    ".workflow-kit/tasks/evidence/RUN-76cdf207e8c24ef08572a2bb94b2882d-typecheck.stdout.txt",
+    ".workflow-kit/tasks/evidence/RUN-76cdf207e8c24ef08572a2bb94b2882d-typecheck.stderr.txt",
+    ".workflow-kit/tasks/evidence/RUN-76cdf207e8c24ef08572a2bb94b2882d-behavior-regression.stdout.txt",
+    ".workflow-kit/tasks/evidence/RUN-76cdf207e8c24ef08572a2bb94b2882d-behavior-regression.stderr.txt"
+  ],
+  "checks": [
+    {
+      "gate_id": "typecheck",
+      "status": "PASS",
+      "exit_code": 0,
+      "log": ".workflow-kit/tasks/evidence/RUN-76cdf207e8c24ef08572a2bb94b2882d-typecheck.stdout.txt",
+      "stderr": ".workflow-kit/tasks/evidence/RUN-76cdf207e8c24ef08572a2bb94b2882d-typecheck.stderr.txt",
+      "candidate_digest": "9f139d598cfab6d86660c15cd92ed0a420343bdcd6de648e63bd41d0d5a2ea30",
+      "command": {
+        "argv": [
+          "C:\\Program Files\\nodejs\\node.exe",
+          "./node_modules/typescript/bin/tsc",
+          "--noEmit"
+        ],
+        "cwd": ".",
+        "started_at_utc": "2026-09-28T09:04:59.948329Z",
+        "finished_at_utc": "2026-09-28T09:05:02.335834Z",
+        "exit_code": 0,
+        "timed_out": false,
+        "cancelled": false,
+        "stdout": ".workflow-kit/tasks/evidence/RUN-76cdf207e8c24ef08572a2bb94b2882d-typecheck.stdout.txt",
+        "stderr": ".workflow-kit/tasks/evidence/RUN-76cdf207e8c24ef08572a2bb94b2882d-typecheck.stderr.txt"
+      }
+    },
+    {
+      "gate_id": "behavior-regression",
+      "status": "PASS",
+      "exit_code": 0,
+      "log": ".workflow-kit/tasks/evidence/RUN-76cdf207e8c24ef08572a2bb94b2882d-behavior-regression.stdout.txt",
+      "stderr": ".workflow-kit/tasks/evidence/RUN-76cdf207e8c24ef08572a2bb94b2882d-behavior-regression.stderr.txt",
+      "candidate_digest": "9f139d598cfab6d86660c15cd92ed0a420343bdcd6de648e63bd41d0d5a2ea30",
+      "command": {
+        "argv": [
+          "C:\\Program Files\\nodejs\\node.exe",
+          "--experimental-strip-types",
+          "scripts/queue-regression.mjs"
+        ],
+        "cwd": ".",
+        "started_at_utc": "2026-09-28T09:05:02.365186Z",
+        "finished_at_utc": "2026-09-28T09:05:03.337774Z",
+        "exit_code": 0,
+        "timed_out": false,
+        "cancelled": false,
+        "stdout": ".workflow-kit/tasks/evidence/RUN-76cdf207e8c24ef08572a2bb94b2882d-behavior-regression.stdout.txt",
+        "stderr": ".workflow-kit/tasks/evidence/RUN-76cdf207e8c24ef08572a2bb94b2882d-behavior-regression.stderr.txt"
+      }
+    }
+  ],
+  "review": {
+    "mode": null,
+    "verdict": null,
+    "report": null,
+    "candidate_digest": null
+  },
+  "estimated_cost_usd": null,
+  "pid": 44768,
+  "controller_pid": 44992,
+  "commands": [
+    {
+      "argv": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "./node_modules/typescript/bin/tsc",
+        "--noEmit"
+      ],
+      "cwd": ".",
+      "started_at_utc": "2026-09-28T09:04:59.948329Z",
+      "stdout": ".workflow-kit/tasks/evidence/RUN-76cdf207e8c24ef08572a2bb94b2882d-typecheck.stdout.txt",
+      "stderr": ".workflow-kit/tasks/evidence/RUN-76cdf207e8c24ef08572a2bb94b2882d-typecheck.stderr.txt",
+      "finished_at_utc": "2026-09-28T09:05:02.335834Z",
+      "exit_code": 0,
+      "timed_out": false,
+      "cancelled": false
+    },
+    {
+      "argv": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "--experimental-strip-types",
+        "scripts/queue-regression.mjs"
+      ],
+      "cwd": ".",
+      "started_at_utc": "2026-09-28T09:05:02.365186Z",
+      "stdout": ".workflow-kit/tasks/evidence/RUN-76cdf207e8c24ef08572a2bb94b2882d-behavior-regression.stdout.txt",
+      "stderr": ".workflow-kit/tasks/evidence/RUN-76cdf207e8c24ef08572a2bb94b2882d-behavior-regression.stderr.txt",
+      "finished_at_utc": "2026-09-28T09:05:03.337774Z",
+      "exit_code": 0,
+      "timed_out": false,
+      "cancelled": false
+    }
+  ]
+}

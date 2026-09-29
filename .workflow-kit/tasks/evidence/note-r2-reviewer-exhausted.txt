@@ -1,0 +1,29 @@
+TASK-006 第 2 轮审查者上下文耗尽（无结论），总控核实现场并重派
+
+## 事件
+第 2 轮独立审查者 2b119b83 在给出结论前上下文耗尽 / 失败退出，未留下收尾消息，**没有任何审查结论产出**。
+
+## 总控核实（不是假设）
+- 工作区静止：git status --porcelain -- src/ 仍只有两个已修改文件（queueStore.ts、useImageGeneratorExecution.ts），无新增/删除。
+- 候选未被改动：queueStore.ts sha256 前缀 b2edc2aa487a0414、useImageGeneratorExecution.ts 538f6ebe9b8519db，与验证时一致；task.evidence.candidate_digest 仍为 8ea48ff987c083b3a8b3144a8c54dff297e886deb4016a52d243ede672fd793a。
+- 全库扫描未发现该审查者留下的任何新文件（它被要求把探针写在仓库外，且遵守了）。
+- 因此没有「审查结论」被丢失或需要追认：本轮审查从未成立，不是「审查失败」而是「审查未发生」。
+- 修复轮计数不受影响：仍为 1/3（审查者耗尽不消耗修复轮，与 TASK-006 前几次编码者中断的处置一致）。
+
+## 一个真实且已解决的环境坑（值得记录）
+每个子代理会话有**自己的** %TEMP%（例如总控为 ...\dsh-xAYeEP，而第 1 轮审查者为 ...\dsh-dU9Evt）。因此总控 `%TEMP%` 下的探针副本对审查者**不可见**，第 1 轮审查者的探针路径对下一次也可能不存在。
+处置：把 11 个探针文件复制到仓库内的持久路径 .workflow-kit/tasks/evidence/review-probes-r2/（每个文件自带 `const REPO = "D:\NextCreator"`，加载真实 TS store，并 stub @tauri-apps/* 与 @xyflow/react），在派发指令中给出该**绝对路径**，并提示先复制到自己的 %TEMP% 再运行/修改。
+注意：该目录不在任务的 snapshot_paths 内（snapshot_paths 是固定清单：probe-queue-store.mjs、package.json、scripts、scripts/queue-regression.mjs、scripts/queue-regression.selfcheck.mjs、src/components/nodes/ImageGeneratorNode.tsx、src/hooks/useImageGeneratorExecution.ts、src/services/imageGenerationExecution.ts、src/stores/queueStore.ts、src/utils/tauriStorage.ts、tsconfig.json），候选快照是 10 个具名路径的固定列表，因此**往 evidence/ 加文件不会改变候选摘要**，此前对 RUN-e9d33ed7705e4c1c958875018a710480 的验证结论依然有效。这一点经读候选清单确认，不是推测。
+
+## 重派
+已派发 c62af427（全新上下文；与第 1 轮审查者 8a402362、被中断的 2b119b83 及此前五位 288b57de/466d0e5e/9d26b852/194aa201/2cb39439 均不同）。
+派发指令中新增两项针对本次失败的保护：
+1. 明确告知只剩约 40 分钟任务时钟，要求优先做指定的对抗性攻击、不要通读 1343 行门禁；并明确「若感觉上下文吃紧，立刻停止调查并写出报告（哪怕不完整，把未完成区域标 BLOCKED）」——避免再次出现「耗尽且零产出」。
+2. 给出探针 harness 的持久绝对路径，避免它因找不到 %TEMP% 副本而自行重建、浪费额度。
+保留的攻击优先级（按价值排序）：
+1. 总控发现但仅由推理支持、未被实测的残余问题：clearNodeQueuedMarker 在**拒绝分支**被调用、且 canvasId 为 null 时回退活动画布，是否可能抹掉另一处**合法**刚设置的 queued 标记（含「UI 显示未排队而实际有任务排队」或相反）。
+2. **本次修复是否引入新缺陷**（历史教训：上一轮修复自身引入了 F2，为本任务最高价值问题）。
+3. F1 在探针未覆盖的顺序下是否仍成立（尤其 canvasId 为 null 的恢复路径、以及画布回写发生在恢复清标记之后）。
+4. F3 在 canvasId 为 null 时，null 与真实 canvasId 是否会在同一 nodeId 上互相干扰（双向）。
+5. 守卫性质仍需成立：同步、仅活动任务、非仅 running、非全局单飞、暂停态不跳过。
+6. batchChains 生命周期（LOW-4）是否真正有界且无陈旧链失步；无容量上限是否可接受。

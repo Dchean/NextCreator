@@ -1,0 +1,31 @@
+TASK-006 修复轮 3 完成并经总控独立验证；第 4 轮独立审查已派发；修复轮额度已用尽（3/3）
+
+## 关键额度事实（需用户知悉）
+- 修复轮：**3/3 已用尽**（POLICY 上限 max_repair_rounds=3）。若第 4 轮审查再判 FAIL，**总控无法再修**，必须再次由用户 extend（追加修复轮）才能继续 —— 总控不会自行追加。
+- 时钟：用户已批准的 extend（DEC-bf739b8b…）把生效 deadline 推到 2026-09-28T11:04:39.124218Z。注意本工具把「基准 deadline」与「延长记录」分开保存：item.budget.deadline_at_utc 仍是原始 09:24:59Z（历史值，不覆盖），延长项在 budget.extensions[] 内，剩余时间按生效值计算（workflow_runtime.py 的 remaining_seconds 用 strict 参数区分：implementation/repair/probe 走严格判定，verify/review 不严格）。总控在本轮一度按基准值误读为「已超时 92 分钟」，经读取 budget.extensions 与工具源码后更正 —— 记录以免后续再次误判。
+- 已验证事实：到期后 **verify 与 review 仍可运行**（工具明确允许），因此第 4 轮审查不受时钟限制。
+
+## 修复轮 3 内容（编码者 54fa678f，RUN-7801e633680d4486897b42c854759b99）
+只改 src/stores/queueStore.ts（651 → 708 行）；useImageGeneratorExecution.ts 未动（admitted 门完好）。scope：outside=[]、protected=[]。
+- F-R3-1：判据**删掉** canvasId 子句，改为「同 nodeId 的任何 queued||running 都阻止清除」，偏向保留标记（用户指定的安全侧）；签名简化为 (nodeId)，4 处调用点同步更新。
+- F-R3-2：clearNodeQueuedMarker 先同步读两份载体，若标记已为 falsy 则**在任何 import/setState 之前返回**；canvasStore.setState 另加 dirtyCanvasIds 非空判断。标记路径的动态 import 改为两条静态 import（编码者论证无循环：queueStore 已静态 import imageGenerationExecution，后者静态 import 两个 store，而两者都不 import queueStore）。
+- F-R3-3：删除 cancel running 分支那次可证明无效的复核，注释改为如实说明「取消后的标记复位是**一步**依赖 pump 的 .finally」，不存在两步机制。
+
+## 编码者主动发现并修复了一个由本次修复引入的新缺陷（值得记录）
+它报告：字面的最小修法（判据只看 nodeId、但清除仍只落一个画布）会**把复制画布的那份持久化副本永久滞留在 queued:true**（因为那份才是 App.tsx:154 setNodes 重新载入的副本）→ 永久 REQ-001 类锁。它写了 probe-r3-stranded-canvas-copy.mjs 复现（exit 1），然后把 clearNodeQueuedMarker 改为清除**所有含该 nodeId 的载体**（一次 setState），并把 cancel 的 queued 分支由无条件改为条件式（无条件只在旧的「单画布清除」语义下才成立），复测 exit 0。
+它还指出：拒绝分支的复核现在同样是可证明的 no-op，但它**保留**并**如实注释为 no-op**，而不是删除或谎称有效 —— 这与 F-R3-3 要求的「不要宣称代码未提供的保证」一致。总控认为这是正确的诚实处理。
+
+## 总控独立验证（静态树、全部子代理已停止）
+- 门禁 6/6 PASS exit 0（**门禁对本轮三条发现是盲的，不作为证据**）；tsc --noEmit exit 0。
+- F-R3-1 决定性探针 probe-r3-erased-while-queued-paused.mjs：由「复现」变为 **「未复现」**，且标记保持 flowStore.queued=true、isQueued=true、canRun=false（画布 B 的任务仍在 queued 时）。
+- F-R3-2 probe-r3-finally-churn.mjs：flowStore.nodes 身份变化=false、节点对象身份变化=false、canvases 身份变化=false、subscribe 命中=0、末尾多余的 next-creator-canvases 持久化键消失。
+- F-R3-3：churn 探针打印出该复核「恒为 no-op」的实测（cancel 后 job 仍 running，调用前后 queued 都是 true），与实现及注释一致。
+- 回归扫描：probe-cancel-abort-lock「未形成永久锁」、probe-reject-timeline 组合(undefined|undefined)(true|queued)、probe-reject-erases-marker「标记与活动任务一致」、probe-lock-via-ui「未形成永久锁」、probe-cross-canvas「两画布互不干扰」、probe-req001-coldstart「节点可用」、probe-batch-chain 15/15。
+
+## 未决事项（总控不采信、已交给第 4 轮审查者裁决）
+probe-r3-abnormal-scope-clear.mjs **仍打印 复现=true**。编码者主张这是**判据结构性假阳性**：该探针在基线时同样打印复现，其判据是「标记下降的瞬间，该 nodeId 是否仍有另一个活动任务」—— 而忠实执行器在任务**开始**时合法地写 queued:false，此刻该任务自身正是 running，故判据**必然**触发。编码者用三个探针支撑：单画布单节点、100% 正确实现下判据同样触发（probe-r3-criterion-falsepositive.mjs）；按「同一次写入是否把 status 变成 loading」归因的探针显示 F-R3-1 特征计数为 0（probe-r3-abnormal-attribution.mjs）；以及让执行器完全不碰节点数据的探针两形态均 PASS（probe-r3-unified-scope-verify.mjs）。
+总控**未独立裁决该主张，也不予采信**，已明确列为本轮审查最高优先级问题，要求审查者自行判定「剩余复现究竟是噪声还是被解释掉的真实缺陷」。
+编码者的额外提示：它自己新写的探针（含上述三个）可能覆盖原探针原始目录内容 —— 但经总控核对，原探针文件仍在，只是该目录新增了同名辅助目录与输出文件；总控已把整个目录复制到 .workflow-kit/tasks/evidence/review-probes-r3fix/ 持久保存，原始 r3 探针另存于 review-probes-r3/。
+
+## 第 4 轮审查
+已派发 860b2b93（全新上下文；前几轮审查者 8a402362/c62af427/fb656bb5 及更早 2b119b83/288b57de/466d0e5e/9d26b852/194aa201/2cb39439 全部排除复用）。指令中明确：优先裁决上述争议探针；其次专找**本轮修复新引入**的缺陷（重点：两条新静态 import 是否有循环或模块初始化顺序隐患、清除所有载体会不会误清另一画布上合法有活动的同名节点、cancel queued 分支改为条件式后是否还能正确清除、dirtyCanvasIds 单次 setState 是否正确、falsy 提前返回是否可能漏清、保留的 no-op 是否诚实）；再次验证守卫性质与 F1；并明确告知上一轮有审查者耗尽上下文零产出，要求「感觉额度吃紧就立刻写报告，哪怕不完整」。

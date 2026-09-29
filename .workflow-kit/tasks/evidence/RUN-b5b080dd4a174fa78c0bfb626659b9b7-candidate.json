@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "captured_at_utc": "2026-09-28T10:58:21.208435Z",
+  "roots": [
+    ".workflow-kit/tasks/evidence/probe-queue-store.mjs",
+    "package.json",
+    "scripts",
+    "scripts/queue-regression.mjs",
+    "scripts/queue-regression.selfcheck.mjs",
+    "src/components/nodes/ImageGeneratorNode.tsx",
+    "src/hooks/useImageGeneratorExecution.ts",
+    "src/services/imageGenerationExecution.ts",
+    "src/stores/queueStore.ts",
+    "src/utils/tauriStorage.ts",
+    "tsconfig.json"
+  ],
+  "files": [
+    {
+      "path": ".workflow-kit/tasks/evidence/probe-queue-store.mjs",
+      "sha256": "b924009374f1d597d179fc10e301b6ee98ae61784322a7c3dbe74be55ea9366b"
+    },
+    {
+      "path": "package.json",
+      "sha256": "5aaf487296f12216acc109b29e621e241b30ef8ea7f4cab754e9e38d0ac972c6"
+    },
+    {
+      "path": "scripts/queue-regression.mjs",
+      "sha256": "a3a391ae9eb131721a35999a10c6a1ccd04bf46788cf2d8b2bfeef9a7f7da1c3"
+    },
+    {
+      "path": "scripts/queue-regression.selfcheck.mjs",
+      "sha256": "6fcd022aeaf96765a3ab83252ab68e2b5f64c946e66c1ac65806f0329a2421cd"
+    },
+    {
+      "path": "src/components/nodes/ImageGeneratorNode.tsx",
+      "sha256": "93120b482175679d8c2bc9d6bbba52d5c53004b6242a57f3f38f788b6a0d2edf"
+    },
+    {
+      "path": "src/hooks/useImageGeneratorExecution.ts",
+      "sha256": "538f6ebe9b8519db5f02724b8836d755d04d0f9c55477f630cb38a9a12d5b367"
+    },
+    {
+      "path": "src/services/imageGenerationExecution.ts",
+      "sha256": "9546b5202dac26cee2efad1af79b3e22a3701e1ed09446ca6fb7233fdff8d800"
+    },
+    {
+      "path": "src/stores/queueStore.ts",
+      "sha256": "eaae76f6c8da01a7d262dafa6ade7247dd0465fa3f1991e71ccddfe3a2bc1c94"
+    },
+    {
+      "path": "src/utils/tauriStorage.ts",
+      "sha256": "09d36fb8015a5c11e324e1ade90356a4ac3fca64c662d5c38bc8e4a3d0dc7f83"
+    },
+    {
+      "path": "tsconfig.json",
+      "sha256": "dfee6e5208cc2f515d9eea89584ed986b010a6259dbe7a9b03fca5f9ab3c91d9"
+    }
+  ],
+  "digest": "82904bb687236f44d451f8f7a92b3ac990b98a915a39d01a4279c961e2bd61f8"
+}

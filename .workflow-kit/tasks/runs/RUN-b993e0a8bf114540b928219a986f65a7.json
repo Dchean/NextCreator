@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "id": "RUN-b993e0a8bf114540b928219a986f65a7",
+  "task_id": "TASK-006",
+  "kind": "implementation",
+  "outcome": "blocked",
+  "executor": {
+    "harness": "current_agent",
+    "model": null,
+    "context_id": "TASK-006 part 1 of 2 (user decision route_5th = A: two bounded dispatches inside the SAME task, no new task ID, no clock/budget reset). This run covers REQ-001 ONLY (restart recovery); REQ-002 duplicate-enqueue guard is deferred to part 2. Rationale: a controlled probe proved a closed mechanical dispatch (read 2 files + one edit + run gate) costs only ~9%% context, whereas four open-ended attempts each exhausted context with zero src/ edits. Dispatch makes the spec fully inline, sets an explicit narrow scope (do NOT touch the REQ-002 guard), states expected partial state (case A must PASS while B/C/D/E/F are expected to still FAIL), and explicitly overrides the auto-injected workflow-kit entry block. Executor remains agent_only per user choice; codex/claude CLIs are installed but NOT authorised for use. Worker label RUN-6f1d0c0f-REQ001-part1 was a prompt label only, not a real run id."
+  },
+  "started_at_utc": "2026-09-28T07:16:05.576824Z",
+  "finished_at_utc": "2026-09-28T07:29:58.508346Z",
+  "exit_code": null,
+  "timed_out": false,
+  "input_digest": "0d1e84bb9ef92149c761104cec4da4c861023db16721cdb3480b100b7325fd2e",
+  "candidate_digest": null,
+  "raw_output_refs": [
+    ".workflow-kit/tasks/evidence/RUN-b993e0a8bf114540b928219a986f65a7-worker-result.json"
+  ],
+  "checks": [],
+  "review": {
+    "mode": null,
+    "verdict": null,
+    "report": null,
+    "candidate_digest": null
+  },
+  "estimated_cost_usd": null,
+  "scope_manifest": ".workflow-kit/tasks/evidence/RUN-b993e0a8bf114540b928219a986f65a7-scope.json",
+  "baseline_manifest": ".workflow-kit/tasks/evidence/RUN-91b31552313e494a93fb7b830bd2efe9-scope.json",
+  "failure_kind": "scope",
+  "failure_reason": "Out-of-scope changes: .workflow-kit/docs/TASK-006-MANUAL-VERIFICATION.md (allowed: src/stores/queueStore.ts, src/hooks/useImageGeneratorExecution.ts, src/App.tsx, src/main.tsx)"
+}

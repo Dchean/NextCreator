@@ -1,0 +1,6 @@
+{
+  "changed_files": [
+    "src/hooks/useImageGeneratorExecution.ts",
+    "src/stores/queueStore.ts"
+  ]
+}

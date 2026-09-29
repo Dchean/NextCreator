@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "RUN-e0bd69e2a5e84f5fb544f6e3c8c77572",
+  "task_id": "TASK-006",
+  "kind": "review",
+  "outcome": "blocked",
+  "executor": {
+    "harness": "current_agent",
+    "model": null,
+    "context_id": "Fresh independent reviewer 2b119b83-then-c62af427 (round 2 retry; first attempt exhausted context with no verdict; prior reviewers 8a402362 and 288b57de/466d0e5e/9d26b852/194aa201/2cb39439 all excluded). Verdict FAIL with 2 findings. The reviewer independently reproduced gate 6/6 exit 0 and tsc exit 0, re-ran all 11 author probes green (so round-1 F1/F2/F3 ARE genuinely fixed within those scenarios), and settled the manager flagged residual concern. Manager then INDEPENDENTLY REPRODUCED BOTH new findings with its own hands (copied the reviewer out-of-repo probes and ran them against the live tree) rather than trusting the verdict. F-R2-1 (HIGH): permanent the-queue-lock still reachable - imageGenerationExecution.ts:205 returns on signal.aborted BEFORE the file only pre-start queued:false write at :267, QueuePanel.tsx:206-216 offers cancel for running jobs, and queueStore.cancel running branch (:356-359) only aborts without clearing the marker (only the queued branch clears at :355), so cancelling during the input-resolution window (:192, real IPC when an image input with imagePath is connected) leaves queued:true with zero active jobs; restart does not help because cancelled is terminal and not matched by isRecoverableJob while the flag persists in canvasStore and is reloaded by App.tsx:154 setNodes. Manager repro output: job terminal=cancelled, active=0, node queued=true, canRun=false, RESULT permanent lock. Reviewer also notes the author documentation listing cancel as one of three clearing paths is true only for the queued branch. F-R2-2 (MEDIUM, NEW defect introduced by the round-1 repair): the rejection branch calls the UNCONDITIONAL clearNodeQueuedMarker (queueStore.ts:311) whose clear lands asynchronously via void import().then() (:526-532), so it erases the queued:true legitimately written by the click that the same rapid double-click had admitted; manager repro (10ms sampling, concurrency=1 with another node holding the slot) shows from 15ms onward queued=false/status=idle/active=1/canRun=true/job=queued for the entire wait window, with only (undefined|undefined) and (false|queued) ever observed - i.e. the job really waits while the UI shows not-queued and the button stays enabled, contradicting the semantic the author wrote at :310. THIS SETTLES THE MANAGER RESIDUAL QUESTION DIRECTLY: yes, a rejected click can erase a marker another call legitimately just set, and the author counter-argument does not hold because rejection presupposes an active job in that scope (which is exactly why the marker there is legitimate) and the clear landing time is decided by a dynamic import rather than by state at rejection time; the existing clearNodeQueuedMarkerIfIdle (:570-576) is the right tool and is unused on that branch. NOT a permanent lock since the executor clears at start, hence MEDIUM. Genuinely excluded with reasons: F3 null-canvasId isolation holds strictly both directions; all guard properties hold (synchronous in enqueue, same-canvas+same-node, queued||running, never historical, not running-only, not global single-flight, paused never consulted so not skipped); batchChains stale-chain revival excluded by construction and the uncapped Map judged acceptable residue; recovery canvasId===null path is correct but fragile, depending on the second post-dispatch clearNodeQueuedMarkerIfIdle pass. Statuses: requirements FAIL, regression FAIL, failure_paths FAIL, maintainability PASS, performance PASS."
+  },
+  "started_at_utc": "2026-09-28T08:57:44.596460Z",
+  "finished_at_utc": "2026-09-28T08:57:44.662704Z",
+  "exit_code": null,
+  "timed_out": false,
+  "input_digest": "0d1e84bb9ef92149c761104cec4da4c861023db16721cdb3480b100b7325fd2e",
+  "candidate_digest": "8ea48ff987c083b3a8b3144a8c54dff297e886deb4016a52d243ede672fd793a",
+  "raw_output_refs": [
+    ".workflow-kit/tasks/evidence/RUN-e0bd69e2a5e84f5fb544f6e3c8c77572-review.json"
+  ],
+  "checks": [],
+  "review": {
+    "mode": "independent",
+    "verdict": "FAIL",
+    "report": ".workflow-kit/tasks/evidence/RUN-e0bd69e2a5e84f5fb544f6e3c8c77572-review.json",
+    "candidate_digest": "8ea48ff987c083b3a8b3144a8c54dff297e886deb4016a52d243ede672fd793a"
+  },
+  "estimated_cost_usd": null,
+  "failure_kind": "review_failure",
+  "failure_reason": "Review requires changes; inspect the findings"
+}
