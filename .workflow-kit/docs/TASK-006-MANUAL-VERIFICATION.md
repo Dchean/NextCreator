@@ -192,8 +192,9 @@
 
 - 「红→绿」证据均已存档，可自行对照：
   - 修复前红状态原始输出：`.workflow-kit/tasks/evidence/BASELINE-gate-red-TASK-006.txt`（0/6 PASS、exit 1）
-  - 修复后绿状态原始输出：`.workflow-kit/tasks/evidence/RUN-48b9bcc879c44c7d9a5ac0ce076cf409-behavior-regression.stdout.txt`
-  - 类型检查日志：同目录 `RUN-48b9bcc879c44c7d9a5ac0ce076cf409-typecheck.stdout.txt`（0 字节 = tsc 静默通过）
+  - 修复后绿状态原始输出：`.workflow-kit/tasks/evidence/RUN-abbaf27af8614605a132bc76cb7b4aae-behavior-regression.stdout.txt`
+  - 类型检查日志：同目录 `RUN-abbaf27af8614605a132bc76cb7b4aae-typecheck.stdout.txt`（0 字节 = tsc 静默通过）
+  - 说明：上述绿状态与当前候选绑定；若交付前候选再有变动，总控会给出**绑定最终候选**的那一次 run 日志。
 - ⚠ **门禁是盲的**：它**不执行 undo/redo**、也不检查自愈上限的告警，因此对本轮多起发现（撤销/重做复活陈旧标记、上限位置与告警口径）**结构上不可见**。那些结论来自仓库外的端到端探针
   （`.workflow-kit/tasks/evidence/review-probes-r*/`），**门禁全绿不等于这些路径已被覆盖**。
 
