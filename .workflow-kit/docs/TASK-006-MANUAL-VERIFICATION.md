@@ -14,11 +14,16 @@
 > 撤销/重做不再复活陈旧标记。
 >
 > **已知缺口**（不影响上列功能在日常使用中的正确性，但如实列出）：
-> 1. 自愈循环的轮数上限位置早一整轮 —— 仅在有"每次收到通知就重写 nodes"的写入方时才可见，
->    **当前代码库内不存在这种写入方**（仓内写入者都是一次性的），属安全裕度而非可复现症状。
-> 2. 一处注释里的依赖计数写错（21 应为 22）。
+> 1. **自愈上限数值**：`MAX_HEAL_PASSES = 8` 使「有界但每轮都被重新武装」的写入者在 N≥8 时留下陈旧标记。
+>    **仓内不可达** —— 独立审查已枚举全部写入者（唯一第三方订阅者 `App.tsx:170` 只写 canvasStore、
+>    从不写 nodes），属**安全裕度**而非可复现症状。
 >
-> 清单本身已经过一次独立只读核查（13 条行号与技术断言全部复核，据结果修正了 4 处问题）。
+> 已修复并已核对的历史缺口（列出以示收敛，无需你再关注）：上限检查点位置早一轮（第 7 轮）；
+> 告警口径与同文件 `:947` 自相矛盾（第 9 轮，纯注释订正）；依赖计数 21→22（第 7 轮）。
+>
+> 清单本身已经过一次独立只读核查（13 条行号与技术断言全部复核，据结果修正了 4 处问题）；
+> 此后总控又复核过一次全部行号引用，修正了 2 处因源码大幅增长而失效的引用
+> （`queueStore.ts` 的 `retry` 与 `useImageGeneratorExecution.ts` 的首个 `await`）。
 
 ---
 
@@ -99,8 +104,8 @@
 6. **反例**：暂停时能累积多个任务（3 次点击 → 3 个任务，或批量时 4 次 → 12 个）。
    原因是暂停时生成按钮**仍可点**（`src/components/nodes/ImageGeneratorNode.tsx:215` 的
    `canRun` 不含 `paused`，该文件里根本没有 `paused` 这个词），而 `data.queued`
-   在第一个 `await` 之后才写入（`useImageGeneratorExecution.ts:34` 是首个 `await`，
-   `:86-90` 才写 `queued`）。
+   在第一个 `await` 之后才写入（`useImageGeneratorExecution.ts:47` 是首个 `await`，
+   `:138-142` 的 `updateNodeData({ queued: true, ... })` 才写 `queued`）。
 
 - [ ] 通过　- [ ] 不通过　备注：
 
@@ -116,7 +121,7 @@
 3. 在队列面板里连续点该任务的**重试**按钮 3 次（`QueuePanel.tsx:222` 的 `onClick={() => retry(job.id)}`）。
 4. **期望**：该节点只产生 **1 个**新的活动任务（`queued`/`running`），不累积增长。
    失败记录本身仍在列表里，这是正常的。
-5. **原理**：`retry`（`queueStore.ts:90-103`）直接调用 `enqueue`，
+5. **原理**：`retry`（`queueStore.ts:407`）直接调用 `enqueue`（同文件 `:302`），
    **绕过** `handleGenerate`，所以只有把守卫下沉到 `store.enqueue` 才拦得住。
 
 - [ ] 通过　- [ ] 不通过　备注：
@@ -166,6 +171,8 @@
 5. **在此时点一次生成**。
 6. **期望**：出现一条**提示**（toast），说明该节点仍有任务在排队、本次点击未生效；
    且**不会**新增任务、**不会**把节点变成错误状态。
+   （实现位置：`useImageGeneratorExecution.ts:132-135` 的 `if (!admitted) { toast.info(...) }`，
+   走仓库既有的全局反馈通道 `toastStore`，容器挂在 `App.tsx:259`。）
 7. **反例（修复前）**：点击被静默丢弃，界面毫无反应。
 8. 注意：这是**预期行为**（防止重复入队），不是缺陷 —— 关键是**要有反馈**。
 
@@ -173,25 +180,31 @@
 
 ---
 
-## 附：自动门禁（总控会在交付时把**实际输出**贴给你，不靠本行文字）
+## 附：自动门禁（总控在交付时给出**实际输出**，不靠本行文字）
 
-门禁脚本头部写明：**业务缺陷未修时用例 FAIL、退出码 1**。因此三态如下：
+门禁脚本头部写明：**业务缺陷未修时用例 FAIL、退出码 1**。三态与**实测现状**如下：
 
-| 命令 | 修复前（现在） | 修复后（目标） |
+| 命令 | 修复前（已存档） | 修复后（**实测现状**） |
 | --- | --- | --- |
-| `node --experimental-strip-types scripts/queue-regression.mjs` | 6 FAIL / **exit 1** | 6 PASS / **exit 0** |
-| `node ./node_modules/typescript/bin/tsc --noEmit` | exit 0 | exit 0 |
-| `... queue-regression.mjs --expect-red` | **exit 0** | **exit 1**（红状态不再成立） |
+| `node --experimental-strip-types scripts/queue-regression.mjs` | 6 FAIL / **exit 1** | **6 PASS / exit 0** ✅ |
+| `node ./node_modules/typescript/bin/tsc --noEmit` | exit 0 | **exit 0** ✅ |
+| `... queue-regression.mjs --expect-red` | **exit 0** | **exit 1**（红状态不再成立）✅ |
 
-- 「红→绿」是硬性验收要求：总控已存档**修复前**的红状态原始输出
-  （`.workflow-kit/tasks/evidence/BASELINE-gate-red-TASK-006.txt`，0/6 PASS / exit 1），
-  交付时会同时给出修复后的输出供你对照。**只报最终 PASS 视为未证明。**
-- 全绿**只有在修复落地后才可达**；现在跑必然是红的。
+- 「红→绿」证据均已存档，可自行对照：
+  - 修复前红状态原始输出：`.workflow-kit/tasks/evidence/BASELINE-gate-red-TASK-006.txt`（0/6 PASS、exit 1）
+  - 修复后绿状态原始输出：`.workflow-kit/tasks/evidence/RUN-48b9bcc879c44c7d9a5ac0ce076cf409-behavior-regression.stdout.txt`
+  - 类型检查日志：同目录 `RUN-48b9bcc879c44c7d9a5ac0ce076cf409-typecheck.stdout.txt`（0 字节 = tsc 静默通过）
+- ⚠ **门禁是盲的**：它**不执行 undo/redo**、也不检查自愈上限的告警，因此对本轮多起发现（撤销/重做复活陈旧标记、上限位置与告警口径）**结构上不可见**。那些结论来自仓库外的端到端探针
+  （`.workflow-kit/tasks/evidence/review-probes-r*/`），**门禁全绿不等于这些路径已被覆盖**。
 
-## 已知缺口（门禁不保证，只能靠上面人工确认）
+## 已知缺口（如实列出，未修复）
 
-1. **暂停态**未进自动门禁（六个用例全部 `paused:false`）。
-2. 自检套件第 4 节特异性不足。
-3. 用例 D 的前提在改动 pump 额度语义后可能失效。
+1. **自愈上限数值**：`MAX_HEAL_PASSES = 8` 导致「有界但每轮都被重新武装」的写入者在 N≥8 时会留下陈旧标记。
+   **仓内不可达** —— 独立审查已枚举全部写入者：唯一的第三方 `useFlowStore` 订阅者是 `App.tsx:170`，
+   它只写 canvasStore、从不写 nodes，故无法重新武装。属**安全裕度**而非可复现症状。
+   若要消除，杠杆是**上限数值**（或改为「轮数 + 时间」混合界限），属范围决策。
+2. **门禁覆盖面**（沿用 TASK-005 的既有记录）：暂停态未进自动门禁（六个用例全部 `paused:false`）；
+   自检套件第 4 节特异性不足；用例 D 的前提在改动 pump 额度语义后可能失效。
+   这三条正是上面「场景 3 / 场景 6 / 场景 7」要人工补的原因。
 
-> TASK-005 的审查结论保持 **FAIL** 记录，未追认为 PASS。本清单的作用正是弥补该缺口。
+> TASK-005 的审查结论保持 **FAIL** 记录，未追认为 PASS。本清单的作用正是弥补这些缺口。
