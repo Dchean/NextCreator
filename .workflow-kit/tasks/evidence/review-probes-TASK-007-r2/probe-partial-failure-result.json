@@ -1,0 +1,20 @@
+{
+  "diskProviders": [
+    {
+      "id": "prov-c",
+      "keyLen": 24
+    },
+    {
+      "id": "prov-d",
+      "keyLen": 0
+    }
+  ],
+  "diskHasFailedKey": true,
+  "diskHasMigratedKey": false,
+  "keyring": [
+    {
+      "id": "prov-d",
+      "len": 24
+    }
+  ]
+}

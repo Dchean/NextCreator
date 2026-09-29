@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "id": "RUN-1e097af82fe8481991285703bbf424bf",
+  "task_id": "TASK-007",
+  "kind": "implementation",
+  "outcome": "blocked",
+  "executor": {
+    "harness": "current_agent",
+    "model": null,
+    "context_id": "manager-lead-batch-C-implementation"
+  },
+  "started_at_utc": "2026-09-29T12:19:42.370023Z",
+  "finished_at_utc": "2026-09-29T15:39:04.561883Z",
+  "exit_code": null,
+  "timed_out": false,
+  "input_digest": "dd7d38d664dd0f8114cbdb3ea7ac4924e04da44e7345f3891aa93d8eadf9f844",
+  "candidate_digest": null,
+  "raw_output_refs": [
+    ".workflow-kit/tasks/evidence/RUN-1e097af82fe8481991285703bbf424bf-worker-result.json"
+  ],
+  "checks": [],
+  "review": {
+    "mode": null,
+    "verdict": null,
+    "report": null,
+    "candidate_digest": null
+  },
+  "estimated_cost_usd": null,
+  "scope_manifest": ".workflow-kit/tasks/evidence/RUN-1e097af82fe8481991285703bbf424bf-scope.json",
+  "failure_kind": "scope",
+  "failure_reason": "Out-of-scope changes: src-tauri/Cargo.lock (allowed: src/services/secretStore.ts, src/stores/settingsStore.ts, src/components/panels/ProviderPanel.tsx, src/services/imageGeneration/imageGenerationService.ts, src/services/llmService.ts, src/services/modelListService.ts, src/types/index.ts, src-tauri/Cargo.toml, src-tauri/src/lib.rs, src-tauri/src/secrets.rs, src-tauri/src/gemini.rs, src-tauri/src/models.rs)"
+}

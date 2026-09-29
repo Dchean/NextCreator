@@ -1,0 +1,106 @@
+{
+  "task_id": "TASK-007",
+  "candidate_digest": "f04a4438ecd6ae3508a535205121754d095386a69a1fafd64536b054015b5878",
+  "verification_run": "RUN-85ba9d61765a458080fd889d062d3611",
+  "verdict": "FAIL",
+  "summary": "独立复审（新上下文，未复用实现者会话）。范围：settingsStore partialize/迁移、secretStore、ProviderPanel、secrets.rs/gemini.rs/models.rs/lib.rs、Cargo 依赖，及三条门禁 + cargo test 的重跑。方法：129 个候选文件逐一重算 sha256（0 不符）；用工具自身算法重算 candidate_digest（精确匹配 f04a4438…878）；三条门禁独立重跑全部 exit 0（tsc、queue-regression 9/9、cargo build），另跑 cargo test --lib（3 passed）；从 reqwest 0.12.28 源码与独立编译探针实证 Display 语义；用 Node 模块加载探针动态执行真实 settingsStore/secretStore 代码，模拟 3 次启动迁移与稳态重启。结论：Rust 侧泄漏封堵完整且正确（without_url() 施加于返回字符串本身，body/decode 错误从源头就不携带 URL）；凭据库命令、删除清理、未配置行为、其它字段语义、UI、脚本冻结均成立。但前端持久化闸门存在一个稳态缺陷：成功保存并重启后，内存回填的 setState 会经 partialize 把明文重新写回 app-data.json（探针实测 diskContainsPlaintext=true，且代码注释'仅内存，不落盘'与实测相反），根因是 getProviderApiKey 回填路径从不设置 persistedInKeyring 标志（只有 setProviderApiKey 设置）；且迁移本身不主动清洗磁盘旧明文（要等一次无关的 settings 写入才清洗）。实现者的 K3 用 updateSettings({}) 强制落写后测量插件层往返，恰好绕开了这两个缺陷（K3 的 boot-1 标志位恰好已置位、K4 未复测往返、沙箱 os error 5 又使真实应用在整个实机验证期间根本无法写盘）。故验收第 1、3 条在'重启后的持续状态'下不成立。另发现本任务实机验证新建的备份文件把真实密钥带进了项目证据目录（.workflow-kit 不在 .gitignore，同目录的 task003-live 备份已被 git 跟踪）。未验证项：真实非沙箱环境下应用自身的落盘行为、真实密钥对真实 API 的请求可用性、macOS/Linux 凭据库、凭据库条目值内容（只列了条目名未读值）。",
+  "findings": [
+    {
+      "id": "F1",
+      "severity": "critical",
+      "location": "src/stores/settingsStore.ts:258-280 (backfill setState) 与 :191-200 (partialize 例外分支)、src/services/secretStore.ts:75-95 (getProviderApiKey 不置 persistedInKeyring)",
+      "trigger": "任何一次'凭据库有值、磁盘 apiKey 为空'的正常重启（即成功保存后的稳态）：onRehydrateStorage 回填用 useSettingsStore.setState 写入内存密钥 → zustand persist 包装的 setItem 立即以当时的 partialize 落盘 → partialize 例外分支因 isApiKeyPersistedInKeyring(id)===false（回填路径从不置位）而保留明文 → 明文重新写入 app-data.json。",
+      "impact": "验收第 1 条（磁盘不再出现明文）与第 3 条的'迁移后再次保存不再含明文'在重启后的持续状态下系统性失效；密钥库保护被静默绕过且无任何用户提示（toast 只在迁移失败时出现）。实机验证未发现它，是因为沙箱 os error 5 使应用在整个 K0-K5 期间根本无法写盘，且 K4 未复测持久化往返。",
+      "evidence": "steady-state-backfill-probe.mjs 输出：memory memKeyLen=30、disk diskKeyLen=30、diskContainsPlaintext=true、pluginSetCalls=1、log 行'已从系统凭据库回填…（仅内存，不落盘）'与实测相反。",
+      "suggested_fix": "让回填路径在确认凭据库有值后置位标志（如 secretStore 暴露 markPersistedInKeyring(id)，在 onRehydrateStorage 回填 setState 前对每个回填成功的 id 调用）；或在回填完成后强制一次 setItem（updateSettings({})）使 partialize 在标志已置位时立即写出清洁状态。修复后补一个'boot2 往返不含明文'的断言到实机脚本（当前 K4 缺这步）。"
+    },
+    {
+      "id": "F2",
+      "severity": "high",
+      "location": "src/stores/settingsStore.ts:232-256（迁移 2 完成后不触发任何落盘清洗）",
+      "trigger": "旧版升级首次启动：全部 provider 走迁移 a（无回填 → 无 setState → 无 setItem）→ 磁盘旧明文原样保留，直到未来某次无关的 settings 写入（改主题、改节点映射等）才被 partialize 清洗。",
+      "impact": "验收第 3 条'迁移后再次保存，app-data.json 中不再含明文'只在将来某次任意保存时才成立；升级后明文可能在磁盘上无限期滞留（F1 又会把清掉的状态再次污染，两个缺陷互相放大）。",
+      "evidence": "migration-3boot-probe.mjs boot1/boot2：keyringLens 已=30/30（迁移成功）但 diskPlaintextHits 持续非空、pluginSetCalls=0；boot3 加 --action（一次无关 setNodeProvider）后 diskPlaintextHits 变空、diskKeyLen=0——证明清洗只被'无关写入'触发。",
+      "suggested_fix": "迁移（和回填）全部成功后主动触发一次状态写入（如 updateSettings({}) 或专用 persist.flush），使 partialize 在标志已置位状态下立即重写清洁状态；失败路径保持现状（保留明文并 toast）。"
+    },
+    {
+      "id": "F3",
+      "severity": "medium",
+      "location": ".workflow-kit/tasks/evidence/task007-live/app-data.before-task007.json（本任务实机验证新建的备份）及同目录 before-diag*.json；同类旧文件 .workflow-kit/tasks/evidence/task003-live/app-data.before.json 已被 git 跟踪",
+      "trigger": "live-secret-verify.mjs:84 把真实用户 app-data.json（内含 51 字符真实密钥明文）整份复制进项目证据目录作为回滚备份；.workflow-kit 不在 .gitignore 中，task003-live 目录已被 git 跟踪（真实密钥已进入 git 索引/历史）。",
+      "impact": "验收第 5 条的判定（全仓 grep 不到真实密钥值）不成立：证据目录内 6 个备份文件含真实密钥；且与工作流纪律'凭据不写进任务/项目缓存'冲突。task007-live 的文件来自本任务；task003-live/live-acceptance 的为先前任务遗留（已在 git 历史中，需另行处置）。",
+      "evidence": "对证据目录全量扫描：真实文件中唯一的非空 apiKey 值（长度 51）命中 app-data.before-live-run.json、app-data.before.json、before-diag{,2,3}.json、before-task007.json；git ls-files 显示 task003-live 下 4 个文件被跟踪。",
+      "suggested_fix": "验证完成且确认恢复后立即删除或移出仓库（放 %TEMP% 或用户目录），或至少对备份做脱敏（apiKey 置空）；把 .workflow-kit/tasks/evidence/**/app-data*.json 加入 .gitignore；对 task003-live 已跟踪的含密文件另行做历史清理决策（属先前任务遗留，建议上报总控）。"
+    }
+  ],
+  "review_checks": [
+    {
+      "area": "requirements",
+      "status": "FAIL",
+      "analysis": "逐条核对 11 项验收：①磁盘无明文——不成立（见 F1/F2：稳态重启后明文被回填 setState 经 partialize 重新落盘；探针实测 diskContainsPlaintext=true；实现者 K3 只测了 boot-1 迁移启动的往返且需 updateSettings({}) 强制落写，恰好落在标志已置位的窗口）。②密钥入凭据库——成立：三个命令已注册（lib.rs:55-57）、单元测试 3/3、K2/K5 实测、实机 cmdkey 可见条目 LegacyGeneric:target=1790247124692-l2ve74l.com.sy.nextcreator（只列名未读值）。③自动迁移且仍可用、幂等——部分成立：迁移入库（K2）、内存回填使 getProviderConfig/ModelSelector 路径可用、重启不丢不重（K4 与探针 boot2 keyringLens 稳定）均实证；但'迁移后磁盘不再含明文'被 F1/F2 否定。④Rust 泄漏封堵——成立（见 failure_paths/maintainability 的 reqwest 实证）。⑤无密钥入文档/日志/任务文件——不成立（F3：证据目录 6 个整份备份含真实密钥；task007-live-report.json 本身干净，仅长度与布尔）。⑥未配置密钥行为不变——成立（imageGenerationService.ts:51、llmService.ts:64 仍抛'供应商 API Key 未配置'；secretStore 失败/缺失统一返回空串走同一提示路径，无空指针）。⑦其它字段语义与 UI 不变——成立（partialize 保留全部其它 settings 字段；画布/队列/自定义模型存储键未动；ProviderPanel 仅保存路径逻辑变化，掩码输入 isPassword 保留，编辑留空=沿用旧密钥）。⑧tsc PASS 且 tsconfig 未动——成立（重跑 exit 0；git diff 为空）。⑨9/9 PASS 且 scripts/** 未动——成立（重跑 9/9 exit 0；numstat 为空）。⑩cargo build --release——成立（重跑 exit 0）。⑪实机验证——执行了（K0-K5 全 PASS、截图与前后 sha256 记录、真实文件 sha256=824a7e33…0490 与绑定一致、报告只含长度），但 K3 的替代测量与方法学缺口（见 failure_paths）掩盖了①③的真实缺陷，不能算完整达成。综合：requirements FAIL。",
+      "evidence_files": [
+        "src/stores/settingsStore.ts",
+        "src/services/secretStore.ts",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-007-r1/steady-state-backfill-probe.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-007-r1/probe-state-d.json",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-007-r1/migration-3boot-probe.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-007-r1/probe-state.json",
+        ".workflow-kit/tasks/evidence/task007-live/task007-live-report.json",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-007-r1/gate-reruns.txt"
+      ]
+    },
+    {
+      "area": "regression",
+      "status": "PASS",
+      "analysis": "三条门禁全部独立重跑：tsc --noEmit exit 0（静默）；node --experimental-strip-types scripts/queue-regression.mjs exit 0，9 用例 PASS 0 FAIL 0 ERROR，命令与判定标准与 RUN-85ba9d…完全一致；cargo build --release exit 0（keyring 4.2.0 已入 Cargo.lock，windows-native-keyring-store feature）。另跑 cargo test --release --lib：3 passed 0 failed。129 个候选文件逐一重算 sha256：0 不符；candidate digest 用工具自身算法（json.dumps sort_keys+compact）重算精确匹配绑定值 f04a4438ecd6ae3508a535205121754d095386a69a1fafd64536b054015b5878。保护面核对：scripts/queue-regression.mjs、selfcheck、tsconfig.json、package.json、queueStore/flowStore/canvasStore/tauriStorage/nodeExecutor/imageGenerationExecution/concurrencyLimiter/workflowEngine/ImageGeneratorNode/ImageGeneratorInspector 全部与 HEAD 字节一致（git diff 为空）。改动面全部落在 allowed_paths（含管理角色追加的 Cargo.lock，DEC-6b4e…在案）。test_review 的 replace 决定（持久化格式替换无自动门禁、映射到 cargo-build）与本轮改动一致，基线 known_failure（selfcheck 计数耦合）未被触碰，无保护弱化。",
+      "evidence_files": [
+        ".workflow-kit/tasks/runs/RUN-85ba9d61765a458080fd889d062d3611.json",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-007-r1/gate-reruns.txt",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-007-r1/sha256-recheck.json",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-007-r1/cargo-build-review.log",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-007-r1/cargo-test-review.log"
+      ]
+    },
+    {
+      "area": "failure_paths",
+      "status": "FAIL",
+      "analysis": "(a) Rust 失败路径——成立且完整：reqwest 0.12.28 源码核实 Display 仅在 inner.url 非空时追加 ' for url (…)'（error.rs:267-269）；该字段只被 send/超时路径（async_impl/client.rs:3048/3056/3064 if_no_url）与 redirect/status 构造器置位，body/decode 构造器（error.rs:315-321）从不置位 → response.text()/json() 错误天然无 URL。独立编译探针实证：query-key 错误 Display 含密钥原文、without_url() 后不含、header 路径从未含。gemini.rs 两条生成路径（:208、:509）均把 e.without_url() 的 Display 写进返回字符串本身；models.rs google 分支 send(:78) 与 json(:88) 均 without_url，状态分支(:82)不回显 URL；dalle.rs/llm.rs 密钥全在 header，URL 无 query，println 只打 base_url/model。错误文本/响应体是服务端返回内容，不含请求密钥。(b) 前端持久化失败路径——缺陷（F1）：稳态重启回填 setState 触发 setItem→partialize 例外分支保留明文重新落盘，代码注释'仅内存，不落盘'与实测相反；数据安全阀本身（凭据库不可用时保留明文+toast）方向正确，但标志位读写不对称使例外成为默认稳态。(c) 迁移失败路径——方向正确：失败项保留磁盘明文、toast 警告、下次启动重试，不丢数据（settingsStore.ts:243-249）。(d) K3 测量替代——只部分成立：在沙箱拒绝写盘（os error 5，ACL 诊断 NOT_THIS_CLASS）的前提下测'应用产生的写入负载'是合理的替代物，但它 (1) 需要 updateSettings({}) 强制落写（正常稳态并不必然产生这次写入的观察点），(2) 只在 boot-1（迁移启动、标志已置位）测了往返，boot-2 稳态未复测——而缺陷恰在 boot-2；(3) 往返读的是插件内存文档而非磁盘。因此该替代对'写入负载清洗'成立、对'磁盘持续无明文'不成立，是方法学缺口而非可接受的完全替代。(e) 删除路径、空密钥、空 provider id、keyring NoEntry 幂等——均有实现与测试覆盖。",
+      "evidence_files": [
+        "src-tauri/src/gemini.rs",
+        "src-tauri/src/models.rs",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-007-r1/reqwest-display-probe.txt",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-007-r1/steady-state-backfill-probe.mjs",
+        ".workflow-kit/tasks/evidence/review-probes-TASK-007-r1/probe-state-d.json",
+        ".workflow-kit/tasks/evidence/task007-live/task007-live-report.json"
+      ]
+    },
+    {
+      "area": "maintainability",
+      "status": "PASS",
+      "analysis": "单一通道核实：全 src grep apiKey 分类完毕——请求构造（llmService.ts:64/227/258、modelListService.ts:61、imageGenerationService.ts:51-56）与 UI 门控（ModelSelector.tsx:64）都读内存 provider.apiKey，持久化（settingsStore partialize/迁移）与凭据库读写（secretStore，唯一 invoke('..._provider_secret') 调用点）走新通道；不存在第二个直接写凭据库或绕过 partialize 的路径。内存回填设计让 ModelSelector 的同步门控与三个 service 的既有同步检查零改动继续工作，避免了大规模异步化改造——这个取舍有明确注释与代价说明（settingsStore.ts:178-190）。secrets.rs 职责单一、错误文本只含 provider id 与原因、3 个单元测试锁定服务名/空 id/错误不回显；lib.rs 注册完整。gemini.ts 既有脱敏日志（apiKey:'***'、requestUrl 无 query）保持。缺陷根因（标志位只有写路径置位、读路径不置位）属可维护性陷阱，已记入 F1 的修复建议；不构成额外结构问题。无发现需要拆分/合并的重复规则，无新增死代码（resetSecretCache 为测试口并注明）。",
+      "evidence_files": [
+        "src/services/secretStore.ts",
+        "src/stores/settingsStore.ts",
+        "src-tauri/src/secrets.rs",
+        "src-tauri/src/lib.rs",
+        "src/services/imageGeneration/providers/gemini.ts"
+      ]
+    },
+    {
+      "area": "performance",
+      "status": "NOT_APPLICABLE",
+      "analysis": "本任务不改变渲染与数据规模，无代表性负载可定义（用户质量目标 performance.mode=not_applicable，REQ-009 明确暂缓）。新增成本仅为：凭据库读写各一次 IPC（进程内 Map 缓存后每次生成至多一次）、迁移每 provider 一次、cargo 构建时间。无性能声明需要验证。",
+      "evidence_files": []
+    }
+  ],
+  "ui_review": null,
+  "not_verified": [
+    "真实非沙箱环境下应用自身对 app-data.json 的落盘结果（本沙箱对应用的存储写入一律 os error 5 拒绝；F1/F2 由 Node 层真实代码探针证明，而非真实应用落盘实测）",
+    "真实密钥对真实 Google/OpenAI API 的请求可用性（网络受限，data=synthetic_only）",
+    "macOS Keychain / Linux Secret Service 行为（本机为 Windows，任务已知限制）",
+    "Windows 凭据管理器条目的值内容（仅用 cmdkey 列出条目名，未读取密文值）",
+    "实机截图的像素级复核（K0/K4 截图存在未重检；K1/K2/K4/K5 的结论经报告与代码路径逻辑复推）",
+    "应用关闭时 beforeunload flushSave 路径（探针未模拟真实 unload）",
+    "打包/bundler 环境下模块初始化顺序与 Node strip-types 探针的差异（理论上不影响标志位逻辑，未实测）"
+  ]
+}

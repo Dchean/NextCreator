@@ -1,0 +1,16 @@
+﻿=== r2 independent gate reruns (reviewer, no reuse of RUN-f90ec6 output) ===
+[1] node ./node_modules/typescript/bin/tsc --noEmit        -> exit 0 (silent, 2.2s)
+[2] node --experimental-strip-types scripts/queue-regression.mjs -> exit 0, PASS 9 / FAIL 0 / ERROR 0 (5.7s)
+    cases A restart-recovery, B dup-guard, C batch n=4, D queued-slot, E concurrent clicks,
+    F retry, G global concurrency 1, H cancel-no-writeback, I queued-marker-preserved
+    (stderr notes are the script's own expected filestorage-stub noise, verdict unaffected)
+[3] cargo build --release (cwd src-tauri) -> exit 0, Finished release profile
+    (first attempt ran from repo root without Cargo.toml: exit 101, rerun from src-tauri: exit 0)
+[4] cargo test --release --lib (cwd src-tauri) -> exit 0
+    test secrets::tests::empty_provider_id_is_rejected ... ok
+    test secrets::tests::entry_uses_app_identifier_as_service ... ok
+    test secrets::tests::errors_never_contain_the_secret ... ok
+    test result: ok. 3 passed; 0 failed
+[5] candidate manifest RUN-f90ec6c5...candidate.json: 129/129 file sha256 recomputed, 0 mismatch,
+    0 missing; manifest digest recomputed with tool algorithm (json.dumps sort_keys compact)
+    = 916ef6da89bb33a740c46b0548f26488183b4277f3dfb092416e54c760186d80 == binding value

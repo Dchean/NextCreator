@@ -1,0 +1,21 @@
+{
+  "finalDiskRaw": {
+    "state": {
+      "settings": {
+        "providers": [
+          {
+            "id": "prov-a",
+            "name": "A(已迁移)",
+            "apiKey": "FAKE-REVIEWER-KEY-AAAAAAAAAAAA",
+            "baseUrl": "https://api.example.com",
+            "protocol": "google"
+          }
+        ],
+        "nodeProviders": {},
+        "theme": "light"
+      }
+    },
+    "version": 0
+  },
+  "plaintextOnDisk": true
+}

@@ -2,12 +2,14 @@ mod dalle;
 mod gemini;
 mod llm;
 mod models;
+mod secrets;
 mod storage;
 
 use dalle::*;
 use gemini::*;
 use llm::*;
 use models::*;
+use secrets::*;
 use storage::*;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -48,7 +50,11 @@ pub fn run() {
             openai_responses,
             claude_chat_completion,
             // DALL-E 图片生成命令
-            dalle_generate_image
+            dalle_generate_image,
+            // API Key 的 OS 凭据库读写（REQ-007）
+            set_provider_secret,
+            get_provider_secret,
+            delete_provider_secret
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

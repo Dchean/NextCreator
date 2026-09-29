@@ -69,17 +69,23 @@ pub async fn list_models(
             let url = format!("{}/v1beta/models", base);
             let resp = client
                 .get(&url)
+                // ⚠ 这一条把 API Key 放进**查询串**。reqwest 的错误 Display 会把完整 URL
+                // （含查询串）追加进错误文本，因此下文所有 `map_err` 都必须先 `without_url()`，
+                // 否则密钥会随错误文本流回前端并被持久化进 app-data.json（REQ-007 实测泄漏路径）。
                 .query(&[("key", api_key.as_str()), ("pageSize", "200")])
                 .send()
                 .await
-                .map_err(|e| format!("请求失败: {}", e))?;
+                .map_err(|e| format!("请求失败: {}", e.without_url()))?;
 
             if !resp.status().is_success() {
-                return Err(format!("接口返回 {} ({})", resp.status(), url));
+                // 只报状态码，不回显 url（该 url 自身不含密钥，但保持一致口径便于将来复用）。
+                return Err(format!("接口返回 {}", resp.status()));
             }
 
-            let parsed: GeminiModelsResponse =
-                resp.json().await.map_err(|e| format!("解析响应失败: {}", e))?;
+            let parsed: GeminiModelsResponse = resp
+                .json()
+                .await
+                .map_err(|e| format!("解析响应失败: {}", e.without_url()))?;
 
             let models = parsed
                 .models
@@ -110,7 +116,9 @@ pub async fn list_models(
                 .header("anthropic-version", "2023-06-01")
                 .send()
                 .await
-                .map_err(|e| format!("请求失败: {}", e))?;
+                // 密钥走请求头，reqwest 的 Display 不包含头部，故此处无泄漏；
+                // 仍统一用 without_url() 保持口径一致（避免将来源 URL 写进用户可见的错误）。
+                .map_err(|e| format!("请求失败: {}", e.without_url()))?;
 
             if !resp.status().is_success() {
                 return Err(format!("接口返回 {} ({})", resp.status(), url));
@@ -136,14 +144,17 @@ pub async fn list_models(
                 .header("Authorization", format!("Bearer {}", api_key))
                 .send()
                 .await
-                .map_err(|e| format!("请求失败: {}", e))?;
+                // 密钥走 Authorization 头（Display 不含头部），仍统一 without_url() 保持口径一致。
+                .map_err(|e| format!("请求失败: {}", e.without_url()))?;
 
             if !resp.status().is_success() {
-                return Err(format!("接口返回 {} ({})", resp.status(), url));
+                return Err(format!("接口返回 {}", resp.status()));
             }
 
-            let parsed: OpenAIModelsResponse =
-                resp.json().await.map_err(|e| format!("解析响应失败: {}", e))?;
+            let parsed: OpenAIModelsResponse = resp
+                .json()
+                .await
+                .map_err(|e| format!("解析响应失败: {}", e.without_url()))?;
 
             Ok(parsed
                 .data

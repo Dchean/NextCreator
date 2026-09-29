@@ -1,0 +1,177 @@
+{
+  "id": "TASK-007",
+  "title": "API Key 不再明文落盘（REQ-007）：OS 凭据库存储、旧配置自动迁移、并封堵 Rust 侧明文回写路径",
+  "kind": "implementation",
+  "retry_safe": true,
+  "ui_change": false,
+  "ui_contract_ref": null,
+  "ui_checks": [],
+  "objective": "按已确认需求 REQ-007 让 API Key 不再以可直接读取的明文形式存放于 app-data.json：把供应商密钥改存到操作系统凭据库（Windows 凭据管理器，经 keyring crate），app-data.json 中只保留非敏感字段；旧版本已明文落盘的密钥在升级后自动迁移到凭据库并从磁盘副本中清除，且供应商仍然可用。同时封堵独立侦察实测发现的第二条明文路径：Google 协议的请求失败会把带 ?key=<密钥> 的 URL 拼进 Rust 错误字符串，该字符串经 node.data.error/errorDetails 回写并持久化到同一个 app-data.json —— 只加密 settings.providers 不足以满足验收标准，必须一并修掉。",
+  "requirement_refs": [
+    "REQ-007"
+  ],
+  "reference_ids": [],
+  "decision_refs": [
+    ".workflow-kit/docs/ADR/ADR-0003-api-key-os-keyring.md"
+  ],
+  "acceptance": [
+    "app-data.json 中不再出现可直接读取的 API Key 明文。判定：真实应用保存一次后，读取 %APPDATA%\\com.sy.nextcreator\\app-data.json 全文，断言不存在任何供应商 apiKey 的原值（逐个 provider 的原密钥做 substring 搜索必须全部不命中）；且 next-creator-settings 内 providers[].apiKey 为空字符串或不存在。",
+    "密钥改存操作系统凭据库。判定：新增的 Tauri 命令可写入/读取/删除指定 provider 的密钥；真实应用写入后，凭据库中存在对应条目（用应用自身的读取命令回读可得到原值）；删除 provider 时对应条目被删除。",
+    "旧配置自动迁移且供应商仍可用。判定：构造一份旧格式 app-data.json（providers[].apiKey 为明文，模拟升级前状态），启动应用后断言：① 该明文密钥被写入凭据库；② 应用仍能取到密钥用于请求（供应商配置在 UI 与 getProviderConfig 路径上仍可用）；③ 迁移后再次保存，app-data.json 中不再含明文。迁移必须幂等：重复启动不产生重复条目、不丢密钥。",
+    "封堵 Rust 侧明文回写：Google 协议的请求失败错误字符串不得包含密钥。判定：对 gemini.rs / models.rs 中把请求 URL 拼进错误信息的位置做订正，使错误文本不含 ?key= 后的密钥；并以探针或单元验证证明「构造一个失败响应 → 返回的 error 字符串不含密钥明文」。",
+    "不把密钥写入任何文档、日志或任务文件。判定：全仓（含 .workflow-kit/ 与 evidence/）grep 不到任何真实密钥值；新增代码不打印密钥（已有的 gemini.ts 脱敏日志保持不变）；任务记录、提交信息与证据中只出现 <provider-id> 与非敏感字段。",
+    "未配置密钥时不改变现有行为：供应商未配置密钥时仍给出原有的「供应商 API Key 未配置」错误，不因改造而变成空指针或静默失败。",
+    "不改变 app-data.json 中其它字段的语义（画布、队列、自定义模型、主题、nodeProviders 映射），不改 UI 外观与交互；ProviderPanel 的密钥输入与掩码显示保持可用（编辑时能写入新密钥，不回显明文到日志）。",
+    "node ./node_modules/typescript/bin/tsc --noEmit PASS（exit 0）；tsconfig.json 属受保护路径不得改动。",
+    "node --experimental-strip-types scripts/queue-regression.mjs 保持 9/9 PASS exit 0（scripts/** 属受保护路径，本任务不得改动其中任何文件）。",
+    "cargo build --release 成功（新依赖可获取、可编译）。若 cargo 无法拉取依赖则停止并报告，不得改用自研弱加密替代凭据库来绕过。",
+    "真实应用实机验证：release 构建 + vite devUrl + CDP 驱动，完成一次「配置供应商密钥 → 保存 → 重启 → 仍可用」的真实路径，并落盘前后截图或状态记录作为证据；同时给出迁移前后 app-data.json 的对比（脱敏，仅显示长度或是否存在，不显示密钥值）。"
+  ],
+  "non_goals": [
+    "不做 REQ-009（性能）与 REQ-010（功能/UI 优化）—— 用户已明确暂缓。",
+    "不做 REQ-011（双画布/flowStore/imageGeneratorConfig 结构性重构）—— 暂缓。",
+    "不改队列、并发、取消语义（第一批 B 已在 TASK-003 收口）。",
+    "不改 UI 外观与交互；不新增供应商管理功能。",
+    "不引入自研加密或把密钥与解密密钥一起放在同一份磁盘数据里（那等于没加密）；必须用 OS 凭据库。",
+    "不把密钥写入任何文档、日志、任务文件、提交信息或证据文件。",
+    "不改 scripts/** 任何文件（含门禁与其 selfcheck）。"
+  ],
+  "dependencies": [
+    "TASK-003"
+  ],
+  "risk": {
+    "level": "high",
+    "decision_ids": [
+      "DEC-defer-apikey-storage"
+    ]
+  },
+  "snapshot_paths": [
+    "src/stores",
+    "src/services",
+    "src/components/panels",
+    "src/types",
+    "src-tauri/src",
+    "src-tauri/Cargo.toml",
+    "src-tauri/tauri.conf.json",
+    "src-tauri/capabilities",
+    "scripts",
+    "package.json",
+    "tsconfig.json"
+  ],
+  "allowed_paths": [
+    "src/services/secretStore.ts",
+    "src/stores/settingsStore.ts",
+    "src/components/panels/ProviderPanel.tsx",
+    "src/services/imageGeneration/imageGenerationService.ts",
+    "src/services/llmService.ts",
+    "src/services/modelListService.ts",
+    "src/types/index.ts",
+    "src-tauri/Cargo.toml",
+    "src-tauri/src/lib.rs",
+    "src-tauri/src/secrets.rs",
+    "src-tauri/src/gemini.rs",
+    "src-tauri/src/models.rs",
+    "src-tauri/Cargo.lock"
+  ],
+  "protected_paths": [
+    "scripts/**",
+    "tsconfig.json",
+    "package.json",
+    "src/stores/queueStore.ts",
+    "src/stores/flowStore.ts",
+    "src/stores/canvasStore.ts",
+    "src/utils/tauriStorage.ts",
+    "src/services/nodeExecutor.ts",
+    "src/services/imageGenerationExecution.ts",
+    "src/services/concurrencyLimiter.ts",
+    "src/services/workflowEngine.ts",
+    "src/components/nodes/ImageGeneratorNode.tsx",
+    "src/components/inspectors/ImageGeneratorInspector.tsx",
+    ".github",
+    ".workflow-kit/tasks/evidence/probe-queue-store.mjs",
+    ".workflow-kit/tasks/evidence/RUN-4f082949457846f1bdfc53b9ef9972b0-behavior-regression.stdout.txt"
+  ],
+  "gates": [
+    {
+      "id": "typecheck",
+      "required": true,
+      "program": "node",
+      "args": [
+        "./node_modules/typescript/bin/tsc",
+        "--noEmit"
+      ],
+      "cwd": ".",
+      "timeout_seconds": 600
+    },
+    {
+      "id": "behavior-regression",
+      "required": true,
+      "program": "node",
+      "args": [
+        "--experimental-strip-types",
+        "scripts/queue-regression.mjs"
+      ],
+      "cwd": ".",
+      "timeout_seconds": 900
+    },
+    {
+      "id": "cargo-build",
+      "required": true,
+      "program": "cargo",
+      "args": [
+        "build",
+        "--release"
+      ],
+      "cwd": "src-tauri",
+      "timeout_seconds": 1800
+    }
+  ],
+  "test_review": {
+    "behavior": "change",
+    "baseline": {
+      "status": "PASS",
+      "evidence_ref": ".workflow-kit/tasks/evidence/RUN-852c12c4eafd4381ae91705c6ce1b19d-behavior-regression.stdout.txt",
+      "summary": "本任务改变数据存储格式（用户已明确授权改变数据格式并配套迁移，见 REQ-007 的 description 与 DEC-defer-apikey-storage）。基线：项目无任何自动化测试套件；两条零依赖门禁为 tsc --noEmit 与 scripts/queue-regression.mjs（9 用例，TASK-003 收口后 9/9 PASS exit 0）。本任务新增 cargo build --release 作为第三条必需门禁，因为改动涉及 Rust 依赖与命令注册，前端门禁完全覆盖不到。已知限制：本机 vite build 曾因 esbuild spawn EPERM 无法运行，故前端构建以 release 应用实机验证替代；Windows 凭据管理器之外的平台（macOS Keychain / Linux Secret Service）本机无法验证，如实记录。",
+      "known_failures": [
+        "scripts/queue-regression.selfcheck.mjs 在已修复源码上显示计数耦合类 NG（硬编码 pass===6，:123/:201），属 TASK-003 已归因的既有状态；其 --self-check=full-fix 仍 9/9 PASS，判别力未削弱。本任务不得改动该脚本。"
+      ]
+    },
+    "decision_ids": [
+      "DEC-defer-apikey-storage"
+    ],
+    "actions": [
+      {
+        "target": "scripts/queue-regression.mjs 的 9 个用例（A 重启恢复 / B-F 重复入队与批量与并发与重试 / G 全局并发上限 / H 取消不写回 / I queued 标记保留）",
+        "action": "keep",
+        "reason": "它们保护 TASK-006 与 TASK-003 已验收的 REQ-001/002/005/006 行为；本任务不涉及这些路径，必须继续以同一命令同一判定标准运行，且脚本本身不得改动。",
+        "gate_ids": [
+          "behavior-regression"
+        ]
+      },
+      {
+        "target": "tsc --noEmit 类型门禁",
+        "action": "keep",
+        "reason": "唯一既有的静态门禁，strict + noUnusedLocals + noUnusedParameters 全开；本任务改动跨 TS/Rust 边界与持久化格式，必须继续运行。",
+        "gate_ids": [
+          "typecheck"
+        ]
+      },
+      {
+        "target": "Rust 构建（cargo build --release）",
+        "action": "add",
+        "reason": "本任务引入新的 Rust 依赖（OS 凭据库）并注册新的 Tauri 命令；既有两条前端门禁结构上无法发现依赖不可获取、命令未注册或编译失败。TASK-003 已实测本机 cargo 能拉取 crates.io（旧记录的 schannel 阻塞已不成立）。",
+        "gate_ids": [
+          "cargo-build"
+        ]
+      },
+      {
+        "target": "API Key 持久化格式与旧数据迁移",
+        "action": "replace",
+        "reason": "用户已明确授权改变数据格式并配套迁移（REQ-007 description）。旧行为：settingsStore.ts 的 partialize 把含 apiKey 的 settings.providers 全量写入 app-data.json（明文）。新行为：磁盘上不含密钥，密钥存 OS 凭据库，旧明文在升级时自动迁移并清除。该替换没有可自动断言的门禁（项目无可继承的自动化测试，且断言需要真实的 OS 凭据库与真实应用），因此映射到本任务新增的 cargo-build 必需门禁以保证新依赖与新命令真的可编译可注册，其余行为由实机验证覆盖。",
+        "gate_ids": [
+          "cargo-build"
+        ]
+      }
+    ]
+  }
+}

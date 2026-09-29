@@ -1,0 +1,44 @@
+TASK-007 修复轮 1（针对独立审查 r1 的 3 条 findings）。修复前候选 f04a4438…，修复后候选以 finish 产物为准。
+
+## F1（critical）稳态重启把明文重新写回磁盘 —— 已修复
+根因（审查者实测复现）：getProviderApiKey 的**读取路径**确认凭据库有值后从不置位
+persistedInKeyring（只有 setProviderApiKey 置位）。回填用 useSettingsStore.setState 写入内存 →
+zustand persist 包装的 setItem 立即按当时的 partialize 落盘 → 例外分支
+（!isApiKeyPersistedInKeyring）于是**保留明文**，把刚清洗过的磁盘状态重新污染。
+修复：新增 secretStore.markPersistedInKeyring(id)，回填路径在写入内存**之前**对每个
+回填成功的 id 调用；迁移路径同样补上。审查者建议的两种修法中取其一（标志置位），
+因为它让"确认"这个动作在代码里可见，而不是靠一次额外的写盘去兜底。
+补测（审查者要求的 boot-2 往返断言）：R5 —— 稳态 boot2 后应用真实写入负载不含明文 = PASS。
+
+## F2（high）迁移本身不清洗磁盘旧明文 —— 已修复
+根因：升级首次启动只走迁移 a（无回填 setState），磁盘旧明文会滞留到未来某次无关的
+settings 写入才被 partialize 顺手清洗 —— 验收第 3 条变成"无限期滞留"。
+修复：迁移/回填成功后主动 updateSettings({}) 触发一次落盘清洗（needsCleanWrite 判定：
+有明文在盘 或 刚发生迁移/回填），失败路径保持现状（保留明文 + toast，绝不丢钥）。
+补测：R2b —— boot1 迁移后应用真实写入负载不含明文 = PASS。
+
+## F3（medium）真实密钥进了证据目录 —— 已修复
+审查者发现 6 份 app-data 备份把真实 51 字符密钥带进 .workflow-kit/tasks/evidence/，
+且其中 2 份（task003-live 的，先前任务遗留）已被 git 跟踪。
+修复：① 6 份备份全部移出仓库（C:\Users\A\NextCreator-key-backups\，用户私有目录）；
+② git rm --cached 两份被跟踪文件；③ .gitignore 新增
+".workflow-kit/tasks/evidence/**/app-data*.json"；④ 修复脚本本身改为把备份写到仓库外
+（RESTORE 路径在 %USERPROFILE%），不再产生新的含钥备份。
+遗留上报：task003-live 那两份文件在**先前已推送的提交**（v0.2.8/0.2.9）里，历史中的密钥
+需要另行决策（历史改写/凭据轮换），不在本任务范围，已记为待用户决定项。
+
+## 门禁与实机验证
+- tsc --noEmit exit 0；queue-regression.mjs 9/9 PASS exit 0；cargo build --release exit 0。
+- 实机验证 8/8 PASS（release + vite devUrl + CDP，真实系统凭据库，真实 app-data 备份/还原）：
+  R0 启动渲染；R1 迁移完成且凭据库中的值 == 本次注入密钥、内存可用（严格值比对，不用长度近似）；
+  R2b 迁移主动清洗（F2）；R3 稳态回填后内存可用；R5 稳态回填后持久化往返无明文（F1）；
+  R6 第三次启动幂等；R7 删除供应商后凭据库条目移除（绕过前端缓存直接核对 OS 状态）。
+- 真实用户数据 sha256 824a7e33… 前后一致；真实密钥值从未被读取、打印或写入任何文件。
+
+## 验证方法学的两处自纠（记录以便复用）
+1. 探针在启动后固定 sleep 3s 才读状态，而应用的迁移是异步的，冷启动下会读到
+   keyringLength=0（假 FAIL）。改为轮询 waitForMigration（等"凭据库值 == 注入值"）。
+2. 探针在启动后主动 deleteProviderApiKey 清残留，但这一步会把页面实例里 secretStore 的
+   knownMissing 置位，导致本用例自己的 getProviderApiKey 被短路成空值（又一个假 FAIL）。
+   改为每次运行使用唯一的 provider id（带 run 时间戳），天然隔离历史残留；
+   R7 则改为绕过前端缓存直接 invoke 核对 OS 真实状态。

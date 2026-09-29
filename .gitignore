@@ -23,3 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 .ace-tool/
+
+# REQ-007/F3: never track app-data backups (they contain the real API key)
+.workflow-kit/tasks/evidence/**/app-data*.json

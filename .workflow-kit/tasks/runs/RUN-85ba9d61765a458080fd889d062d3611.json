@@ -1,0 +1,153 @@
+{
+  "schema_version": 1,
+  "id": "RUN-85ba9d61765a458080fd889d062d3611",
+  "task_id": "TASK-007",
+  "kind": "verification",
+  "outcome": "completed",
+  "executor": {
+    "harness": "local_process",
+    "model": null,
+    "context_id": "tool-c4e3b5f9bcd1482483c730b6185676b0"
+  },
+  "started_at_utc": "2026-09-29T15:58:41.790780Z",
+  "finished_at_utc": "2026-09-29T15:58:50.569803Z",
+  "exit_code": 0,
+  "timed_out": false,
+  "input_digest": "dd7d38d664dd0f8114cbdb3ea7ac4924e04da44e7345f3891aa93d8eadf9f844",
+  "candidate_digest": "f04a4438ecd6ae3508a535205121754d095386a69a1fafd64536b054015b5878",
+  "raw_output_refs": [
+    ".workflow-kit/tasks/evidence/RUN-85ba9d61765a458080fd889d062d3611-typecheck.stdout.txt",
+    ".workflow-kit/tasks/evidence/RUN-85ba9d61765a458080fd889d062d3611-typecheck.stderr.txt",
+    ".workflow-kit/tasks/evidence/RUN-85ba9d61765a458080fd889d062d3611-behavior-regression.stdout.txt",
+    ".workflow-kit/tasks/evidence/RUN-85ba9d61765a458080fd889d062d3611-behavior-regression.stderr.txt",
+    ".workflow-kit/tasks/evidence/RUN-85ba9d61765a458080fd889d062d3611-cargo-build.stdout.txt",
+    ".workflow-kit/tasks/evidence/RUN-85ba9d61765a458080fd889d062d3611-cargo-build.stderr.txt"
+  ],
+  "checks": [
+    {
+      "gate_id": "typecheck",
+      "status": "PASS",
+      "exit_code": 0,
+      "log": ".workflow-kit/tasks/evidence/RUN-85ba9d61765a458080fd889d062d3611-typecheck.stdout.txt",
+      "stderr": ".workflow-kit/tasks/evidence/RUN-85ba9d61765a458080fd889d062d3611-typecheck.stderr.txt",
+      "candidate_digest": "f04a4438ecd6ae3508a535205121754d095386a69a1fafd64536b054015b5878",
+      "command": {
+        "argv": [
+          "C:\\Program Files\\nodejs\\node.exe",
+          "./node_modules/typescript/bin/tsc",
+          "--noEmit"
+        ],
+        "cwd": ".",
+        "started_at_utc": "2026-09-29T15:58:41.873797Z",
+        "finished_at_utc": "2026-09-29T15:58:44.074537Z",
+        "exit_code": 0,
+        "timed_out": false,
+        "cancelled": false,
+        "stdout": ".workflow-kit/tasks/evidence/RUN-85ba9d61765a458080fd889d062d3611-typecheck.stdout.txt",
+        "stderr": ".workflow-kit/tasks/evidence/RUN-85ba9d61765a458080fd889d062d3611-typecheck.stderr.txt"
+      }
+    },
+    {
+      "gate_id": "behavior-regression",
+      "status": "PASS",
+      "exit_code": 0,
+      "log": ".workflow-kit/tasks/evidence/RUN-85ba9d61765a458080fd889d062d3611-behavior-regression.stdout.txt",
+      "stderr": ".workflow-kit/tasks/evidence/RUN-85ba9d61765a458080fd889d062d3611-behavior-regression.stderr.txt",
+      "candidate_digest": "f04a4438ecd6ae3508a535205121754d095386a69a1fafd64536b054015b5878",
+      "command": {
+        "argv": [
+          "C:\\Program Files\\nodejs\\node.exe",
+          "--experimental-strip-types",
+          "scripts/queue-regression.mjs"
+        ],
+        "cwd": ".",
+        "started_at_utc": "2026-09-29T15:58:44.089723Z",
+        "finished_at_utc": "2026-09-29T15:58:49.773397Z",
+        "exit_code": 0,
+        "timed_out": false,
+        "cancelled": false,
+        "stdout": ".workflow-kit/tasks/evidence/RUN-85ba9d61765a458080fd889d062d3611-behavior-regression.stdout.txt",
+        "stderr": ".workflow-kit/tasks/evidence/RUN-85ba9d61765a458080fd889d062d3611-behavior-regression.stderr.txt"
+      }
+    },
+    {
+      "gate_id": "cargo-build",
+      "status": "PASS",
+      "exit_code": 0,
+      "log": ".workflow-kit/tasks/evidence/RUN-85ba9d61765a458080fd889d062d3611-cargo-build.stdout.txt",
+      "stderr": ".workflow-kit/tasks/evidence/RUN-85ba9d61765a458080fd889d062d3611-cargo-build.stderr.txt",
+      "candidate_digest": "f04a4438ecd6ae3508a535205121754d095386a69a1fafd64536b054015b5878",
+      "command": {
+        "argv": [
+          "C:\\Program Files\\Rust stable MSVC 1.98\\bin\\cargo.exe",
+          "build",
+          "--release"
+        ],
+        "cwd": "src-tauri",
+        "started_at_utc": "2026-09-29T15:58:49.822914Z",
+        "finished_at_utc": "2026-09-29T15:58:50.298801Z",
+        "exit_code": 0,
+        "timed_out": false,
+        "cancelled": false,
+        "stdout": ".workflow-kit/tasks/evidence/RUN-85ba9d61765a458080fd889d062d3611-cargo-build.stdout.txt",
+        "stderr": ".workflow-kit/tasks/evidence/RUN-85ba9d61765a458080fd889d062d3611-cargo-build.stderr.txt"
+      }
+    }
+  ],
+  "review": {
+    "mode": null,
+    "verdict": null,
+    "report": null,
+    "candidate_digest": null
+  },
+  "estimated_cost_usd": null,
+  "pid": 13812,
+  "controller_pid": 2832,
+  "commands": [
+    {
+      "argv": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "./node_modules/typescript/bin/tsc",
+        "--noEmit"
+      ],
+      "cwd": ".",
+      "started_at_utc": "2026-09-29T15:58:41.873797Z",
+      "stdout": ".workflow-kit/tasks/evidence/RUN-85ba9d61765a458080fd889d062d3611-typecheck.stdout.txt",
+      "stderr": ".workflow-kit/tasks/evidence/RUN-85ba9d61765a458080fd889d062d3611-typecheck.stderr.txt",
+      "finished_at_utc": "2026-09-29T15:58:44.074537Z",
+      "exit_code": 0,
+      "timed_out": false,
+      "cancelled": false
+    },
+    {
+      "argv": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "--experimental-strip-types",
+        "scripts/queue-regression.mjs"
+      ],
+      "cwd": ".",
+      "started_at_utc": "2026-09-29T15:58:44.089723Z",
+      "stdout": ".workflow-kit/tasks/evidence/RUN-85ba9d61765a458080fd889d062d3611-behavior-regression.stdout.txt",
+      "stderr": ".workflow-kit/tasks/evidence/RUN-85ba9d61765a458080fd889d062d3611-behavior-regression.stderr.txt",
+      "finished_at_utc": "2026-09-29T15:58:49.773397Z",
+      "exit_code": 0,
+      "timed_out": false,
+      "cancelled": false
+    },
+    {
+      "argv": [
+        "C:\\Program Files\\Rust stable MSVC 1.98\\bin\\cargo.exe",
+        "build",
+        "--release"
+      ],
+      "cwd": "src-tauri",
+      "started_at_utc": "2026-09-29T15:58:49.822914Z",
+      "stdout": ".workflow-kit/tasks/evidence/RUN-85ba9d61765a458080fd889d062d3611-cargo-build.stdout.txt",
+      "stderr": ".workflow-kit/tasks/evidence/RUN-85ba9d61765a458080fd889d062d3611-cargo-build.stderr.txt",
+      "finished_at_utc": "2026-09-29T15:58:50.298801Z",
+      "exit_code": 0,
+      "timed_out": false,
+      "cancelled": false
+    }
+  ]
+}

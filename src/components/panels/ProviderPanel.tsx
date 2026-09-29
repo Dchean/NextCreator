@@ -14,6 +14,9 @@ import {
 } from "lucide-react";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useModelListStore } from "@/services/modelListService";
+// REQ-007：密钥改存 OS 凭据库，此处是唯一的写入入口。
+import { setProviderApiKey } from "@/services/secretStore";
+import { useToastStore } from "@/stores/toastStore";
 import { Select } from "@/components/ui/Select";
 import { Input } from "@/components/ui/Input";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
@@ -460,11 +463,32 @@ export function ProviderPanel() {
       {(isAddingProvider || editingProvider) && (
         <ProviderEditModal
           provider={editingProvider}
-          onSave={(data) => {
+          onSave={async (data) => {
+            // REQ-007：密钥改存系统凭据库，settings 只在**内存**里保留真实密钥
+            // （落盘前由 settingsStore 的 partialize 统一清空）。
+            // 顺序：先拿到 provider id（新增则先建条目），再写凭据库 ——
+            // 避免出现"settings 已配置、凭据库里还没有"的中间态。
+            const inputKey = data.apiKey;
+            const providerId = editingProvider ? editingProvider.id : addProvider(data);
+
             if (editingProvider) {
-              updateProvider(editingProvider.id, data);
-            } else {
-              addProvider(data);
+              // 编辑时输入框留空 = 沿用已有密钥：**不能**把空串写进 settings，
+              // 否则内存里的真实密钥会被抹掉，UI 的"已配置"判定与请求都会失效。
+              await updateProvider(editingProvider.id, inputKey ? data : { ...data, apiKey: undefined });
+            }
+            if (inputKey) {
+              try {
+                await setProviderApiKey(providerId, inputKey);
+                // 让内存与凭据库一致（编辑既有供应商时尤其重要）。
+                await updateProvider(providerId, { apiKey: inputKey });
+              } catch (error) {
+                // 凭据库不可用时如实报错；密钥不会进磁盘（partialize 兜底），
+                // 但必须让用户知道现在密钥**没有**保存成功。
+                console.error("[ProviderPanel] 写入系统凭据库失败:", error);
+                useToastStore
+                  .getState()
+                  .error("保存密钥失败：系统凭据库不可用。密钥未保存，请检查系统凭据库后重试");
+              }
             }
             setEditingProvider(null);
             setIsAddingProvider(false);
@@ -501,7 +525,9 @@ interface ProviderEditModalProps {
 
 function ProviderEditModal({ provider, onSave, onClose }: ProviderEditModalProps) {
   const [name, setName] = useState(provider?.name || "");
-  const [apiKey, setApiKey] = useState(provider?.apiKey || "");
+  // REQ-007：settings 里不再持有明文密钥，因此编辑已有供应商时输入框**留空**，
+  // 语义是"不改动已保存的密钥"（新密钥只有用户真的输入时才会覆盖凭据库里的值）。
+  const [apiKey, setApiKey] = useState("");
   const [baseUrl, setBaseUrl] = useState(provider?.baseUrl || "");
   const [protocol, setProtocol] = useState<ProviderProtocol>(provider?.protocol || "google");
 
@@ -515,12 +541,14 @@ function ProviderEditModal({ provider, onSave, onClose }: ProviderEditModalProps
   const { contentClasses } = getModalAnimationClasses(isVisible, isClosing);
 
   const isEditing = !!provider;
-  const canSave = name.trim() && apiKey.trim() && baseUrl.trim();
+  // 新增时必须填密钥；编辑时允许留空（表示沿用凭据库中已有的密钥）。
+  const canSave = Boolean(name.trim()) && Boolean(baseUrl.trim()) && (isEditing || Boolean(apiKey.trim()));
 
   const handleSave = () => {
     if (!canSave) return;
     onSave({
       name: name.trim(),
+      // 留空即"不改密钥"：交给调用方判断（它只在非空时才写凭据库）。
       apiKey: apiKey.trim(),
       baseUrl: baseUrl.trim(),
       protocol,

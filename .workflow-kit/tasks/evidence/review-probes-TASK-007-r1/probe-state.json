@@ -1,0 +1,126 @@
+{
+  "disk": {
+    "next-creator-settings": "{\"state\":{\"settings\":{\"providers\":[{\"id\":\"prov-a\",\"name\":\"A(无protocol变化)\",\"apiKey\":\"\",\"baseUrl\":\"https://api.example.com\",\"protocol\":\"google\"},{\"id\":\"prov-b\",\"name\":\"B(带v1beta后缀)\",\"apiKey\":\"\",\"baseUrl\":\"https://generativelanguage.googleapis.com\",\"protocol\":\"google\"}],\"nodeProviders\":{\"llmContent\":\"prov-a\"},\"theme\":\"light\"}},\"version\":0}"
+  },
+  "keyring": {
+    "prov-a": "FAKE-REVIEWER-KEY-AAAAAAAAAAAA",
+    "prov-b": "FAKE-REVIEWER-KEY-BBBBBBBBBBBB"
+  },
+  "log": [
+    {
+      "boot": 1,
+      "withAction": false,
+      "memory": [
+        {
+          "id": "prov-a",
+          "memKeyLen": 30
+        },
+        {
+          "id": "prov-b",
+          "memKeyLen": 30
+        }
+      ],
+      "diskProviders": [
+        {
+          "id": "prov-a",
+          "diskKeyLen": 30
+        },
+        {
+          "id": "prov-b",
+          "diskKeyLen": 30
+        }
+      ],
+      "diskPlaintextHits": [
+        "FAKE-REVIEWE…",
+        "FAKE-REVIEWE…"
+      ],
+      "keyringLens": {
+        "prov-a": 30,
+        "prov-b": 30
+      },
+      "pluginSetCalls": 1,
+      "pluginSaveCalls": 1
+    },
+    {
+      "boot": 2,
+      "withAction": false,
+      "memory": [
+        {
+          "id": "prov-a",
+          "memKeyLen": 30
+        },
+        {
+          "id": "prov-b",
+          "memKeyLen": 30
+        }
+      ],
+      "diskProviders": [
+        {
+          "id": "prov-a",
+          "diskKeyLen": 30
+        },
+        {
+          "id": "prov-b",
+          "diskKeyLen": 30
+        }
+      ],
+      "diskPlaintextHits": [
+        "FAKE-REVIEWE…",
+        "FAKE-REVIEWE…"
+      ],
+      "keyringLens": {
+        "prov-a": 30,
+        "prov-b": 30
+      },
+      "pluginSetCalls": 0,
+      "pluginSaveCalls": 0
+    },
+    {
+      "boot": 3,
+      "withAction": true,
+      "memory": [
+        {
+          "id": "prov-a",
+          "memKeyLen": 30
+        },
+        {
+          "id": "prov-b",
+          "memKeyLen": 30
+        }
+      ],
+      "diskProviders": [
+        {
+          "id": "prov-a",
+          "diskKeyLen": 30
+        },
+        {
+          "id": "prov-b",
+          "diskKeyLen": 30
+        }
+      ],
+      "diskPlaintextHits": [
+        "FAKE-REVIEWE…",
+        "FAKE-REVIEWE…"
+      ],
+      "keyringLens": {
+        "prov-a": 30,
+        "prov-b": 30
+      },
+      "pluginSetCalls": 0,
+      "pluginSaveCalls": 0,
+      "afterAction": {
+        "diskPlaintextHits": [],
+        "diskKeyLens": [
+          {
+            "id": "prov-a",
+            "len": 0
+          },
+          {
+            "id": "prov-b",
+            "len": 0
+          }
+        ]
+      }
+    }
+  ]
+}

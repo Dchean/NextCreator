@@ -1,0 +1,17 @@
+{
+  "task_id": "TASK-007",
+  "run_id": "RUN-1ed7fd67536c47da86b036f9cf599fe1",
+  "status": "ready_for_verification",
+  "changed_files": [],
+  "validation_requests": [
+    "node ./node_modules/typescript/bin/tsc --noEmit（期望 exit 0）",
+    "node --experimental-strip-types scripts/queue-regression.mjs（期望 9/9 PASS、exit 0）",
+    "cargo build --release（期望 exit 0，src-tauri/）",
+    "cargo test --release --lib（期望 3 passed）"
+  ],
+  "requested_actions": [],
+  "unresolved_items": [],
+  "blocked_reason": null,
+  "summary": "TASK-007（REQ-007）完成：API Key 不再明文落盘 + 旧配置自动迁移 + 封堵 Rust 侧明文回写。\n\n【密钥存储】新增 src-tauri/src/secrets.rs：以 keyring 4.2.0（Windows 凭据管理器等 OS 凭据库）\n按 provider id 存取/删除密钥，服务名固定 com.sy.nextcreator；注册三个 Tauri 命令\n（set/get/delete_provider_secret）。Cargo.toml/lock 相应更新，cargo build --release exit 0。\n\n【前端唯一通道】新增 src/services/secretStore.ts：读写删除 + 进程内缓存（不落盘），\n并维护 isApiKeyPersistedInKeyring 安全阀。\n\n【持久化闸门】settingsStore.partialize 把 providers[].apiKey 清空后再落盘 —— 这是最后一道闸，\n任何新增写入路径都不可能把密钥漏进 app-data.json。**例外（数据安全优先）**：若该密钥尚未确认\n写入凭据库（迁移/保存失败，如系统凭据库不可用），则保留明文 —— 抹掉而凭据库里又没有会导致密钥\n永久丢失；此时用户看到 toast 提示，下次启动重试迁移。\n\n【迁移（幂等，两源齐备）】onRehydrateStorage：a) 磁盘仍有明文 → 写进凭据库（成功项不清内存，\n因为内存里的真实密钥正是『供应商仍可用』的来源）；b) 磁盘已无明文但凭据库有值 → 回填内存\n（仅内存，不落盘）。失败项保留明文待下次重试并提示，绝不静默丢数据。迁移触发条件独立判定\n（只要磁盘仍有明文就搬一次）—— 旧版判定只看 protocol/baseUrl 差异，在『只有密钥需要迁移』时\n会永不执行，这是本任务实测发现并修正的关键点。\n\n【Rust 侧明文回写封堵】独立侦察实测发现第二条泄漏路径：Google 协议把密钥拼进 URL 查询串（?key=…），\nreqwest 的 Display for Error 会把完整 URL 追加进错误文本，经 node.data.error/errorDetails 持久化\n进同一个 app-data.json。已修：gemini.rs 两处（generate_content / generate_text）改用 without_url()\n且日志只记录 timeout/connect 布尔值（不打印含密钥的 URL）；models.rs 的 google 分支同样修复，\nclaude/openai 分支虽走请求头（Display 不含头部）也统一 without_url() 保持口径；\nmodels.rs 里两处把 url 拼进错误文本的写法一并移除。\n\n【UI 写入路径】ProviderPanel 保存时先拿 provider id 再写凭据库；编辑时输入框留空 = 沿用已有密钥，\n此时不把空串写进 settings（否则会抹掉内存里的真实密钥）；凭据库不可用时如实报错，\n绝不把密钥退回 settings（那会退回明文落盘）。删除供应商时同步删除凭据库条目。\n\n【关键设计取舍】未把 getProviderConfig 异步化：内存里保留真实密钥 + 仅在 partialize 清盘，\n使既有同步读取方（ModelSelector 的自动拉取门控、imageGenerationService/llmService/\nmodelListService 的既有实现）零改动继续工作，避免一次大范围 async 化改造与相关回归。\n结果：imageGenerationService.ts / llmService.ts / modelListService.ts 与 HEAD 一致（无 diff）。\n\n【门禁】tsc --noEmit exit 0；queue-regression.mjs 9/9 PASS exit 0；cargo build --release exit 0；\ncargo test --release --lib 3 passed（含『错误文本不得回显密钥』的断言）。\n\n【实机验证 6/6】release 应用 + vite devUrl + CDP，真实凭据库、真实 store、真实 keyring：\nK0 启动渲染；K1 应用可见该供应商；K2 旧明文密钥迁移进系统凭据库且内存可用（长度一致）；\nK3 应用产生的持久化负载不含密钥明文（partialize 闸门生效）；K4 二次启动幂等（密钥不丢不重复）；\nK5 删除供应商后凭据库条目被清理。测试用假供应商 + 随机密钥，真实用户数据跑前备份跑后逐字节还原\n（sha256 824a7e33… 前后一致），真实密钥值从未被读取、打印或写入任何文件。\n\n【环境限制（如实记录）】本沙箱中应用对 app-data.json 的落盘被拒（Storage save error: 拒绝访问。\nos error 5）。已用 diagnose-windows-sandbox-acl 诊断该文件：无 package allow ACE、无 deny、\nWRITE_DAC/WRITE_OWNER 齐备 → NOT_THIS_CLASS（不是可修复的 ACL 问题，属 DSH 权限策略边界）。\n因此 K3 以『应用真实产生的持久化负载』（tauriStorage 插件层 round-trip）为验收载体，而非磁盘文件；\n迁移与凭据库读写（K1/K2/K4/K5）均为真实系统凭据库实测。用户升级后首次启动将在其真实环境完成\n同一条迁移路径（真实环境无此写盘限制）。",
+  "changed_files_source": "auto: filled from diff by the tool"
+}

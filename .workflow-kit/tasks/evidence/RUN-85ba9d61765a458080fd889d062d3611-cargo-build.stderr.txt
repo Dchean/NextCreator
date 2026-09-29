@@ -1,0 +1,6 @@
+warning: linker stdout: 正在创建库 D:\NextCreator\src-tauri\target\release\deps\nextcreator_lib.dll.lib 和对象 D:\NextCreator\src-tauri\target\release\deps\nextcreator_lib.dll.exp
+  |
+  = note: `#[warn(linker_messages)]` on by default
+
+warning: `nextcreator` (lib) generated 1 warning
+    Finished `release` profile [optimized] target(s) in 0.40s

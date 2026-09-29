@@ -210,7 +210,8 @@
     "owner_decision_ids": [
       "DEC-437ef3e3462c45cab882a5ba9b35ceb1"
     ],
-    "merge_ref": "not_applicable：改动在本迭代提交中入库并打 tag v0.2.9 推送 NextCreator 远端；未合并到其它分支"
+    "merge_ref": "not_applicable：改动在本迭代提交中入库并打 tag v0.2.9 推送 NextCreator 远端；未合并到其它分支",
+    "continued_by": "TASK-007"
   },
   "snapshot_paths": [
     ".github",

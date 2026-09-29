@@ -188,17 +188,24 @@ pub async fn gemini_generate_content(params: GeminiRequestParams) -> GeminiResul
             r
         }
         Err(e) => {
+            // ⚠ 不要把 `e` 直接格式化：本请求把 API Key 放在 URL 查询串里（`?key=...`），
+            // 而 reqwest 的 `Display for Error` 会把**完整 URL（含查询串）**追加成
+            // ` for url (...)` —— 那会把密钥明文写进日志、写进返回给前端的 error，
+            // 最终经 node.data.error 持久化进 app-data.json（REQ-007 实测确认的泄漏路径）。
+            // 这里只记录"是否超时/是否连接失败"这类**无 URL** 的分类信息。
             println!(
-                "[Rust] Request failed after {:?}: {}",
+                "[Rust] Request failed after {:?} (timeout={}, connect={})",
                 start_time.elapsed(),
-                e
+                e.is_timeout(),
+                e.is_connect()
             );
             let error_msg = if e.is_timeout() {
                 "请求超时，请稍后重试".to_string()
             } else if e.is_connect() {
                 "无法连接到服务器，请检查网络".to_string()
             } else {
-                format!("请求失败: {}", e)
+                // `without_url()` 去掉 URL（含 ?key=…），只保留错误文本部分。
+                format!("请求失败: {}", e.without_url())
             };
             return GeminiResult {
                 success: false,
@@ -486,13 +493,20 @@ pub async fn gemini_generate_text(params: LLMRequestParams) -> LLMResult {
             r
         }
         Err(e) => {
-            println!("[Rust] LLM request failed: {}", e);
+            // ⚠ 同 generate_content：本请求也把 API Key 放在 URL 查询串里（`?key=...`），
+            // 而 reqwest 的 Display 会带上完整 URL。只记录无 URL 的分类信息，
+            // 且返回给前端的文本用 without_url() 去掉查询串。
+            println!(
+                "[Rust] LLM request failed (timeout={}, connect={})",
+                e.is_timeout(),
+                e.is_connect()
+            );
             let error_msg = if e.is_timeout() {
                 "请求超时，请稍后重试".to_string()
             } else if e.is_connect() {
                 "无法连接到服务器，请检查网络".to_string()
             } else {
-                format!("请求失败: {}", e)
+                format!("请求失败: {}", e.without_url())
             };
             return LLMResult {
                 success: false,

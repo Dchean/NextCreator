@@ -1,0 +1,21 @@
+{
+  "scenario": "F1 steady-state restart (disk apiKey empty, keyring populated)",
+  "memory": [
+    {
+      "id": "prov-a",
+      "memKeyLen": 28
+    }
+  ],
+  "diskProviderKeyLens": [
+    0
+  ],
+  "diskContainsPlaintext": false,
+  "pluginSetCalls": 2,
+  "pluginSaveCalls": 1,
+  "keyringNow": [
+    {
+      "id": "prov-a",
+      "len": 28
+    }
+  ]
+}
