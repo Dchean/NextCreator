@@ -505,6 +505,25 @@
         "previous_deadline_at_utc": "2026-09-28T17:06:59.439299Z",
         "deadline_at_utc": "2026-09-28T22:52:17.197077Z"
       }
+    },
+    {
+      "id": "DEC-8e5da8c1ae524cd2b9e2c75a66abbed0",
+      "issuer": "owner",
+      "status": "accepted",
+      "source": "用户指令（本轮原文）：先推送打tag，再追加不限时，直至完成，然后打新tag\n\n执行说明：\n- 「先推送打tag」已完成：提交 45a7bf8 推送至用户本人的 NextCreator 远端（refs/heads/main = 45a7bf8），并创建并推送附注 tag v0.2.7-checkpoint（指向 45a7bf8）。未推送 origin（他人上游）。\n- 「再追加不限时」：本次 extend 即为此项。用户明确要求不设时间上限、直到任务完成，因此一次性追加充裕额度，以免每轮返回打断用户。\n- 「直至完成」：总控继续按最小改动路线推进 —— 先修第 9 轮唯一阻塞项（queueStore.ts:977-978 注释断言与同文件 :947 自相矛盾），再派全新独立审查；每轮审查仍使用未参与实现的全新上下文；不以门禁全绿冒充验收；不自行新建任务清零；如遇额度上限或方向不收敛，仍会如实上报而非机械重试。\n- 「然后打新tag」：任务达到可验收状态（全新独立审查 PASS 且总控亲自复跑门禁/tsc/探针）后，创建并推送新 tag。\n\n本决策的 source 为用户本轮指令原文。",
+      "statement": "Owner extended this task's time/repair allowance; financial limits remain in force",
+      "scope": [
+        "TASK-006"
+      ],
+      "recorded_at_utc": "2026-09-29T00:15:54.452842Z",
+      "budget_extension": {
+        "decision_id": "DEC-8e5da8c1ae524cd2b9e2c75a66abbed0",
+        "recorded_at_utc": "2026-09-29T00:15:54.452842Z",
+        "minutes": 2880,
+        "repair_rounds": 20,
+        "previous_deadline_at_utc": "2026-09-28T22:52:17.197077Z",
+        "deadline_at_utc": "2026-10-01T00:15:54.452842Z"
+      }
     }
   ]
 }

@@ -7,7 +7,7 @@
   "ui_change": false,
   "ui_contract_ref": null,
   "ui_checks": [],
-  "status": "blocked",
+  "status": "verified",
   "objective": "修复 REQ-001（应用重启后遗留的 queued 任务永不执行、相关节点永久显示“排队中”并禁用生成）与 REQ-002（缺少同一节点的重复入队保护），并建立一份零新增依赖的行为回归门禁，使这两项缺陷有可执行的红→绿证据。",
   "non_goals": [
     "不新建或修改测试基础设施（scripts/ 归 TASK-000，本任务只消费它）。",
@@ -176,7 +176,7 @@
   "budget": {
     "started_at_utc": "2026-09-28T06:24:59.726013Z",
     "deadline_at_utc": "2026-09-28T09:24:59.726013Z",
-    "repair_rounds_used": 8,
+    "repair_rounds_used": 9,
     "extensions": [
       {
         "decision_id": "DEC-bf739b8b6c1a4db0b14beaa94db2a412",
@@ -209,6 +209,14 @@
         "repair_rounds": 1,
         "previous_deadline_at_utc": "2026-09-28T17:06:59.439299Z",
         "deadline_at_utc": "2026-09-28T22:52:17.197077Z"
+      },
+      {
+        "decision_id": "DEC-8e5da8c1ae524cd2b9e2c75a66abbed0",
+        "recorded_at_utc": "2026-09-29T00:15:54.452842Z",
+        "minutes": 2880,
+        "repair_rounds": 20,
+        "previous_deadline_at_utc": "2026-09-28T22:52:17.197077Z",
+        "deadline_at_utc": "2026-10-01T00:15:54.452842Z"
       }
     ]
   },
@@ -251,16 +259,17 @@
     "RUN-18de4b402836488a8054a1424794a1f5",
     "RUN-5d57d1e057ba4cba94c0b520d5cbe60e",
     "RUN-48b9bcc879c44c7d9a5ac0ce076cf409",
-    "RUN-08ea6aa5677c461495265159cf50dec2"
+    "RUN-08ea6aa5677c461495265159cf50dec2",
+    "RUN-3ae83f35e6044115b0347c269ec2d43c",
+    "RUN-abbaf27af8614605a132bc76cb7b4aae",
+    "RUN-0410f4e5577240b2946212af8c4bc7e5"
   ],
-  "blockers": [
-    "Review requires changes; inspect the findings"
-  ],
+  "blockers": [],
   "evidence": {
-    "candidate_manifest": ".workflow-kit/tasks/evidence/RUN-48b9bcc879c44c7d9a5ac0ce076cf409-candidate.json",
-    "candidate_digest": "44d8d897ca9924cfe25adceae26c0b0375fcf77839d6419a9219bb19d263cbd7",
-    "verification_run": "RUN-48b9bcc879c44c7d9a5ac0ce076cf409",
-    "review_run": null,
+    "candidate_manifest": ".workflow-kit/tasks/evidence/RUN-abbaf27af8614605a132bc76cb7b4aae-candidate.json",
+    "candidate_digest": "a0272c52bb47acfa2cfb8424bb65209bd0dd89e04f594b43b0e416b072c70805",
+    "verification_run": "RUN-abbaf27af8614605a132bc76cb7b4aae",
+    "review_run": "RUN-0410f4e5577240b2946212af8c4bc7e5",
     "acceptance_ref": null,
     "owner_decision_ids": [],
     "merge_ref": null
@@ -643,6 +652,31 @@
       "at_utc": "2026-09-28T23:06:18.718004Z",
       "note": "Review requires changes; inspect the findings",
       "next_action": "先核对已有文件及原始日志，再处理 review_failure；不要新建任务或重置预算"
+    },
+    {
+      "at_utc": "2026-09-29T00:15:54.719344Z",
+      "note": "依据新决定追加预算；原始时钟与失败记录保留",
+      "next_action": "先核对已有成果，再按原任务范围继续"
+    },
+    {
+      "at_utc": "2026-09-29T00:16:25.897458Z",
+      "note": "开始执行，保留原任务身份和截止时间；沿用本任务先前的范围基线，changed_files 为本任务累计改动",
+      "next_action": "完成当前修改后运行 diff --run 核对改动，再调用 finish，然后 verify"
+    },
+    {
+      "at_utc": "2026-09-29T00:27:58.582276Z",
+      "note": "编码结果已记录，差异范围已核对：src/stores/queueStore.ts",
+      "next_action": "运行 verify；代码完成尚未等于验收通过"
+    },
+    {
+      "at_utc": "2026-09-29T00:28:26.372505Z",
+      "note": "预先定义的必需测试全部通过，日志已保存",
+      "next_action": "审查当前候选；独立审查使用没有参与编码的新上下文"
+    },
+    {
+      "at_utc": "2026-09-29T01:13:24.844474Z",
+      "note": "当前候选的测试与审查通过（independent）",
+      "next_action": "继续已授权任务；所属功能完成后请用户验收"
     }
   ],
   "resume_phase": "review",
@@ -757,6 +791,5 @@
       "note": "Manager-authored checklist vs task-cumulative baseline; candidate is queueStore.ts only.",
       "resumed_to": "ready"
     }
-  ],
-  "failure_kind": "review_failure"
+  ]
 }

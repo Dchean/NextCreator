@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "id": "RUN-3ae83f35e6044115b0347c269ec2d43c",
+  "task_id": "TASK-006",
+  "kind": "repair",
+  "outcome": "completed",
+  "executor": {
+    "harness": "current_agent",
+    "model": null,
+    "context_id": "REPAIR ROUND 9 of TASK-006, under the user instruction 追加不限时，直至完成 (extend DEC-8e5da8c1ae524cd2b9e2c75a66abbed0: +2880 min, +20 rounds). SCOPE IS ONE COMMENT FIX. Independent review round 9 returned FAIL with exactly ONE finding and the strongest checks yet: requirements=PASS, regression=PASS, failure_paths=PASS (up from FAIL), performance=PASS; ONLY maintainability failed, caused solely by one falsifiable necessity claim in a comment. The reviewer stated plainly that if the intent was behavioural correctness the candidate already meets it, that it found no new mechanism-level defect, and that the round-7 checkpoint move and the round-8 stillClearable gate are BOTH verified correct and MUST NOT be reverted. THE FINDING: queueStore.ts:977-978 claims that with one more legal marker present the rescan is permanently non-empty and the exit NECESSARILY falls to the cap. That is false - it accounts only for the zero-candidate break at :954 and OMITS :948 if (!healPending) break, which fires BEFORE the rescan whenever the round produced no nested write, and only-legal-markers-remain necessarily means nothing is written. DECISIVE INTERNAL EVIDENCE: line :947, untouched in round 8, already states the !healPending branch fires precisely when candidates are all kept by the predicate and nobody wrote nodes - the exact shape the new :978 claims goes to the cap. Two sibling comments in one loop contradict each other. Reviewer measurements with a forced single queueStore instance: LEGAL plus already-healed stale with NO pathological writer gives passes=2 exit nopending; a one-shot whole-array undo write gives passes=3 exit nopending; the cap is reached only when a writer re-arms every round. Impact is comment correctness ONLY - warning behaviour, termination and treatment semantics are unaffected, and :979 conclusion (the cap warning must not treat non-empty candidates as proof that stale markers remain) stays CORRECT and is exactly what justifies the gate. REQUIRED FIX (comment-only, per the reviewer suggestion): replace the necessity claim with the code-accurate version - state that candidates.length === 0 never hits when a legal marker is present, and that the ACTUAL exit depends on whether the round performed a nested write: if yes, continue to the cap at :982 (warning gated by the read-only stillClearable criterion); if no, exit FIRST via :948 as nopending, which is precisely the exit when the stale marker has been healed and only legal markers remain. Align the wording with :947 so the two sibling comments agree. DO NOT change any code logic, do NOT touch the round-7 placement, MAX_HEAL_PASSES, the guard, the predicate, the deferral, or the stillClearable gate."
+  },
+  "started_at_utc": "2026-09-29T00:16:25.749612Z",
+  "finished_at_utc": "2026-09-29T00:27:58.506690Z",
+  "exit_code": 0,
+  "timed_out": false,
+  "input_digest": "0d1e84bb9ef92149c761104cec4da4c861023db16721cdb3480b100b7325fd2e",
+  "candidate_digest": "a0272c52bb47acfa2cfb8424bb65209bd0dd89e04f594b43b0e416b072c70805",
+  "raw_output_refs": [
+    ".workflow-kit/tasks/evidence/RUN-3ae83f35e6044115b0347c269ec2d43c-worker-result.json"
+  ],
+  "checks": [],
+  "review": {
+    "mode": null,
+    "verdict": null,
+    "report": null,
+    "candidate_digest": null
+  },
+  "estimated_cost_usd": null,
+  "scope_manifest": ".workflow-kit/tasks/evidence/RUN-3ae83f35e6044115b0347c269ec2d43c-scope.json",
+  "baseline_manifest": ".workflow-kit/tasks/evidence/RUN-5d57d1e057ba4cba94c0b520d5cbe60e-scope.json"
+}

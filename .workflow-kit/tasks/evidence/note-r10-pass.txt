@@ -1,0 +1,30 @@
+TASK-006 第 10 轮独立审查 **PASS（findings=[]，五项检查全 PASS）** —— 十轮以来首次通过；因工具证据校验规则被拒记录，已派第 11 轮确认审查
+
+## 第 10 轮审查结论（审查者 6829a15c，全新上下文）
+**verdict = PASS，findings = []，五项检查全部 PASS**（requirements / regression / failure_paths / maintainability / performance）。报告存 .workflow-kit/tasks/evidence/review-TASK-006-r10.json，探针存 review-probes-r10/（44 文件）。
+
+审查者**独立复现**（非继承结论）：
+- **绑定**：它自己重算逐文件 sha256，与候选清单一致（queueStore.ts 3638d31d…、hook 6c417d98…），故审的是记录的候选而非移动的树。
+- **注释-only 的字节级证明**：用 git 自己的 `git diff HEAD -U0`，得 19 增 4 删，**每一条增删行都以 `//` 开头**（非注释增行 0、非注释删行 0）；hook 相对 HEAD 无 diff。
+- **第 9 轮发现已关闭**：旧必要性断言在全文件消失（三个旧短语 grep 均无），订正文字与 :947 一致；它重跑随附出口探针得 RESULT: PASS、11/11、单实例断言通过，实测 (a) nopending/2 轮/0 告警、(b) nopending/3/0、(c) cap/8/1 —— 内联数字与形状描述全部为真。
+- **对新文字的定向攻击（自建 probe-r10-newtext.mjs）未能推翻任何一句**：(e) 无关写入方 → 仍在 :948/2 轮、不到上限（故被 worker 自己否掉的那句草稿没有被以错误形式塞回）；(h) 有界 N=7 补回写入方 → 8 轮、出口=上限、0 告警（证明两条 bullet 对出口轮的分划穷尽）；(g) 它唯一能构造的零候选复活形状需要**合成的嵌套写入方抹掉活着的合法标记**（仓内不存在，且该分支触发时已无合法标记）→ 只记为该句的精确边界，**不作为 finding**。
+- **功能**：F-R4-1（undo 探针未复现 + probe-r5-heal-attack 子项 7 真实 undo/redo 入口）、F-R5-1（被拒点击各 +1 条 toast、不写任何节点数据字段；其 4 个 FAIL 是探针自身陈旧账目 +1-vs-+4，门禁用例 C 独立钉住 n=4 恰好 4 job）、F-R5-2、F-R3-2、F1、上限告警 iff 全部闭合。
+- **回归 13/13 全绿**；门禁捕获 6/6 PASS exit 0；**tsc 它自己跑 = exit 0、输出为空**。
+- **诚实披露未验证项**：它**没有**自己重跑门禁（因 scripts/queue-regression.mjs 会在仓内 mkdtemp `scripts/.nc-mutants-*`，属仓库写入，与只读审查冲突），只引用 run 落盘输出；**没有**起 Tauri 应用、无 DOM/键盘/截图级验证（ui_review=null：toast 断言是 store 级、Ctrl+Z 经 flowStore.undo() 模拟）；未把已知坏探针当信号；未重算工作流 digest 本身，只逐文件校验其绑定的 sha256。
+
+## 记录被拒的机械原因（已定位到源码，非审查质量问题）
+`project_workflow.py:448` 规定：review 报告引用的每个 evidence_files 路径**必须存在且非空**（`path.stat().st_size == 0` 即报 "Review evidence is missing/empty"）。
+而第 10 轮引用了 `.workflow-kit/tasks/evidence/RUN-abbaf27af8614605a132bc76cb7b4aae-typecheck.stdout.txt` —— 该文件 **0 字节**。原因：**tsc 通过时不产生任何输出**，空输出正是通过的正确形态。
+总控核对该报告引用的全部 33 个文件：**除这一个外全部存在且非空**。
+这是一个**工具与门禁的系统性不匹配**：任何引用 typecheck 原始日志的审查都会永远被拒（该日志恒为 0 字节）。
+
+## 总控的处置（刻意不篡改独立审查产物）
+1. **没有**手工改写审查者的报告：独立审查产物应由审查者出具，管理者替换其引用会削弱独立性 —— 这是本任务十轮来一直坚持的边界。
+2. 改为捕获一份**自描述的补充证据**：`.workflow-kit/tasks/evidence/TASK-006-typecheck-evidence.txt`（706B，非空）。内含：确切命令、捕获时间戳、`--- stdout (0 bytes) --- (空：tsc 通过时无输出)`、`--- stderr (0 bytes) --- (空)`、`--- 退出码 --- 0 => PASS（0 即通过）`，并明确说明原始门禁日志为何为 0 字节。
+3. 派发**第 11 轮确认审查**（9af83121，全新上下文）：明确要求它**不得**引用任何 `*-typecheck.stdout.txt`（恒 0 字节），改为引用上述补充记录或其它非空证据；同时要求它**独立重做**关键验证（绑定 sha256、注释-only、三出口探针、新文字攻击、功能抽查、13 项回归、自行跑 tsc），并明确「若发现真实缺陷就判 FAIL，不要迁就第 10 轮」。
+   注意：审查者 6829a15c 已结束且无法以 send_message 唤醒（它不是 teammate 而是 subagent，通道不匹配），故采用新开确认审查而非请原作者改稿。
+
+## 状态
+- 候选：a0272c52bb47acfa2cfb8424bb65209bd0dd89e04f594b43b0e416b072c70805（已 verify：RUN-abbaf27af8614605a132bc76cb7b4aae）
+- 修复轮：9/28；时钟 deadline 2026-10-01T00:15:54Z（用户已批准不限时）
+- 用户指令进度：① 推送+tag 已完成（45a7bf8 + v0.2.7-checkpoint 已推其本人 NextCreator 远端）；② 追加不限时已完成；③ 直至完成进行中（第 11 轮确认审查）；④ 打新 tag 待 PASS 记录后执行

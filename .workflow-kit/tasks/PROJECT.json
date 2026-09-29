@@ -4,7 +4,7 @@
   "name": "NextCreator",
   "kind": "refactor",
   "stage": "delivery",
-  "current_task": "TASK-006",
+  "current_task": null,
   "current_batch": "BATCH-c782387bf20543bcbc9ae0c7747650b3",
   "ui_preview_task": null,
   "policy": ".workflow-kit/tasks/POLICY.json",
