@@ -1,4 +1,0 @@
-﻿tsc rerun (2026-09-29, reviewer r13): command = node ./node_modules/typescript/bin/tsc --noEmit
-exit_code = 0
-stdout_bytes = 0
-note = tsc 通过时 stdout 恒为空，这是正确形态（通过证据见 RUN-4f082949457846f1bdfc53b9ef9972b0.json 的 checks[0].status=PASS/exit_code=0）

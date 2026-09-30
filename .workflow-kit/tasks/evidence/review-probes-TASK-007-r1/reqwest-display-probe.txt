@@ -1,6 +1,0 @@
-# reqwest 0.12.28 Display semantics probe (reviewer, independent)
-# Date: 2026-09-29 | repo reqwest locked version: 0.12.28 (Cargo.lock)
-# standalone project at %TEMP%\nc-reqwest-probe (outside repo; no product files touched)
-[query-key-send-err] contains_key=true :: display_head=error sending request for url (http://127.0.0.1:1/v1beta/models/m:generateContent?key=PROBESECRET12345)
-[query-key-without-url] contains_key=false :: display_head=error sending request
-[header-key-send-err] contains_key=false :: display_head=error sending request for url (http://127.0.0.1:1/v1/chat/completions)

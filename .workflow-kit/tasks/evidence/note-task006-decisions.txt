@@ -1,5 +1,0 @@
-TASK-005 返工轮处置与后续 TASK-006 的两项技术决定（总控决定，属已确认范围内的实现取舍，不改变用户已选行为）：
-
-(1) 修复落点定为 store 层：门禁用例 A 只驱动 queueStore 自身的水合链路，不 mount App。因此 REQ-001 的启动恢复（推进遗留 queued 任务 + 清除节点的 data.queued 标记）必须实现在 store 的冷启动/水合路径（例如 onRehydrateStorage 内），而不是 App.tsx 的 useEffect。理由：状态恢复归状态层所有，比散落在 UI 层的 useEffect 更可测、更不易被后续改动遗漏；且当前门禁只能观测 store 层，这样红到绿证据才成立。
-
-(2) 去重不得破坏合法批量拆分：REQ-002 的验收是「同一节点已有 queued/running 任务时再次触发不再产生并发任务」，而 useImageGeneratorExecution.ts:61-74 的批量拆分（batchCount>1）在一次用户点击内合法地为同一节点产生多个 job。故去重检查必须放在用户触发入口（handleGenerate 内、批量循环之前），判断「该节点当前是否已有 queued/running 任务」，而不是逐个 job 在 enqueue 内按 nodeId 粗暴去重——后者会把一次正常批量点击压成 1 个 job，破坏已有功能。此约束需写入 TASK-006 任务卡；且当前门禁用例 B 用 batchCount=1，拦不住批量回归，属已知覆盖缺口，记为待办。

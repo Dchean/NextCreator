@@ -1,6 +1,0 @@
-{
-  "changed_files": [
-    "package.json",
-    "scripts/queue-regression.mjs"
-  ]
-}

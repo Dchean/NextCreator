@@ -1,6 +1,0 @@
-[
-  "用例 A 只驱动 store 自身的水合链路。若 TASK-001 把启动恢复实现在 App.tsx 的 useEffect 而不落在 store 冷启动/水合路径，用例 A 仍会判红（假红）。修复落点需落在 store 层，已在脚本用例注释中说明。",
-  "用例 A 的等待窗口为 1500ms，按同步或 setTimeout 级推进设定；若修复引入较长 debounce 需调大该窗口。",
-  "用例 B 的红色态依赖 stub invoke 抛错前 job 仍处于 queued/running 的时序（已连续两次运行结果一致，未见抖动）；若将来 executeImageGeneration 变快使 job 立即转 error，红色可能退化为 ERROR，届时需改为采样峰值。",
-  "本门禁只覆盖 store 与 hook 级逻辑，不覆盖真实 Tauri 运行时、HTTP 供应商调用、渲染与真实 UI 行为；vite build 在本会话沙箱因 esbuild spawn EPERM 仍无法运行，前端构建可性仍属未验证。"
-]

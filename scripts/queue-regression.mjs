@@ -8,9 +8,9 @@
  *              产生并发任务写同一 node.data
  *
  * 来源探针（只读基线，本脚本未修改它们）：
- *   .workflow-kit/tasks/evidence/probe-queue-store.mjs          （REQ-001 现象）
- *   .workflow-kit/tasks/evidence/probe-partialize-deadbranch.mjs（partialize / persist API 事实）
- *   .workflow-kit/tasks/evidence/probe-dup-enqueue.mjs          （REQ-002 红状态；registerHooks 与 STUBS 蓝本）
+ *   docs/adr/（历史探针，已随工作流系统移除）          （REQ-001 现象）
+ *   docs/adr/（历史探针，已随工作流系统移除）（partialize / persist API 事实）
+ *   docs/adr/（历史探针，已随工作流系统移除）          （REQ-002 红状态；registerHooks 与 STUBS 蓝本）
  *
  * 运行：
  *   node --experimental-strip-types scripts/queue-regression.mjs

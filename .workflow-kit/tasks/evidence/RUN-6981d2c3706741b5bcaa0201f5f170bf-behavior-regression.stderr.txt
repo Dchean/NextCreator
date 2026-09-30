@@ -1,8 +1,0 @@
-文件保存失败，回退到 base64 存储: Error: stub invoke
-    at invoke (stub:@tauri-apps/api/core:1:37)
-    at saveImage (file:///D:/NextCreator/src/services/fileStorageService.ts:81:16)
-    at saveImage (mutant:filestorage-gated-save:9:20)
-    at async Promise.all (index 0)
-    at async executeImageGeneration (file:///D:/NextCreator/src/services/imageGenerationExecution.ts:385:29)
-    at async caseCancelDoesNotWriteBack (file:///D:/NextCreator/scripts/queue-regression.mjs:1369:14)
-    at async file:///D:/NextCreator/scripts/queue-regression.mjs:1578:18

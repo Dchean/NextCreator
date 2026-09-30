@@ -1,9 +1,0 @@
-{
-  "changed_files": [
-    "bun.lock",
-    "package-lock.json",
-    "package.json",
-    "src/services/imageService.ts",
-    "src/utils/imageCompression.ts"
-  ]
-}

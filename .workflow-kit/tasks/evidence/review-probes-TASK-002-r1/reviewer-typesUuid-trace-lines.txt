@@ -1,2 +1,0 @@
-Found 'package.json' at 'D:/NextCreator/node_modules/@types/uuid/package.json'.
-File 'D:/NextCreator/node_modules/@types/uuid/index.d.ts' does not exist.

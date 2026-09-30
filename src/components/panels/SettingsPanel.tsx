@@ -414,8 +414,9 @@ export function SettingsPanel() {
                 {PROJECT_INFO.description}
               </p>
 
-              <div className="flex items-center gap-4 text-xs text-base-content/50">
-                <span>作者: {PROJECT_INFO.author}</span>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-base-content/50">
+                <span>原作者: {PROJECT_INFO.upstream.author}</span>
+                <span>二改维护: {PROJECT_INFO.maintainer}</span>
                 <span>许可证: {PROJECT_INFO.license}</span>
               </div>
             </div>

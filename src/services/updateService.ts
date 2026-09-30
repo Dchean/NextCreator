@@ -7,18 +7,27 @@
 // 在 vite.config.ts 中会通过 define 注入
 declare const __APP_VERSION__: string;
 
+// 版本号单一来源（与 Toolbar 徽章一致，构建时内联）
+import packageJson from "../../package.json";
+
 // GitHub 仓库信息
+// 二改版的更新检测指向**本仓库**（而非上游），否则会把用户引向上游的版本。
 export const GITHUB_REPO = {
-  owner: "MoonWeSif",
+  owner: "Dchean",
   repo: "NextCreator",
-  url: "https://github.com/MoonWeSif/NextCreator",
+  url: "https://github.com/Dchean/NextCreator",
 };
 
 // 项目信息
+// 二改版必须同时如实标注「原作者」与「本版维护者」，避免用户把二改当成原版。
 export const PROJECT_INFO = {
   name: "NextCreator",
   description: "基于可视化节点的 AI 内容生成工作流工具",
-  author: "MoonWeSif",
+  upstream: {
+    author: "MoonWeSif",
+    url: "https://github.com/MoonWeSif/NextCreator",
+  },
+  maintainer: "Dchean",
   license: "AGPL-3.0",
 };
 
@@ -42,10 +51,15 @@ export interface GitHubRelease {
 
 /**
  * 获取当前应用版本号
+ *
+ * 版本号的单一来源是 package.json：
+ *  - 主路径：Vite 通过 define 注入的 __APP_VERSION__；
+ *  - 兜底路径：直接 import package.json（构建时会被内联，不会打进运行时网络请求）。
+ * 此前兜底值是一个写死的字符串，版本升级时漏改会导致画布内长期显示旧版本号。
  */
 export function getCurrentVersion(): string {
-  // 使用 Vite 注入的版本号，如果不存在则使用默认值
-  return typeof __APP_VERSION__ !== "undefined" ? __APP_VERSION__ : "0.2.6";
+  if (typeof __APP_VERSION__ !== "undefined") return __APP_VERSION__;
+  return packageJson.version;
 }
 
 /**

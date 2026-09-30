@@ -8,6 +8,9 @@ import { toast } from "@/stores/toastStore";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { WorkflowControls } from "@/components/workflow/WorkflowControls";
 import logoImage from "@/assets/logo.png";
+// 版本号单一来源：package.json（Vite 构建时会把整包内联，运行时无网络请求）。
+// 此前这里是写死的字符串，版本升级时极易漏改（画布内长期显示旧版本号）。
+import packageJson from "../../package.json";
 
 export function Toolbar({ onOpenHelp }: { onOpenHelp?: () => void }) {
   const { openSettings, openProviderPanel } = useSettingsStore();
@@ -119,7 +122,7 @@ export function Toolbar({ onOpenHelp }: { onOpenHelp?: () => void }) {
           <img src={logoImage} alt="NextCreator" className="w-8 h-8 rounded-md" />
           <span className="text-base font-bold leading-none">NextCreator</span>
         </div>
-        <div className="nc-badge">v0.2.6</div>
+        <div className="nc-badge">v{packageJson.version}</div>
       </div>
 
       {/* 中间工具 */}

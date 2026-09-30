@@ -24,5 +24,5 @@ dist-ssr
 *.sw?
 .ace-tool/
 
-# REQ-007/F3: never track app-data backups (they contain the real API key)
-.workflow-kit/tasks/evidence/**/app-data*.json
+# 永不跟踪本地应用数据备份（可能含凭据）
+**/app-data*.json
