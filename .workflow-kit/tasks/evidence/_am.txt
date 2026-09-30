@@ -1,0 +1,7 @@
+docs(adr): ADR-0004 记录发布 tag 必须与版本号严格一致
+
+把「升版本 + 打同名 tag」定为发布流程的硬约束，并说明为何由流水线强制校验
+（安装包文件名取自 tauri.conf.json 的 version、Release 名称取自 tag，两者必须同源）。
+
+同时记录清理旧资产时的判定规则：文件名不含版本号的产物（如 macOS 的
+NextCreator_*.app.tar.gz）必须保留，否则会把该平台产物误删。
