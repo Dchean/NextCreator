@@ -1,0 +1,10 @@
+chore(release): 版本升至 0.3.1（纯净化后的首个发布 tag）
+
+随上一提交的仓库纯净化与画布内版本号修复，应用版本按语义升到 0.3.1，
+并按 ADR-0004 规则打同名发布 tag（tag 必须等于版本号）。
+
+同步内容：package.json、tauri.conf.json、Cargo.toml、Cargo.lock，
+以及 README 的版本徽章与安装包文件名示例（均已纳入 CI 守卫）。
+
+验证：tsc 0；行为回归 9/9 PASS；cargo build --release 产物版本戳 0.3.1；
+版本对齐守卫对 v0.3.1 通过。
