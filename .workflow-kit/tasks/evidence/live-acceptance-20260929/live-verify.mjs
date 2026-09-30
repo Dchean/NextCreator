@@ -4,7 +4,7 @@
  * Real release app + vite devUrl; all interactions are REAL CDP mouse/keyboard
  * input on the shipping UI. Assertions read the app's OWN zustand stores via Vite
  * dev modules (the same instances the UI uses), because a sandboxed child token
- * cannot write app-data.json in this session (os error 5) - so the persisted file
+ * cannot write app-data.json in this session (<SANDBOX_WRITE_DENIED>) - so the persisted file
  * is not a usable oracle here. The S5 restart fixture is written in the app's own
  * persisted format.
  *
@@ -420,7 +420,7 @@ try {
   } catch (e) { rec("S5", "强杀重启后遗留 queued 得到处置且节点解锁（REQ-001）", null, "异常: " + e.message); }
 
   report.persistErrors = consoleErrors.slice(0, 3);
-  report.envNote = "本会话中应用无法写 app-data.json（子进程继承受限令牌，os error 5）；断言改为读取应用自身 zustand store（经 Vite 模块取到 UI 同一个实例）；S5 的重启前持久化文件由驱动按应用自身格式写入（fixture）。本机本地网关未启动，任务执行会以 502 失败，不影响队列语义断言。";
+  report.envNote = "本会话中应用无法写 app-data.json（子进程继承受限令牌，<SANDBOX_WRITE_DENIED>）；断言改为读取应用自身 zustand store（经 Vite 模块取到 UI 同一个实例）；S5 的重启前持久化文件由驱动按应用自身格式写入（fixture）。本机本地网关未启动，任务执行会以 502 失败，不影响队列语义断言。";
 } catch (e) {
   report.fatal = String(e?.stack ?? e);
   console.log("[LIVE] FATAL", report.fatal);

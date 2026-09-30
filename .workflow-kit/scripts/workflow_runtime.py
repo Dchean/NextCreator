@@ -117,7 +117,7 @@ def journal(root, event, detail, task_id=None):
     path.parent.mkdir(parents=True, exist_ok=True)
     if not path.is_file():
         path.write_bytes((w.BOARD_MARKER.replace("generated view; edit task JSON instead", "append-only journal; use checkpoint/note")
-                          + "\n# 项目日志\n\n工具在每个关键事件后追加一行；Agent 用 note 追加上下文、决策、待办和教训。不要手工改写历史行。\n\n").encode("utf-8"))
+                          + "\n# 项目日志\n\n工具在每个关键事件后追加一行；Agent 用 note 追加上下文、决策、待办和教训。不要手工历史卫生处置行。\n\n").encode("utf-8"))
     text = " ".join(str(detail or "").split())
     line = "- " + w.iso(w.utc_now()) + " · " + event + " · " + ((task_id + " · ") if task_id else "") + text + "\n"
     with path.open("ab") as stream:

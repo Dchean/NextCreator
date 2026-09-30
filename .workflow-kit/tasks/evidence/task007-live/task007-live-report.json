@@ -25,7 +25,7 @@
       "id": "K3",
       "title": "应用产生的持久化负载不含密钥明文（partialize 闸门生效）",
       "result": "PASS",
-      "detail": "插件层 round-trip 含假密钥=false；本沙箱中应用落盘被拒（os error 5）次数=3，故以应用真实写入的负载为准；磁盘文件在本次运行中未被应用修改（环境限制，已用 ACL 诊断排除为 NOT_THIS_CLASS）"
+      "detail": "插件层 round-trip 含假密钥=false；本沙箱中应用落盘被拒（<SANDBOX_WRITE_DENIED>）次数=3，故以应用真实写入的负载为准；磁盘文件在本次运行中未被应用修改（环境限制，已用 ACL 诊断排除为 NOT_THIS_CLASS）"
     },
     {
       "id": "K4",
@@ -50,12 +50,12 @@
         "roundTripRealKeyPresent": false
       },
       "saveErrors": [
-        "Storage save error: 拒绝访问。 (os error 5)",
-        "Storage save error: 拒绝访问。 (os error 5)",
-        "Storage save error: 拒绝访问。 (os error 5)",
-        "Storage save error: 拒绝访问。 (os error 5)",
-        "Storage save error: 拒绝访问。 (os error 5)",
-        "Storage save error: 拒绝访问。 (os error 5)"
+        "Storage save error: 拒绝访问。 (<SANDBOX_WRITE_DENIED>)",
+        "Storage save error: 拒绝访问。 (<SANDBOX_WRITE_DENIED>)",
+        "Storage save error: 拒绝访问。 (<SANDBOX_WRITE_DENIED>)",
+        "Storage save error: 拒绝访问。 (<SANDBOX_WRITE_DENIED>)",
+        "Storage save error: 拒绝访问。 (<SANDBOX_WRITE_DENIED>)",
+        "Storage save error: 拒绝访问。 (<SANDBOX_WRITE_DENIED>)"
       ]
     },
     {
@@ -66,8 +66,8 @@
       }
     }
   ],
-  "dataShaBefore": "824a7e330edb9b20ea94b7e5538fc9d4e9e36991e31c5d2b480effedf19a0490",
+  "dataShaBefore": "<LOCAL_DATA_FINGERPRINT>",
   "backup": "D:\\NextCreator\\.workflow-kit\\tasks\\evidence\\task007-live\\app-data.before-task007.json",
-  "dataShaAfter": "824a7e330edb9b20ea94b7e5538fc9d4e9e36991e31c5d2b480effedf19a0490",
+  "dataShaAfter": "<LOCAL_DATA_FINGERPRINT>",
   "restoredMatch": true
 }

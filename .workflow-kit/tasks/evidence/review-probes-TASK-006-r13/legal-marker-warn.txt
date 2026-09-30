@@ -8,7 +8,7 @@
     return binding.writeFileUtf8(
                    ^
 
-Error: ENOENT: no such file or directory, open 'C:\Users\A\AppData\Local\Temp\dsh-xQd1Jl\r7review\qs-inst.ts'
+Error: ENOENT: no such file or directory, open '<LOCAL_USER_DIR>\AppData\Local\Temp\dsh-xQd1Jl\r7review\qs-inst.ts'
     at writeFileSync (node:fs:2483:20)
     at file:///D:/NextCreator/.workflow-kit/tasks/evidence/review-probes-r9/r8-legal-marker-warn.mjs:37:1
     at ModuleJob.run (node:internal/modules/esm/module_job:439:25)
@@ -17,7 +17,7 @@ Error: ENOENT: no such file or directory, open 'C:\Users\A\AppData\Local\Temp\ds
   errno: -4058,
   code: 'ENOENT',
   syscall: 'open',
-  path: 'C:\\Users\\A\\AppData\\Local\\Temp\\dsh-xQd1Jl\\r7review\\qs-inst.ts'
+  path: '<LOCAL_USER_DIR>\\AppData\\Local\\Temp\\dsh-xQd1Jl\\r7review\\qs-inst.ts'
 }
 
 Node.js v24.19.0

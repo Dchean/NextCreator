@@ -19,6 +19,6 @@ Date: 2026-09-29 | cwd: D:\NextCreator
    f04a4438ecd6ae3508a535205121754d095386a69a1fafd64536b054015b5878  == bound value (MATCH)
 7) reqwest Display probe (standalone, reqwest 0.12.28, outside repo): reqwest-display-probe.txt
 8) keyring entry on real machine (name only, value not read):
-   cmdkey /list -> "LegacyGeneric:target=1790247124692-l2ve74l.com.sy.nextcreator" (matches provider-id pattern)
+   cmdkey /list -> "LegacyGeneric:target=<LOCAL_PROVIDER_ID>-l2ve74l.com.sy.nextcreator" (matches provider-id pattern)
 9) real user data file %APPDATA%\com.sy.nextcreator\app-data.json sha256 =
-   824a7e330edb9b20ea94b7e5538fc9d4e9e36991e31c5d2b480effedf19a0490 (unchanged, matches task binding)
+   <LOCAL_DATA_FINGERPRINT> (unchanged, matches task binding)

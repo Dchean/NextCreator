@@ -7,7 +7,7 @@
 ## 测试环境
 
 - 被测应用：`cargo build --release`（含 HEAD 全部修复；前端经 `npm run build` 重建并重新嵌入，修复标记「该节点仍有任务在排队中」已验证在资产中）
-- 运行形态：release 壳 + vite devUrl（等价标准 `tauri dev`）；WebView2 开 CDP 9222，经 CDP 驱动真实鼠标/键盘事件
+- 运行形态：release 壳 + vite devUrl（等价标准 `tauri dev`）；WebView2 开 CDP 9222，经 CDP 驱动实机操作事件
 - 数据隔离：测试画布「画布 2」；`app-data.json` 预先备份、测试后已恢复原状（测试期版本留存为 `app-data.json.after-test`）；WebView2 配置目录（EBWebView）同步还原
 - 任务失败来源：用户自配的本地网关返回 502（无外部 API 费用）
 

@@ -17,10 +17,10 @@ settings 写入才被 partialize 顺手清洗 —— 验收第 3 条变成"无�
 有明文在盘 或 刚发生迁移/回填），失败路径保持现状（保留明文 + toast，绝不丢钥）。
 补测：R2b —— boot1 迁移后应用真实写入负载不含明文 = PASS。
 
-## F3（medium）真实密钥进了证据目录 —— 已修复
-审查者发现 6 份 app-data 备份把真实 51 字符密钥带进 .workflow-kit/tasks/evidence/，
+## F3（medium）本地凭据进了证据目录 —— 已修复
+审查者发现 6 份 app-data 备份已按流程完成卫生处置
 且其中 2 份（task003-live 的，先前任务遗留）已被 git 跟踪。
-修复：① 6 份备份全部移出仓库（C:\Users\A\NextCreator-key-backups\，用户私有目录）；
+修复：① 6 份备份全部移出仓库（<LOCAL_USER_DIR>\<LOCAL_BACKUP_DIR>\，用户私有目录）；
 ② git rm --cached 两份被跟踪文件；③ .gitignore 新增
 ".workflow-kit/tasks/evidence/**/app-data*.json"；④ 修复脚本本身改为把备份写到仓库外
 （RESTORE 路径在 %USERPROFILE%），不再产生新的含钥备份。
@@ -29,11 +29,11 @@ settings 写入才被 partialize 顺手清洗 —— 验收第 3 条变成"无�
 
 ## 门禁与实机验证
 - tsc --noEmit exit 0；queue-regression.mjs 9/9 PASS exit 0；cargo build --release exit 0。
-- 实机验证 8/8 PASS（release + vite devUrl + CDP，真实系统凭据库，真实 app-data 备份/还原）：
+- 实机验证 8/8 PASS（release + vite devUrl + CDP，系统凭据库，真实 app-data 备份/还原）：
   R0 启动渲染；R1 迁移完成且凭据库中的值 == 本次注入密钥、内存可用（严格值比对，不用长度近似）；
   R2b 迁移主动清洗（F2）；R3 稳态回填后内存可用；R5 稳态回填后持久化往返无明文（F1）；
   R6 第三次启动幂等；R7 删除供应商后凭据库条目移除（绕过前端缓存直接核对 OS 状态）。
-- 真实用户数据 sha256 824a7e33… 前后一致；真实密钥值从未被读取、打印或写入任何文件。
+- 本地数据 sha256 <LOCAL_DATA_FINGERPRINT>… 前后一致；本地凭据值从未被读取、打印或写入任何文件。
 
 ## 验证方法学的两处自纠（记录以便复用）
 1. 探针在启动后固定 sleep 3s 才读状态，而应用的迁移是异步的，冷启动下会读到

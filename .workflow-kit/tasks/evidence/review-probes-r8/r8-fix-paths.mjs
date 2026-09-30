@@ -1,6 +1,6 @@
 // 修正审查报告里 9 条猜错的探针路径为实际路径
 import { readFileSync, writeFileSync } from "node:fs";
-const F = "C:\\Users\\A\\AppData\\Local\\Temp\\dsh-XUvJ5R\\r8-review-result.json";
+const F = "<LOCAL_USER_DIR>\\AppData\\Local\\Temp\\dsh-XUvJ5R\\r8-review-result.json";
 let s = readFileSync(F, "utf8");
 const fix = [
   ["review-probes-r6/probe-r4-guard2.mjs", "review-probes-r4/probe-r4-guard2.mjs"],

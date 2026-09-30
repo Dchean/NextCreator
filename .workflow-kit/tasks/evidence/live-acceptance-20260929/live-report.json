@@ -66,18 +66,18 @@
   ],
   "backup": {
     "path": "D:\\NextCreator\\.workflow-kit\\tasks\\evidence\\live-acceptance-20260929\\app-data.before-live-run.json",
-    "sha256": "824a7e330edb9b20ea94b7e5538fc9d4e9e36991e31c5d2b480effedf19a0490",
+    "sha256": "<LOCAL_DATA_FINGERPRINT>",
     "bytes": 7577
   },
-  "dataShaBefore": "824a7e330edb9b20ea94b7e5538fc9d4e9e36991e31c5d2b480effedf19a0490",
+  "dataShaBefore": "<LOCAL_DATA_FINGERPRINT>",
   "persistErrors": [
-    "Storage save error: 拒绝访问。 (os error 5)",
-    "Storage save error: 拒绝访问。 (os error 5)",
-    "Storage save error: 拒绝访问。 (os error 5)"
+    "Storage save error: 拒绝访问。 (<SANDBOX_WRITE_DENIED>)",
+    "Storage save error: 拒绝访问。 (<SANDBOX_WRITE_DENIED>)",
+    "Storage save error: 拒绝访问。 (<SANDBOX_WRITE_DENIED>)"
   ],
-  "envNote": "本会话中应用无法写 app-data.json（子进程继承受限令牌，os error 5）；断言改为读取应用自身 zustand store（经 Vite 模块取到 UI 同一个实例）；S5 的重启前持久化文件由驱动按应用自身格式写入（fixture）。本机本地网关未启动，任务执行会以 502 失败，不影响队列语义断言。",
+  "envNote": "本会话中应用无法写 app-data.json（子进程继承受限令牌，<SANDBOX_WRITE_DENIED>）；断言改为读取应用自身 zustand store（经 Vite 模块取到 UI 同一个实例）；S5 的重启前持久化文件由驱动按应用自身格式写入（fixture）。本机本地网关未启动，任务执行会以 502 失败，不影响队列语义断言。",
   "restore": {
-    "sha256": "824a7e330edb9b20ea94b7e5538fc9d4e9e36991e31c5d2b480effedf19a0490",
+    "sha256": "<LOCAL_DATA_FINGERPRINT>",
     "matchesBackup": true,
     "bytes": 7577
   },

@@ -25,7 +25,7 @@ const STUBS = {
   "@tauri-apps/api/core": `export const invoke = async (cmd, args) => {
       const kr = globalThis.__PROBE_KEYRING__;
       if (cmd === "set_provider_secret") {
-        if (args.providerId === "prov-c") throw new Error("写入凭据库失败: simulated os error 5");
+        if (args.providerId === "prov-c") throw new Error("写入凭据库失败: simulated <SANDBOX_WRITE_DENIED>");
         if (!args.secret) { delete kr[args.providerId]; return null; }
         kr[args.providerId] = args.secret; return null;
       }

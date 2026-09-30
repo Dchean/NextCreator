@@ -8,7 +8,7 @@ chore(release): v0.3.0 —— 应用版本 0.2.6 → 0.2.10 的首个正式发�
 - 迭代 2（v0.2.9 / TASK-003）：统一图片执行链（REQ-004）、全局单一并发上限（REQ-005）、
   取消后不写回结果（REQ-006）。
 - 迭代 3（TASK-007）：API Key 改存操作系统凭据库、旧配置自动迁移、
-  封堵 Rust 侧明文回写（REQ-007，ADR-0003）；Git 历史中的真实密钥已清除。
+  封堵 Rust 侧明文回写（REQ-007，ADR-0003）；Git 历史中的本地凭据已清除。
 - 本提交：应用版本 0.2.6 → 0.2.10，与既有 tag 序号对齐，故发布 tag 取 v0.3.0。
 
 质量基线：tsc --noEmit 0；queue-regression.mjs 9/9 PASS；cargo build --release 通过，

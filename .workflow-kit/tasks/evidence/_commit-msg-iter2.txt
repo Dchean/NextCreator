@@ -48,10 +48,10 @@ REQ-006 取消后不写回结果
 - 三条用例均经三向 ablation 证明具备判红能力（移除各自修复即判 FAIL，判红点互不重叠）。
 - 结果：9/9 PASS exit 0；tsc --noEmit exit 0。
 
-实机验证（release 应用 + vite devUrl + CDP 9222，真实鼠标/键盘）
+实机验证（release 应用 + vite devUrl + CDP 9222，实机操作）
 - 工作流路径 5/5 PASS：应用渲染、构造图片节点、经 flowStore.executeFromNode 真的执行该节点
   （engine 自报 completed 1/1）、工作流路径仍不写 runRecords、全局额度跑完归零无泄漏。
-- 真实用户数据全程零污染：跑前备份、跑后逐字节还原（sha256 824a7e33… 前后一致）。
+- 本地数据全程零污染：跑前备份、跑后逐字节还原（sha256 <LOCAL_DATA_FINGERPRINT>… 前后一致）。
 
 已知项（信息性，不需要管理决策）
 - scripts/queue-regression.selfcheck.mjs 属受保护路径且硬编码用例数（pass===6，:123/:201）；

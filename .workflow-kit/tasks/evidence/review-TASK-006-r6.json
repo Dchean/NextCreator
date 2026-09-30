@@ -69,7 +69,7 @@
     {
       "area": "performance",
       "status": "PASS",
-      "analysis": "正常路径的零 churn 性质实测保持：标记本就 falsy 时 for(;;) 体执行 0 次、传入数组身份未被替换、canvasStore.canvases 身份未变、无 persist 写入（probe-r3-finally-churn 测到 0 次 subscribe 命中 ⇒ 不触发 App.tsx:170 的 800ms 防抖回写）。toast 的成本可忽略：addToast 只是 set 一个新数组 + 一条 setTimeout（toastStore.ts:35-49，3s 后自动 removeToast），且只在 admitted===false 时触发；N 次被拒点击 = N 条文案相同的提示，不泄漏到非 UI/测试环境（仅静态 import 一个 zustand store，无 DOM 访问、无副作用），不改变 hook 返回形状。自愈的开销与候选数成正比且候选为空时早退。唯一性能风险是**本轮新增的**：for(;;) 在写入方回激时会同步阻塞主线程（实测 10ms/202 轮，即约 0.05ms/轮；无上限则可能冻结 UI），属失败路径而非正常路径开销。",
+      "analysis": "正常路径的零 churn 性质实测保持：标记本就 falsy 时 for(;;) 体执行 0 次、传入数组身份未被替换、canvasStore.canvases 身份未变、无 persist 写入（probe-r3-finally-churn 测到 0 次 subscribe 命中 ⇒ 不触发 App.tsx:170 的 800ms 防抖回写）。toast 的成本可忽略：addToast 只是 set 一个新数组 + 一条 setTimeout（toastStore.ts:35-49，3s 后自动 removeToast），且只在 admitted===false 时触发；N 次被拒点击 = N 条文案相同的提示，不进入非 UI/测试环境（仅静态 import 一个 zustand store，无 DOM 访问、无副作用），不改变 hook 返回形状。自愈的开销与候选数成正比且候选为空时早退。唯一性能风险是**本轮新增的**：for(;;) 在写入方回激时会同步阻塞主线程（实测 10ms/202 轮，即约 0.05ms/轮；无上限则可能冻结 UI），属失败路径而非正常路径开销。",
       "evidence_files": [
         "src/stores/toastStore.ts",
         "src/stores/queueStore.ts",

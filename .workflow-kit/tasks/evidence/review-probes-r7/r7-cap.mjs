@@ -205,7 +205,7 @@ console.log("========== B. 病态写入方（每次收到通知就**重新塞回
   check(!threw, "不抛异常（上限是 break，不是 throw）");
   if (QS === NOCAP) {
     check(wWrites > HARD, `突变体（MAX_HEAL_PASSES=∞）跑满探针硬闸仍不停（W 写入=${wWrites}）→ 上限确实必要`);
-    console.log(`  ⇒ 无上限突变体：轮数=${passesAtReturn}，只有探针自己的硬闸能让它停；真实环境无此闸 ⇒ 同一同步栈永不返回（UI 冻结）。`);
+    console.log(`  ⇒ 无上限突变体：轮数=${passesAtReturn}，只有探针自己的硬闸能让它停；本地环境无此闸 ⇒ 同一同步栈永不返回（UI 冻结）。`);
   } else {
     check(passesAtReturn === 8, `真实候选停在上限：同步返回时轮数 = 8（实际 ${passesAtReturn}）`);
     check(wWrites === 8, `自愈只让写入方多写了 8 次后退出（实际 ${wWrites}）`);

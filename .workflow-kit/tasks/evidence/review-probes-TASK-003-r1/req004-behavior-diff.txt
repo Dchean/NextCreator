@@ -1,5 +1,5 @@
 REQ-004 行为差异明细（驱动层 = nodeExecutor.executeNode；同一组 provider/fileStorage 替身）
-before 源码根 = C:\Users\A\AppData\Local\Temp\nc-abl-20260929190254
+before 源码根 = <LOCAL_USER_DIR>\AppData\Local\Temp\nc-abl-20260929190254
 candidate 源码根 = D:\NextCreator
 
 --- S1_success_no_canvas ---

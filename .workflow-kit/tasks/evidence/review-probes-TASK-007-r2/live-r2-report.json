@@ -25,7 +25,7 @@
       "id": "A4",
       "title": "bootA 磁盘级核对（仅当应用自身保存未报错时作为判据）",
       "result": "PASS",
-      "detail": "diskHasFakePlaintext=true diskFakeKeyLen=54 appSaveErrors=2（沙箱拒绝应用写盘 os error 5，磁盘级判据不适用，以 A2/A3 写入负载为准）"
+      "detail": "diskHasFakePlaintext=true diskFakeKeyLen=54 appSaveErrors=2（沙箱拒绝应用写盘 <SANDBOX_WRITE_DENIED>，磁盘级判据不适用，以 A2/A3 写入负载为准）"
     },
     {
       "id": "B1",
@@ -104,8 +104,8 @@
     "[settingsStore] 已从系统凭据库回填 1 个供应商密钥（仅内存，不落盘）",
     "[settingsStore] 已按凭据库状态重写本地配置（清除已迁移密钥的明文）"
   ],
-  "dataShaBefore": "824a7e330edb9b20ea94b7e5538fc9d4e9e36991e31c5d2b480effedf19a0490",
-  "restoreBackup": "C:\\Users\\A\\NextCreator-key-backups\\r2-review-appdata-before.json",
+  "dataShaBefore": "<LOCAL_DATA_FINGERPRINT>",
+  "restoreBackup": "<LOCAL_USER_DIR>\\<LOCAL_BACKUP_DIR>\\r2-review-appdata-before.json",
   "bootA_diskFakeKeyLenBefore": 54,
   "bootA_disk": {
     "hasFakePlaintext": true,
@@ -119,5 +119,5 @@
     "saveErrors": 2
   },
   "bootC_cmdkeyBefore": 2,
-  "dataShaAfter": "824a7e330edb9b20ea94b7e5538fc9d4e9e36991e31c5d2b480effedf19a0490"
+  "dataShaAfter": "<LOCAL_DATA_FINGERPRINT>"
 }

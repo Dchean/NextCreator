@@ -92,7 +92,7 @@
       "bun": "NOT INSTALLED (package.json/README reference bun, but only node/npm available)",
       "cargo": "1.98.0",
       "rustc": "1.98.0",
-      "coding_clis_detected": ["codex (C:\\Users\\A\\AppData\\Roaming\\npm\\codex.ps1)", "claude (C:\\Users\\A\\AppData\\Roaming\\npm\\claude.ps1)"],
+      "coding_clis_detected": ["codex (<LOCAL_USER_DIR>\\AppData\\Roaming\\npm\\codex.ps1)", "claude (<LOCAL_USER_DIR>\\AppData\\Roaming\\npm\\claude.ps1)"],
       "coding_clis_absent": ["gemini", "cursor-agent", "aider", "copilot", "opencode", "qwen"]
     }
   }

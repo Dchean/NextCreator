@@ -37,7 +37,7 @@ async function connect(timeoutMs = 60000) {
 const send = (m, p = {}) => new Promise((res, rej) => { const i = ++mid; pend.set(i, { res, rej }); ws.send(JSON.stringify({ id: i, method: m, params: p })); });
 const evalJs = async (e) => { const r = await send("Runtime.evaluate", { expression: e, returnByValue: true, awaitPromise: true, userGesture: true }); if (r.exceptionDetails) throw new Error("page: " + JSON.stringify(r.exceptionDetails).slice(0, 400)); return r.result.value; };
 
-const RESTORE = path.join(process.env.USERPROFILE, "NextCreator-key-backups", "task007-delprobe-before.json");
+const RESTORE = path.join(process.env.USERPROFILE, "<LOCAL_BACKUP_DIR>", "task007-delprobe-before.json");
 try {
   writeFileSync(RESTORE, readFileSync(DATA));
   const before = sha(DATA);

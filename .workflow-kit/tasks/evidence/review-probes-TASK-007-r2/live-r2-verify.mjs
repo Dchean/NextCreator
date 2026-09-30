@@ -17,7 +17,7 @@
  *  - Adapter-level polling (tauriStorage.getItem) as a hook-independent second measurement.
  *  - cmdkey /list cross-check of OS keyring entry count (idempotency / no duplicates).
  *  - Direct OS-level disk read after each boot, used as a criterion ONLY when the app's
- *    own save reported no errors (this sandbox may deny app writes with os error 5).
+ *    own save reported no errors (this sandbox may deny app writes with <SANDBOX_WRITE_DENIED>).
  *
  * Boots:
  *   A: legacy plaintext fixture -> migration to keyring + app's own clean write [F2]
@@ -39,7 +39,7 @@ const ORIGIN = "http://localhost:1420";
 const FAKE_ID = "r2review-" + Date.now().toString(36);
 const FAKE_KEY = "R2KEY-" + randomBytes(24).toString("hex");
 // F3: restore backup OUTSIDE the repo
-const RESTORE = path.join(process.env.USERPROFILE, "NextCreator-key-backups", "r2-review-appdata-before.json");
+const RESTORE = path.join(process.env.USERPROFILE, "<LOCAL_BACKUP_DIR>", "r2-review-appdata-before.json");
 
 mkdirSync(EVID, { recursive: true });
 mkdirSync(path.dirname(RESTORE), { recursive: true });
@@ -247,7 +247,7 @@ try {
   report.bootA_disk = aDisk;
   rec("A4", "bootA 磁盘级核对（仅当应用自身保存未报错时作为判据）",
     aDisk.saveErrors > 0 ? true : (aDisk.hasFakePlaintext === false && aDisk.fakeKeyLen === 0),
-    `diskHasFakePlaintext=${aDisk.hasFakePlaintext} diskFakeKeyLen=${aDisk.fakeKeyLen} appSaveErrors=${aDisk.saveErrors}${aDisk.saveErrors > 0 ? "（沙箱拒绝应用写盘 os error 5，磁盘级判据不适用，以 A2/A3 写入负载为准）" : "（应用保存无报错，磁盘级核对有效）"}`);
+    `diskHasFakePlaintext=${aDisk.hasFakePlaintext} diskFakeKeyLen=${aDisk.fakeKeyLen} appSaveErrors=${aDisk.saveErrors}${aDisk.saveErrors > 0 ? "（沙箱拒绝应用写盘 <SANDBOX_WRITE_DENIED>，磁盘级判据不适用，以 A2/A3 写入负载为准）" : "（应用保存无报错，磁盘级核对有效）"}`);
 
   // ---------------- boot B: steady state (the r1 F1 gap) ----------------
   if (diskFakeKeyLen() !== 0) { setFixture("clean"); report.notes.push("bootB 前：磁盘上 FAKE provider 的 apiKey 未为空（应用保存被沙箱拒绝），由审查脚本置空以建立真实稳态（磁盘空 + 凭据库有值）"); }

@@ -529,7 +529,7 @@
       "id": "DEC-d87feeca5ee34c42a23a2538bc0aaa53",
       "issuer": "owner",
       "status": "accepted",
-      "source": "用户本轮指令原文：「你实测验收，实机的也由你负责」——用户将实机验收与验收判断一并委托给总控。总控执行：① TASK-006 实机验收 6/6 场景 PASS（release 应用 + 真实 CDP 鼠标/键盘；S1 连点3次仅1任务、S2 批量4且批后不锁死、S3 暂停态连点仅1个queued、S5 真实强杀重启后遗留queued降为0且节点解锁、S7 被拒点击toast且零增长；证据 .workflow-kit/tasks/evidence/TASK-006-LIVE-ACCEPTANCE-2026-09-29-PM.md + live-report.json + 7张截图）；② TASK-002 验收判据逐条实测（3个文件确认删除、全仓零引用、package.json 已无 @types/uuid、tsc exit 0、门禁 6/6 PASS exit 0）；③ 总控复跑门禁与 tsc 均 exit 0。真实用户数据跑前备份跑后逐字节还原（sha256 824a7e33… 前后一致）。",
+      "source": "用户本轮指令原文：「你实测验收，实机的也由你负责」——用户将实机验收与验收判断一并委托给总控。总控执行：① TASK-006 实机验收 6/6 场景 PASS（release 应用 + 真实 CDP 鼠标/键盘；S1 连点3次仅1任务、S2 批量4且批后不锁死、S3 暂停态连点仅1个queued、S5 真实强杀重启后遗留queued降为0且节点解锁、S7 被拒点击toast且零增长；证据 .workflow-kit/tasks/evidence/TASK-006-LIVE-ACCEPTANCE-2026-09-29-PM.md + live-report.json + 7张截图）；② TASK-002 验收判据逐条实测（3个文件确认删除、全仓零引用、package.json 已无 @types/uuid、tsc exit 0、门禁 6/6 PASS exit 0）；③ 总控复跑门禁与 tsc 均 exit 0。本地数据跑前备份跑后逐字节还原（sha256 <LOCAL_DATA_FINGERPRINT>… 前后一致）。",
       "statement": "Owner accepted the listed candidate versions and their continuations",
       "scope": [
         "TASK-006",
@@ -556,7 +556,7 @@
       "id": "DEC-437ef3e3462c45cab882a5ba9b35ceb1",
       "issuer": "owner",
       "status": "accepted",
-      "source": "用户指令原文：「每次优化重构完一次打小tag推送，一次性完成所有剩余未完成的工作」。据此，总控完成第一批 B（REQ-004/005/006）并交付：① 独立审查 r1 判 FAIL（1 条真实 finding：复用使工作流路径写入 queued 字段、抹掉合法排队标记）→ 总控复核成立，按审查者建议新增 clearQueuedMarker 显式开关修复，并补门禁用例 I；② 独立审查 r2 判 PASS（findings=0）：审查者亲自复现 r1 场景确认闭合、自做三向消融证明用例 G/H/I 均有判红能力、核对 116/116 候选哈希、确认 A–F 断言零改动；③ 总控独立复跑：tsc exit 0、门禁 9/9 PASS exit 0；自建探针 5/5 确认标记修复（工作流保留、队列清除、显式 false 同默认）。真实用户数据零污染（跑前备份跑后逐字节还原）。",
+      "source": "用户指令原文：「每次优化重构完一次打小tag推送，一次性完成所有剩余未完成的工作」。据此，总控完成第一批 B（REQ-004/005/006）并交付：① 独立审查 r1 判 FAIL（1 条真实 finding：复用使工作流路径写入 queued 字段、抹掉合法排队标记）→ 总控复核成立，按审查者建议新增 clearQueuedMarker 显式开关修复，并补门禁用例 I；② 独立审查 r2 判 PASS（findings=0）：审查者亲自复现 r1 场景确认闭合、自做三向消融证明用例 G/H/I 均有判红能力、核对 116/116 候选哈希、确认 A–F 断言零改动；③ 总控独立复跑：tsc exit 0、门禁 9/9 PASS exit 0；自建探针 5/5 确认标记修复（工作流保留、队列清除、显式 false 同默认）。本地数据零污染（跑前备份跑后逐字节还原）。",
       "statement": "Owner accepted the listed candidate versions and their continuations",
       "scope": [
         "TASK-003"
@@ -589,7 +589,7 @@
       "id": "DEC-f4fbaf11d1e145988c698fa7c3fff3a8",
       "issuer": "owner",
       "status": "accepted",
-      "source": "用户本人直接指令（本会话）：「每次优化重构完一次打小tag推送，一次性完成所有剩余未完成的工作」。据此，总控完成第一批 C（REQ-007 API Key 不再明文落盘）并交付：① 独立审查 r1 判 FAIL（3 findings：F1 稳态回填把明文写回磁盘 critical、F2 迁移不清洗磁盘 high、F3 真实密钥进证据目录 medium）→ 总控逐条复核成立并全部修复（markPersistedInKeyring 标志位、迁移/回填后主动清洁落写、备份移出仓库+git rm --cached+.gitignore 规则）；② 独立审查 r2 判 PASS（findings=0）：审查者在真实应用上以三轮全新进程启动复现 F1/F2 场景，确认关闭；对约 1400 个文件用真实密钥做子串扫描 0 命中，确认 F3 关闭；129/129 候选哈希一致；③ 三道门禁独立重跑通过（tsc 0 / queue-regression 9-9 / cargo build 0）+ cargo test 3 passed；④ 真实用户数据 sha256 全程 824a7e33… 未变，真实密钥从未被读取、打印或写入任何文件。遗留（需用户决定，不在本任务范围）：git 历史 2 个先前提交（v0.2.8/0.2.9 之前的 task003-live 证据）含真实密钥，需另行决策历史改写或凭据轮换。",
+      "source": "用户本人直接指令（本会话）：「每次优化重构完一次打小tag推送，一次性完成所有剩余未完成的工作」。据此，总控完成第一批 C（REQ-007 API Key 不再明文落盘）并交付：① 独立审查 r1 判 FAIL（3 findings：F1 稳态回填把明文写回磁盘 critical、F2 迁移不清洗磁盘 high、F3 本地凭据进证据目录 medium）→ 总控逐条复核成立并全部修复（markPersistedInKeyring 标志位、迁移/回填后主动清洁落写、备份移出仓库+git rm --cached+.gitignore 规则）；② 独立审查 r2 判 PASS（findings=0）：审查者在真实应用上以三轮全新进程启动复现 F1/F2 场景，确认关闭；对约 1400 个文件用本地凭据做子串扫描 0 命中，确认 F3 关闭；129/129 候选哈希一致；③ 三道门禁独立重跑通过（tsc 0 / queue-regression 9-9 / cargo build 0）+ cargo test 3 passed；④ 本地数据 sha256 全程 <LOCAL_DATA_FINGERPRINT>… 未变，本地凭据从未被读取、打印或写入任何文件。遗留（需用户决定，不在本任务范围）：git 历史 2 个先前提交（v0.2.8/0.2.9 之前的 task003-live 证据）含本地凭据，需另行决策历史改写或凭据轮换。",
       "statement": "Owner accepted the listed candidate versions and their continuations",
       "scope": [
         "TASK-007"

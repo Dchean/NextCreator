@@ -4,7 +4,7 @@
   [PASS] 源码里的注释就是订正后的版本（探针核对的是当前候选）
 
 ========== 三个出口的形状（LEGAL = gen-legal，真有 queued 任务 ⇒ 谓词永不清它）==========
-node.exe : (node:25556) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///C:/Users/A/AppData/Local/Temp/ds
+node.exe : (node:25556) [MODULE_TYPELESS_PACKAGE_JSON] Warning: Module type of file:///<LOCAL_USER_DIR>/AppData/Local/Temp/ds
 h-xQd1Jl/r9verify/qs-r9verify-inst.ts is not specified and it doesn't parse as CommonJS.
 所在位置 行:10 字符: 7
 + $o2 = & node --experimental-strip-types .workflow-kit/tasks/evidence/ ...
@@ -13,7 +13,7 @@ h-xQd1Jl/r9verify/qs-r9verify-inst.ts is not specified and it doesn't parse as C
     + FullyQualifiedErrorId : NativeCommandError
  
 Reparsing as ES module because module syntax was detected. This incurs a performance overhead.
-To eliminate this warning, add "type": "module" to \\?\C:\Users\A\package.json.
+To eliminate this warning, add "type": "module" to \\?\<LOCAL_USER_DIR>\package.json.
 (Use `node --trace-warnings ...` to show where the warning was created)
 (a) LEGAL + 已治愈陈旧，无写入方             | 轮数=  2 | 出口=nopending | X=false | LEGAL= true | 画布X=false | 告警=0 | W写入=0 | 异常=无
 (b) 一次性整数组写回（撤销）                   | 轮数=  3 | 出口=nopending | X=false | LEGAL= true | 画布X=false | 告警=0 | W写入=1 | 异常=无

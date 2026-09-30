@@ -1064,7 +1064,7 @@ def initialization_plan(root, kind, name, allow_existing=False, full_docs=False)
     plan["scripts/workflow_intake.py"] = Path(__file__).with_name("workflow_intake.py").read_bytes()
     plan["scripts/workflow_progress.py"] = Path(__file__).with_name("workflow_progress.py").read_bytes()
     plan["notes/JOURNAL.md"] = (BOARD_MARKER.replace("generated view; edit task JSON instead", "append-only journal; use checkpoint/note")
-                                + "\n# 项目日志\n\n工具在每个关键事件后追加一行；Agent 用 note 追加上下文、决策、待办和教训。不要手工改写历史行。\n\n").encode("utf-8")
+                                + "\n# 项目日志\n\n工具在每个关键事件后追加一行；Agent 用 note 追加上下文、决策、待办和教训。不要手工历史卫生处置行。\n\n").encode("utf-8")
     plan["notes/RESUME.md"] = resume_bytes(project, {}, plan["notes/JOURNAL.md"].decode("utf-8"))
     plan["tasks/.gitattributes"] = b"# workflow-kit records and evidence are hashed byte-for-byte; never convert line endings.\n* -text\n"
     plan.update(board_bytes({}))

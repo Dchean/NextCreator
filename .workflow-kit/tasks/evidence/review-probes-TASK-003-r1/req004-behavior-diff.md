@@ -1,6 +1,6 @@
 # REQ-004 行为矩阵：改动前（HEAD）vs 候选（工作区）
 
-- before 源码根: C:\Users\A\AppData\Local\Temp\nc-abl-20260929190254
+- before 源码根: <LOCAL_USER_DIR>\AppData\Local\Temp\nc-abl-20260929190254
 - candidate 源码根: D:\NextCreator
 - 驱动层：nodeExecutor.executeNode（本次改动的那一层），provider/fileStorage 用同一组替身
 

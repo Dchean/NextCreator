@@ -81,18 +81,18 @@
       }
     }
   ],
-  "dataShaBefore": "824a7e330edb9b20ea94b7e5538fc9d4e9e36991e31c5d2b480effedf19a0490",
+  "dataShaBefore": "<LOCAL_DATA_FINGERPRINT>",
   "backup": "D:\\NextCreator\\.workflow-kit\\tasks\\evidence\\task003-live\\app-data.before.json",
   "consoleErrors": [
-    "Storage save error: 拒绝访问。 (os error 5)",
-    "Storage save error: 拒绝访问。 (os error 5)",
-    "Storage save error: 拒绝访问。 (os error 5)"
+    "Storage save error: 拒绝访问。 (<SANDBOX_WRITE_DENIED>)",
+    "Storage save error: 拒绝访问。 (<SANDBOX_WRITE_DENIED>)",
+    "Storage save error: 拒绝访问。 (<SANDBOX_WRITE_DENIED>)"
   ],
   "unifiedEntry": {
     "totalNodes": 1
   },
   "restore": {
-    "sha256": "824a7e330edb9b20ea94b7e5538fc9d4e9e36991e31c5d2b480effedf19a0490",
+    "sha256": "<LOCAL_DATA_FINGERPRINT>",
     "matches": true
   },
   "finishedAt": "2026-09-29T10:55:52.257Z"

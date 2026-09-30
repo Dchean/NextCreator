@@ -180,7 +180,7 @@ const wide = await mixedRun(4, true);
 const reversed = await mixedRun(1, false);
 
 check("M0-control-overlap", wide.peakInFlight >= 2,
-  `对照（limit=4）：真实 provider 在途峰值=${wide.peakInFlight}（期望>=2，证明探针能观察到重叠）`);
+  `对照（limit=4）：实际供应商 在途峰值=${wide.peakInFlight}（期望>=2，证明探针能观察到重叠）`);
 check("M1-combined-cap", tight.peakInFlight <= 1,
   `limit=1 时真实队列+真实工作流叠加的在途峰值=${tight.peakInFlight}（必须<=1；对照 limit=4 为 ${wide.peakInFlight}）；` +
   `采样中 limiter.getInFlightCount() 最大=${tight.sampleMax}`);

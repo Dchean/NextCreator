@@ -1,6 +1,6 @@
 /**
  * K3 verification independent of the app's own disk write (which is denied in this
- * sandbox: "Storage save error: 拒绝访问。 (os error 5)" — ACL diagnosis: NOT_THIS_CLASS,
+ * sandbox: "Storage save error: 拒绝访问。 (<SANDBOX_WRITE_DENIED>)" — ACL diagnosis: NOT_THIS_CLASS,
  * i.e. a DSH permission-policy boundary, not a repairable ACL).
  *
  * What we CAN verify authoritatively in the real app:
@@ -135,12 +135,12 @@ try {
     `凭据库长度=${probe.keyringValueLength}（期望 ${FAKE_KEY.length}）、内存长度=${probe.memoryKeyLength}`);
 
   // K3 (app-observable): the persisted payload the app itself produced must be plaintext-free.
-  // 注意 saveErrors：本沙箱里应用对 app-data.json 的落盘被 DSH 权限策略拒绝（os error 5），
+  // 注意 saveErrors：本沙箱里应用对 app-data.json 的落盘被 DSH 权限策略拒绝（<SANDBOX_WRITE_DENIED>），
   // 所以"磁盘文件"不是本环境可采信的验收载体；插件层 round-trip 才是应用真实产生的写入内容。
   const k3pass = probe.roundTripHasPlaintext === false;
   rec("K3", "应用产生的持久化负载不含密钥明文（partialize 闸门生效）", k3pass,
     `插件层 round-trip 含假密钥=${JSON.stringify(probe.roundTripHasPlaintext)}；` +
-    `本沙箱中应用落盘被拒（os error 5）次数=${saveErrors.length}，故以应用真实写入的负载为准` +
+    `本沙箱中应用落盘被拒（<SANDBOX_WRITE_DENIED>）次数=${saveErrors.length}，故以应用真实写入的负载为准` +
     (saveErrors.length ? "；磁盘文件在本次运行中未被应用修改（环境限制，已用 ACL 诊断排除为 NOT_THIS_CLASS）" : ""));
 
   // ---------- Boot 2: idempotency ----------

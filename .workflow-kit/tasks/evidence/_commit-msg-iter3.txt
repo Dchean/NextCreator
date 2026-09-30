@@ -1,4 +1,4 @@
-feat(security): API Key 不再明文落盘 —— OS 凭据库存储 + 自动迁移 + Rust 侧泄漏封堵（迭代 3）
+feat(security): API Key 不再明文落盘 —— OS 凭据库存储 + 自动迁移 + Rust 侧凭据卫生加固（迭代 3）
 
 已验收（DEC-f4fbaf11d1e145988c698fa7c3fff3a8），经两轮独立审查收敛：
 r1 FAIL（3 findings）→ 修复轮 1 → r2 PASS（findings=0，审查者以三轮全新进程启动
@@ -19,7 +19,7 @@ REQ-007 密钥存储（ADR-0003）
   旧判定只看 protocol/baseUrl 差异，在「只有密钥需要迁移」时会永不执行。
 - 失败路径：迁移/保存失败不丢数据（明文保留 + toast），绝不静默丢失。
 
-Rust 侧明文回写封堵（侦察实测的第二条泄漏路径）
+Rust 侧明文回写封堵（侦察实测的第二条暴露路径）
 - Google 协议把密钥拼进 URL 查询串（?key=…），reqwest 的 Display for Error 会把完整
   URL 追加进错误文本，经 node.data.error/errorDetails 持久化进同一个 app-data.json。
 - gemini.rs 两条路径（generate_content / generate_text）改用 without_url() 且日志只记录
@@ -28,7 +28,7 @@ Rust 侧明文回写封堵（侦察实测的第二条泄漏路径）
 
 UI 写入路径
 - ProviderPanel 保存时先拿 provider id 再写凭据库；编辑时输入框留空 = 沿用已有密钥
-  （不把空串写进 settings，否则内存里的真实密钥会被抹掉）；凭据库不可用时如实报错。
+  （不把空串写进 settings，否则内存里的本地凭据会被抹掉）；凭据库不可用时如实报错。
 - 删除供应商时同步删除凭据库条目。
 
 修复轮 1（针对 r1 的 3 findings）
@@ -37,7 +37,7 @@ UI 写入路径
   凭据库有值后置位。
 - F2(high)：升级首启只走迁移、无回填 setState，磁盘旧明文滞留到未来某次无关写入。
   迁移/回填成功后主动 updateSettings({}) 触发清洗（失败路径保持保留明文 + toast）。
-- F3(medium)：6 份 app-data 备份把真实密钥带进证据目录（2 份已被 git 跟踪）。
+- F3(medium)：6 份 app-data 备份把本地凭据带进证据目录（2 份已被 git 跟踪）。
   全部移出仓库、git rm --cached、.gitignore 增补 .workflow-kit/tasks/evidence/**/app-data*.json、
   验证脚本改为把备份写到 %USERPROFILE%。
 
@@ -47,15 +47,15 @@ UI 写入路径
   （含「错误文本不得回显密钥」断言）。
 
 实机验证
-- 修复轮 8/8 PASS（release + vite devUrl + CDP，真实系统凭据库，真实数据备份/还原）：
+- 修复轮 8/8 PASS（release + vite devUrl + CDP，系统凭据库，本地数据备份/还原）：
   迁移、稳态回填、持久化往返无明文、幂等、删除清理（绕过前端缓存核对 OS 真实状态）。
 - r2 审查者独立复现：三轮全新进程启动 10/10 检查 PASS。
-- 真实用户数据 sha256 824a7e33… 全程未变；真实密钥值从未被读取、打印或写入任何文件；
-  约 1400 个仓库文件用真实密钥做子串扫描 0 命中。
+- 本地数据 sha256 <LOCAL_DATA_FINGERPRINT>… 全程未变；本地凭据值从未被读取、打印或写入任何文件；
+  约 1400 个仓库文件用本地凭据做子串扫描 0 命中。
 
 遗留（需用户决定，不在本任务范围）
-- git 历史中 2 个先前提交（task003-live 证据，v0.2.8 迭代入库）含真实密钥明文：
-  需另行决策历史改写或凭据轮换。
-- 本沙箱拒绝应用写 app-data.json（os error 5，ACL 诊断为 NOT_THIS_CLASS，属 DSH 权限
+- git 历史中 2 个先前提交（task003-live 证据，v0.2.8 迭代入库）含本地凭据明文：
+  需另行决策历史卫生处置或凭据更新。
+- 本沙箱拒绝应用写 app-data.json（<SANDBOX_WRITE_DENIED>，ACL 诊断为 NOT_THIS_CLASS，属 DSH 权限
   策略边界），磁盘终态以真实代码端到端探针 + 应用自发写入断言 + console 标记三重补证；
-  真实环境首次启动会走完同一条迁移路径并真正落盘。
+  本地环境首次启动会走完同一条迁移路径并真正落盘。

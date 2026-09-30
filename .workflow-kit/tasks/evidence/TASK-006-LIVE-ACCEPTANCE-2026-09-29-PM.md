@@ -17,7 +17,7 @@
 - 前端：`node_modules/.bin/vite --port 1420 --strictPort`（HTTP 200）
 - CDP：9222，实测 `Browser=Edg/154.0.4258.37`
 - WebView2 用户数据目录放在 `src-tauri/target/nc-live-profile`（跑完已删除）
-- 真实用户数据：跑前备份、跑后逐字节还原（sha256 均为 `824a7e33…`，mtime 未变）
+- 本地数据：跑前备份、跑后逐字节还原（sha256 均为 `<LOCAL_DATA_FINGERPRINT>…`，mtime 未变）
 
 ## 逐场景结果
 
@@ -35,7 +35,7 @@
 ## 本会话的环境限制（如实记录，影响取证方式）
 
 本会话的 DSH 沙箱使**应用子进程无法写 `%APPDATA%\com.sy.nextcreator\app-data.json`**
-（浏览器控制台实测 `Storage save error: 拒绝访问。 (os error 5)`）。因此：
+（浏览器控制台实测 `Storage save error: 拒绝访问。 (<SANDBOX_WRITE_DENIED>)`）。因此：
 
 - 断言**不读落盘文件**，改为经 Vite dev 模块 `/src/stores/*.ts` 读取应用**自身**的
   zustand store —— 与 UI 使用的是同一批实例（已核对 `useQueueStore.getState()` 等）。
@@ -47,7 +47,7 @@
 
 ## 未覆盖项（如实记录）
 
-- 未跑真实 API 端到端：本机本地网关（127.0.0.1:8317）未启动，所有任务以失败告终；
+- 未跑真实 API 端到端：本机本地网关（<LOCAL_GATEWAY_ADDR>）未启动，所有任务以失败告终；
   队列语义断言不依赖结果成功与否。
 - S5(d) 变体「节点已不存在时的处置」未构造。
 - 未验证 macOS、未做真实浏览器外的渲染层验证。

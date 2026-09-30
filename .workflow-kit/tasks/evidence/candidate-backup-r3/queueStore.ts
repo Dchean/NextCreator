@@ -405,7 +405,7 @@ export const useQueueStore = create<QueueState>()(
             dataOverride: job.dataOverride,
           });
         } finally {
-          // 即使 enqueue 抛错也要复位，避免标记泄漏到下一次普通入队。
+          // 即使 enqueue 抛错也要复位，避免标记进入下一次普通入队。
           enqueueOriginRetry = false;
         }
       },

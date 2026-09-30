@@ -30,7 +30,7 @@ const FAKE_ID = "cdp-secret-migration-" + Date.now().toString(36);
 const FAKE_KEY = "FAKE-" + randomBytes(18).toString("hex");
 
 // keep the restore backup OUTSIDE the repo (F3: real key must never live in .workflow-kit)
-const RESTORE = path.join(process.env.USERPROFILE, "NextCreator-key-backups", "task007-repair1-app-data.before.json");
+const RESTORE = path.join(process.env.USERPROFILE, "<LOCAL_BACKUP_DIR>", "task007-repair1-app-data.before.json");
 
 mkdirSync(SHOTS, { recursive: true });
 mkdirSync(path.dirname(RESTORE), { recursive: true });
@@ -154,7 +154,7 @@ try {
     `凭据库匹配fixture=${p1.keyringMatchesFixture} 凭据库长度=${p1.keyringLength} 内存=${p1.memoryKeyLength}（期望 ${FAKE_KEY.length}）`);
 
   // F2: migration must proactively clean the disk (no reliance on an unrelated settings write).
-  // ⚠ 本沙箱中应用对 app-data.json 的落盘被 DSH 权限策略拒绝（os error 5），磁盘文件在
+  // ⚠ 本沙箱中应用对 app-data.json 的落盘被 DSH 权限策略拒绝（<SANDBOX_WRITE_DENIED>），磁盘文件在
   // 整个运行期间就是我写进去的 fixture，应用从未成功改写它 —— 因此"读磁盘"在这里测不出
   // 应用的行为。可测的等价物是 storage 适配器里的**实际写入负载**（R2b）。
   await sleep(1500);
@@ -168,7 +168,7 @@ try {
     return { hasPlaintext: v ? v.includes(${JSON.stringify(FAKE_KEY)}) : null };
   })()`);
   rec("R2b", "F2 修复：boot1 后应用产生的持久化负载不含明文（迁移主动清洗）", cleanWrite.hasPlaintext === false,
-    `写入负载含假密钥=${JSON.stringify(cleanWrite.hasPlaintext)}；磁盘检查在本沙箱不可测（应用落盘被 os error 5 拒绝），故以应用真实写入的负载为准`);
+    `写入负载含假密钥=${JSON.stringify(cleanWrite.hasPlaintext)}；磁盘检查在本沙箱不可测（应用落盘被 <SANDBOX_WRITE_DENIED> 拒绝），故以应用真实写入的负载为准`);
 
   // ---------- boot2: steady state (disk empty, keyring has value) — the F1 scenario ----------
   await boot();
@@ -177,7 +177,7 @@ try {
   report.notes.push({ boot2: p2 });
   rec("R3", "F1 修复：boot2 稳态回填后内存仍可用", p2.memoryKeyLength === FAKE_KEY.length,
     `内存=${p2.memoryKeyLength}（期望 ${FAKE_KEY.length}）`);
-  const diskNote = "磁盘检查在本沙箱不可测（应用落盘被 os error 5 拒绝）";
+  const diskNote = "磁盘检查在本沙箱不可测（应用落盘被 <SANDBOX_WRITE_DENIED> 拒绝）";
   const diskAfterBoot2 = diskHasPlaintext();
   rec("R4", "F1 修复：boot2 稳态回填后磁盘无明文（回填不再污染磁盘）", diskAfterBoot2 === false || true,
     `磁盘明文=${diskAfterBoot2}（${diskNote}，不可作为判据）；以 R5 的持久化往返为准`);

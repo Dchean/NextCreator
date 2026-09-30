@@ -24,7 +24,7 @@
 ## 4. 实机验收证据（今日 CDP）复核：自洽
 - 19 份 PNG（00–17，16- 号两份）+ RESULT.md（7/7 场景表、未覆盖项、证据清单、新发现）。
 - 总控亲眼看图（非只读文字）：17-toast-visual.png 的 toast 文案与 RESULT 记录**逐字一致**；12-scenario5-after-restart.png 显示重启后节点按钮可用（未卡「排队中」）、失败记录为本地网关 502；13-scenario6-after-undo.png 显示撤销后陈旧标记零复活；03/04-scenario1 连点后队列「暂无任务」即仅 1 个任务且节点已解锁。
-- 用户数据已恢复：真实 app-data.json 仅 1 个供应商（本地）、仅「默认画布」、0 队列任务；测试痕迹（CDP验收-超时 供应商、画布 2、53 个 job）只存在于 app-data.json.after-test，未污染真实数据。
+- 用户数据已恢复：真实 app-data.json 仅 1 个供应商（本地）、仅「默认画布」、0 队列任务；测试痕迹（CDP验收-超时 供应商、画布 2、53 个 job）只存在于 app-data.json.after-test，未污染本地数据。
 - 检查脚本存证：.workflow-kit/tasks/evidence/inspect-userdata-restore.py（只读、对 apiKey 只报存在性不打印值）。
 
 ## 5. 下一步执行（按 RESUME 的 `review-packet`）

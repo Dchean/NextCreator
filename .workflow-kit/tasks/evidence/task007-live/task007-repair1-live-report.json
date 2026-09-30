@@ -19,7 +19,7 @@
       "id": "R2b",
       "title": "F2 修复：boot1 后应用产生的持久化负载不含明文（迁移主动清洗）",
       "result": "PASS",
-      "detail": "写入负载含假密钥=false；磁盘检查在本沙箱不可测（应用落盘被 os error 5 拒绝），故以应用真实写入的负载为准"
+      "detail": "写入负载含假密钥=false；磁盘检查在本沙箱不可测（应用落盘被 <SANDBOX_WRITE_DENIED> 拒绝），故以应用真实写入的负载为准"
     },
     {
       "id": "R3",
@@ -31,7 +31,7 @@
       "id": "R4",
       "title": "F1 修复：boot2 稳态回填后磁盘无明文（回填不再污染磁盘）",
       "result": "PASS",
-      "detail": "磁盘明文=true（磁盘检查在本沙箱不可测（应用落盘被 os error 5 拒绝），不可作为判据）；以 R5 的持久化往返为准"
+      "detail": "磁盘明文=true（磁盘检查在本沙箱不可测（应用落盘被 <SANDBOX_WRITE_DENIED> 拒绝），不可作为判据）；以 R5 的持久化往返为准"
     },
     {
       "id": "R5",
@@ -76,7 +76,7 @@
     }
   ],
   "saveErrors": 9,
-  "dataShaBefore": "824a7e330edb9b20ea94b7e5538fc9d4e9e36991e31c5d2b480effedf19a0490",
-  "restoreBackup": "C:\\Users\\A\\NextCreator-key-backups\\task007-repair1-app-data.before.json",
-  "dataShaAfter": "824a7e330edb9b20ea94b7e5538fc9d4e9e36991e31c5d2b480effedf19a0490"
+  "dataShaBefore": "<LOCAL_DATA_FINGERPRINT>",
+  "restoreBackup": "<LOCAL_USER_DIR>\\<LOCAL_BACKUP_DIR>\\task007-repair1-app-data.before.json",
+  "dataShaAfter": "<LOCAL_DATA_FINGERPRINT>"
 }

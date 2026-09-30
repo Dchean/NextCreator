@@ -8,7 +8,7 @@
 
 由主 Agent 使用完整包运行 bootstrap，目标目录必须明确，先预览再在用户已授权的接入范围写入。新项目 kind=new，已有项目 kind=refactor；--host 只是宿主标签，不是编码 CLI 的名称。
 
-bootstrap 不带 --write 只预览；初次写入需要 --source 引用实际用户选择。已接入时重复调用只检查，不初始化、重设预算或重写历史。
+bootstrap 不带 --write 只预览；初次写入需要 --source 引用实际用户选择。已接入时重复调用只检查，不初始化、重设预算或历史卫生处置。
 
 主 Agent 报告实际结果：
 
