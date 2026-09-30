@@ -3,7 +3,7 @@
   <h1>NextCreator <sub>二改版</sub></h1>
   <p>基于可视化节点的 AI 内容生成工作流工具</p>
 
-  ![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)
+  ![Version](https://img.shields.io/badge/version-0.3.1-blue.svg)
   ![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows-lightgrey.svg)
   ![Tauri](https://img.shields.io/badge/Tauri-2.0-24C8DB.svg?logo=tauri&logoColor=white)
   ![License](https://img.shields.io/badge/license-AGPL%20v3-blue.svg)
@@ -22,7 +22,7 @@
 | 关系 | 本版由本仓库维护者独立修改维护，**与上游无隶属关系，上游不对本版内容负责** |
 | 下载 | 请从**本仓库**的 [Releases](https://github.com/Dchean/NextCreator/releases) 下载；版本号见上方徽章 |
 | 版权 | 原始代码版权归原作者所有；本版修改部分依 **AGPL-3.0 第 5 条**标注改动与日期 |
-| 最后修改 | 2026-09-30（对应 v0.3.0） |
+| 最后修改 | 2026-09-30（对应 v0.3.1） |
 
 > 若你是从上游仓库来到此处，请注意本版的安装包、版本号与行为均可能与上游不同，
 > 遇到问题请到**本仓库**反馈，不要打扰上游作者。
@@ -74,11 +74,11 @@
 ## 快速开始
 
 前往本仓库 [Releases](https://github.com/Dchean/NextCreator/releases) 下载最新版本
-（当前 `0.3.0`，安装包文件名中的版本号即应用版本号）：
+（当前 `0.3.1`，安装包文件名中的版本号即应用版本号）：
 
-- **macOS (Apple Silicon)**: `NextCreator_0.3.0_aarch64.dmg`
-- **macOS (Intel)**: `NextCreator_0.3.0_x64.dmg`
-- **Windows**: `NextCreator_0.3.0_x64-setup.exe` 或 `NextCreator_0.3.0_x64_en-US.msi`
+- **macOS (Apple Silicon)**: `NextCreator_0.3.1_aarch64.dmg`
+- **macOS (Intel)**: `NextCreator_0.3.1_x64.dmg`
+- **Windows**: `NextCreator_0.3.1_x64-setup.exe` 或 `NextCreator_0.3.1_x64_en-US.msi`
 
 ### macOS 安装提示
 
@@ -128,7 +128,7 @@ cd src-tauri && cargo test --release --lib
 
 ## 发布流程
 
-本仓库的发布遵循一条硬规则：**发布 tag 必须等于应用版本号**（`v0.3.0` ↔ 版本 `0.3.0`）。
+本仓库的发布遵循一条硬规则：**发布 tag 必须等于应用版本号**（`v0.3.1` ↔ 版本 `0.3.1`）。
 
 原因：安装包文件名取自 `tauri.conf.json` 的 `version`，而 Release 标题取自 git tag，
 两者若不一致，用户会下载到与页面标题不符的版本。CI 已加入校验，不一致会直接让发布失败。
