@@ -1,0 +1,10 @@
+fix(ci): 清理旧版本资产时保留文件名不含版本号的产物
+
+NextCreator_aarch64.app.tar.gz / NextCreator_x64.app.tar.gz 这类 macOS 升级包
+文件名里没有版本号，原判定（name.includes(version)）会把它们当作旧资产删除，
+导致对应平台产物从发布页消失。
+
+改为按"名字里出现的版本号 token"判定：
+- 含当前版本号 → 保留
+- 含其它版本号 → 删除（旧版本残留）
+- 不含任何版本号 → 保留（无法判定归属，且 tauri-action 会按同名覆盖上传）

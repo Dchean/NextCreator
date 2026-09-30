@@ -58,7 +58,15 @@ console.log(`[prune] release has ${assets.length} asset(s)`);
 
 let deleted = 0;
 for (const asset of assets) {
-  if (asset.name.includes(version)) continue;         // current version → keep
+  // 只删除"名字里带版本号、且不是当前版本"的资产。
+  // 关键：像 NextCreator_aarch64.app.tar.gz 这种文件名不含版本号的资产必须保留 ——
+  // 它无法判断归属，误删会导致该平台产物缺失（tauri-action 会按同样的名字覆盖上传）。
+  const tokens = asset.name.match(/\d+\.\d+\.\d+/g) || [];
+  if (tokens.length === 0) {
+    console.log(`[prune] keep (no version in name): ${asset.name}`);
+    continue;
+  }
+  if (tokens.includes(version)) continue; // 属于当前版本 → 保留
   const del = await api(`/releases/assets/${asset.id}`, { method: "DELETE" });
   if (del.ok || del.status === 204) {
     console.log(`[prune] deleted stale asset: ${asset.name}`);
