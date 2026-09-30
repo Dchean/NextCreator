@@ -1,0 +1,16 @@
+chore(release): 应用版本 0.2.6 -> 0.2.10（发布动作）
+
+同步四处版本字段：package.json、src-tauri/tauri.conf.json、src-tauri/Cargo.toml、
+src-tauri/Cargo.lock（工作区成员）。
+
+此前迭代按功能推进（git tag 已到 v0.2.10），应用版本号停在 0.2.6；
+本次按用户「打tag发布release」的指示完成版本对齐，作为正式发布动作。
+
+验证：
+- tsc --noEmit exit 0
+- queue-regression.mjs 9/9 PASS exit 0
+- cargo build --release exit 0，产物 nextcreator.exe 的
+  ProductVersion / FileVersion 均为 0.2.10
+
+注：本提交先于发布 tag 打出，发布 tag 指向本提交（而非 85cfd8f），
+确保 CI 从 GitHub 拉取的源码即为 0.2.10。
