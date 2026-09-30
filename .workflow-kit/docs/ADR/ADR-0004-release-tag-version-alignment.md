@@ -17,7 +17,10 @@
 
 ## Proposal
 
-1. **版本号是唯一事实来源**：发布 tag 必须严格等于 `v` + 应用版本号；四处版本字段必须相同（`package.json`、`tauri.conf.json`、`Cargo.toml`、`Cargo.lock` 的 workspace 成员）。
+1. **版本号是唯一事实来源**：发布 tag 必须严格等于 `v` + 应用版本号；下列位置必须相同：
+   `package.json`、`src-tauri/tauri.conf.json`、`src-tauri/Cargo.toml`、`src-tauri/Cargo.lock`
+   的 workspace 成员，以及 `README.md` 的版本徽章与安装包文件名示例（文档同样是手写版本号，
+   同样会漂移，故一并纳入校验）。
 2. **在流水线入口强制校验**：`verify-version-alignment.mjs` 在每个平台 job 的 checkout 之后立即运行，任一不一致即让 job 失败，发布不会产出。
 3. **发布前清理错版本残留**：`prune-release-assets.mjs` 在同一 tag 重发时删除名字里带**其它版本号**的资产，避免发布页同时挂多个版本的安装包。
    - 判定按"名字中出现的版本号 token"进行：含当前版本 → 保留；含其它版本 → 删除；**不含任何版本号 → 保留**（例如 `NextCreator_aarch64.app.tar.gz` 这种升级包，无法判定归属，误删会造成产物缺失）。
