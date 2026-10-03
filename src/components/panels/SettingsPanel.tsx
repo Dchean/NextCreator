@@ -4,7 +4,6 @@ import {
   X,
   Save,
   RotateCcw,
-  Server,
   Github,
   ExternalLink,
   RefreshCw,
@@ -19,8 +18,10 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useToastStore } from "@/stores/toastStore";
 import { useModelListStore } from "@/services/modelListService";
+import { isImageModel } from "@/config/presetModels";
 import { Select } from "@/components/ui/Select";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { StorageManagementSection } from "@/components/panels/StorageManagementSection";
 import { useModal, getModalAnimationClasses } from "@/hooks/useModal";
 import type { AppSettings } from "@/types";
 import {
@@ -69,15 +70,21 @@ function ModelVisibilitySection() {
     }
   }, [providers, fetchModels]);
 
-  // 所有供应商模型并集（按 id 去重，保留首个 label）
-  const allModels = (() => {
+  // 所有供应商模型并集（按 id 去重，保留首个 label），并按用途分组：
+  // 供应商列表不携带用途元数据，按 isImageModel 命名约定分类（与节点选择器同一判定）。
+  const { imageModels, llmModels } = (() => {
     const byId = new Map<string, string | undefined>();
     for (const p of providers) {
       for (const m of entries[p.id]?.models ?? []) {
         if (!byId.has(m.id)) byId.set(m.id, m.label);
       }
     }
-    return [...byId.entries()].map(([id, label]) => ({ id, label }));
+    const imageModels: { id: string; label?: string }[] = [];
+    const llmModels: { id: string; label?: string }[] = [];
+    for (const [id, label] of byId) {
+      (isImageModel(id) ? imageModels : llmModels).push({ id, label });
+    }
+    return { imageModels, llmModels };
   })();
 
   const isLoading = providers.some((p) => entries[p.id]?.loading);
@@ -93,9 +100,10 @@ function ModelVisibilitySection() {
 
   const renderGroup = (category: ModelVisibilityCategory) => {
     const hidden = safeDisabled[category];
+    const groupModels = category === "image" ? imageModels : llmModels;
     return (
       <div className="nc-soft-panel space-y-1.5">
-        {allModels.length === 0 ? (
+        {groupModels.length === 0 ? (
           <div className="px-2 py-3 text-center text-xs text-base-content/45">
             {providers.length === 0
               ? "请先添加供应商"
@@ -103,10 +111,10 @@ function ModelVisibilitySection() {
                 ? "正在获取模型列表..."
                 : loadError
                   ? `模型列表获取失败：${loadError}`
-                  : "供应商暂未返回模型列表"}
+                  : `供应商模型中暂无${category === "image" ? "生图" : "LLM"}模型`}
           </div>
         ) : (
-          allModels.map(({ id, label }) => {
+          groupModels.map(({ id, label }) => {
             const enabled = !hidden.includes(id);
             return (
               <label
@@ -324,7 +332,6 @@ export function SettingsPanel() {
     closeSettings,
     updateSettings,
     resetSettings,
-    openProviderPanel,
   } = useSettingsStore();
   const [localTheme, setLocalTheme] = useState<AppSettings["theme"]>(
     settings.theme
@@ -355,11 +362,6 @@ export function SettingsPanel() {
     resetSettings();
     setLocalTheme(useSettingsStore.getState().settings.theme);
     setShowResetConfirm(false);
-  };
-
-  const handleOpenProviders = () => {
-    closeSettings();
-    openProviderPanel();
   };
 
   const handleCheckUpdate = async () => {
@@ -459,28 +461,6 @@ export function SettingsPanel() {
 
         {/* 内容 */}
         <div className="nc-modal-body space-y-4">
-          {/* 供应商管理入口 */}
-          <div
-            className="nc-soft-panel flex items-center justify-between cursor-pointer hover:bg-base-300! transition-colors"
-            onClick={handleOpenProviders}
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
-                <Server className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <div className="font-medium">供应商管理</div>
-                <div className="text-sm text-base-content/50">
-                  配置 API 供应商和节点分配
-                </div>
-              </div>
-            </div>
-            <div className="text-base-content/30">→</div>
-          </div>
-
-          {/* 分隔线 */}
-          <hr className="nc-divider" />
-
           {/* 模型管理 */}
           <ModelVisibilitySection />
 
@@ -489,6 +469,9 @@ export function SettingsPanel() {
 
           {/* 图片存储位置 */}
           <StorageLocationSection />
+
+          {/* 存储管理（原独立弹窗，并入设置页） */}
+          <StorageManagementSection />
 
           {/* 分隔线 */}
           <hr className="nc-divider" />

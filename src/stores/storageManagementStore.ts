@@ -22,7 +22,6 @@ export type ExpandedCanvases = Set<string>;
 
 interface StorageManagementState {
   // UI 状态
-  isOpen: boolean;
   isLoading: boolean;
 
   // 文件存储数据
@@ -36,8 +35,6 @@ interface StorageManagementState {
   error: string | null;
 
   // 操作
-  openModal: () => void;
-  closeModal: () => void;
   refreshStats: () => Promise<void>;
 
   // 文件存储操作
@@ -52,7 +49,6 @@ interface StorageManagementState {
 
 export const useStorageManagementStore = create<StorageManagementState>(
   (set, get) => ({
-    isOpen: false,
     isLoading: false,
 
     fileStats: null,
@@ -63,12 +59,8 @@ export const useStorageManagementStore = create<StorageManagementState>(
 
     error: null,
 
-    openModal: async () => {
-      set({
-        isOpen: true,
-        isLoading: true,
-        error: null,
-      });
+    refreshStats: async () => {
+      set({ isLoading: true, error: null });
 
       try {
         const [fileStats, storagePath, storageConfig] = await Promise.all([
@@ -76,37 +68,7 @@ export const useStorageManagementStore = create<StorageManagementState>(
           getStoragePath(),
           getStorageConfig(),
         ]);
-        set({
-          fileStats,
-          storagePath,
-          storageConfig,
-          isLoading: false,
-        });
-      } catch (err) {
-        set({
-          error: err instanceof Error ? err.message : "获取存储信息失败",
-          isLoading: false,
-        });
-      }
-    },
-
-    closeModal: () => {
-      set({
-        isOpen: false,
-        expandedFileCanvases: [],
-        canvasImages: new Map(),
-      });
-    },
-
-    refreshStats: async () => {
-      set({ isLoading: true, error: null });
-
-      try {
-        const [fileStats, storageConfig] = await Promise.all([
-          getStorageStats(),
-          getStorageConfig(),
-        ]);
-        set({ fileStats, storageConfig, isLoading: false });
+        set({ fileStats, storagePath, storageConfig, isLoading: false });
       } catch (err) {
         set({
           error: err instanceof Error ? err.message : "刷新失败",

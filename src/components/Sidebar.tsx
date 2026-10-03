@@ -18,7 +18,6 @@ import {
   SlidersHorizontal,
   Images,
   ListTodo,
-  HardDrive,
   Server,
   HelpCircle,
   Settings,
@@ -27,7 +26,6 @@ import { useCanvasStore, type SidebarView } from "@/stores/canvasStore";
 import { useUserPromptStore, type UserPrompt, type CreatePromptInput } from "@/stores/userPromptStore";
 import { useFavoritePromptStore } from "@/stores/favoritePromptStore";
 import { useSettingsStore } from "@/stores/settingsStore";
-import { useStorageManagementStore } from "@/stores/storageManagementStore";
 import { useQueueStore } from "@/stores/queueStore";
 import { nodeCategories, nodeIconMap, nodeIconColors } from "@/config/nodeConfig";
 import { promptCategories, promptIconMap, promptIconColors, type PromptItem } from "@/config/promptConfig";
@@ -53,7 +51,6 @@ interface SidebarProps {
 export const Sidebar = memo(function Sidebar({ onDragStart, onOpenHelp }: SidebarProps) {
   // 原右上角的设置类入口移到侧栏 rail 底部（左下角）
   const { openSettings, openProviderPanel } = useSettingsStore();
-  const { openModal: openStorageModal } = useStorageManagementStore();
   const isQueuePanelOpen = useQueueStore((s) => s.isQueuePanelOpen);
   const setQueuePanelOpen = useQueueStore((s) => s.setQueuePanelOpen);
   const activeQueueCount = useQueueStore(
@@ -285,11 +282,6 @@ export const Sidebar = memo(function Sidebar({ onDragStart, onOpenHelp }: Sideba
                   {activeQueueCount}
                 </span>
               )}
-            </button>
-          </div>
-          <div className="tooltip tooltip-right" data-tip="存储管理">
-            <button className="nc-icon-btn mb-1" onClick={openStorageModal} aria-label="存储管理">
-              <HardDrive className="w-4 h-4" />
             </button>
           </div>
           <div className="tooltip tooltip-right" data-tip="供应商管理">

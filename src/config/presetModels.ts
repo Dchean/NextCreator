@@ -1,6 +1,21 @@
 import type { ProviderProtocol, NodeProviderMapping } from "@/types";
 import { useSettingsStore } from "@/stores/settingsStore";
 
+/**
+ * 模型类别判定（单一事实来源）：
+ * 供应商模型列表不携带"用途"元数据，只能按命名约定分类——
+ * 主流图像模型命名都含 image / dall / flux / banana 等标记
+ * （gemini-*-image-*、gpt-image-*、dall-e-*、flux.*、seedream、nano-banana…），
+ * 其余按 LLM 处理。设置页「模型管理」的分组与各节点选择器的过滤共用此判定，
+ * 两边必须一致，否则"勾选了但节点不生效"或反之。
+ */
+const IMAGE_MODEL_NAME_PATTERN =
+  /image|dall|flux|seedream|banana|midjourney|stable-diffusion|sd3|qwen-image|seededit/i;
+
+export function isImageModel(modelId: string): boolean {
+  return IMAGE_MODEL_NAME_PATTERN.test(modelId);
+}
+
 // 预设模型选项
 export interface PresetModel {
   value: string;

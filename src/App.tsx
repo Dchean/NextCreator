@@ -9,7 +9,6 @@ import { NodeInspector } from "@/components/inspectors/NodeInspector";
 import { SettingsPanel, KeyboardShortcutsPanel } from "@/components/panels";
 import { QueuePanel } from "@/components/panels/QueuePanel";
 import { ProviderPanel } from "@/components/panels/ProviderPanel";
-import { StorageManagementModal } from "@/components/ui/StorageManagementModal";
 import { ToastContainer } from "@/components/ui/Toast";
 import { useCanvasStore } from "@/stores/canvasStore";
 import { useFlowStore } from "@/stores/flowStore";
@@ -252,9 +251,6 @@ function App() {
 
         {/* 快捷键帮助面板 */}
         <KeyboardShortcutsPanel isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
-
-        {/* 存储管理弹窗 */}
-        <StorageManagementModal />
 
         {/* 生成队列面板 */}
         <QueuePanel />

@@ -5,6 +5,7 @@ import { useModal, getModalAnimationClasses } from "@/hooks/useModal";
 import { useCustomModelStore, type ModelCategory } from "@/stores/customModelStore";
 import { useModelListStore, getRemoteModelLabel } from "@/services/modelListService";
 import { useSettingsStore } from "@/stores/settingsStore";
+import { isImageModel } from "@/config/presetModels";
 import type { Provider } from "@/types";
 
 export interface ModelOption {
@@ -82,9 +83,17 @@ export function ModelSelector({
     [options, hiddenModelSet]
   );
 
-  // 实时模型：排除已在预设与自定义列表中的项
+  // 实时模型：按节点类别过滤（生图节点只显示图像模型，LLM 节点只显示文本模型），
+  // 再排除黑名单、预设与自定义列表中的项
   const remoteOptions: ModelOption[] = provider
     ? (remoteEntry?.models || [])
+        .filter((m) =>
+          modelCategory === "imageGenerator"
+            ? isImageModel(m.id)
+            : modelCategory === "llmContent"
+              ? !isImageModel(m.id)
+              : true
+        )
         .filter(
           (m) =>
             !hiddenModelSet.has(m.id) &&

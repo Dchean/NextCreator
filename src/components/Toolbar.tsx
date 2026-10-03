@@ -14,13 +14,13 @@ import packageJson from "../../package.json";
 export function Toolbar() {
   return (
     <div className="nc-toolbar flex items-center justify-between px-4" data-tauri-drag-region>
-      {/* 左侧 Logo（同样是拖拽区） */}
+      {/* 左侧 Logo（子元素也带拖拽属性：drag-region 只认事件 target 自身，落在 img/文字上同样要能拖） */}
       <div className="flex items-center gap-3" data-tauri-drag-region>
-        <div className="flex items-center gap-2">
-          <img src={logoImage} alt="NextCreator" className="w-8 h-8 rounded-md" />
-          <span className="text-base font-bold leading-none">NextCreator</span>
+        <div className="flex items-center gap-2" data-tauri-drag-region>
+          <img src={logoImage} alt="NextCreator" className="w-8 h-8 rounded-md" data-tauri-drag-region />
+          <span className="text-base font-bold leading-none" data-tauri-drag-region>NextCreator</span>
         </div>
-        <div className="nc-badge">v{packageJson.version}</div>
+        <div className="nc-badge" data-tauri-drag-region>v{packageJson.version}</div>
       </div>
 
       <WindowControls />
