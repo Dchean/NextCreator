@@ -17,10 +17,18 @@ import {
   Heart,
   SlidersHorizontal,
   Images,
+  ListTodo,
+  HardDrive,
+  Server,
+  HelpCircle,
+  Settings,
 } from "lucide-react";
 import { useCanvasStore, type SidebarView } from "@/stores/canvasStore";
 import { useUserPromptStore, type UserPrompt, type CreatePromptInput } from "@/stores/userPromptStore";
 import { useFavoritePromptStore } from "@/stores/favoritePromptStore";
+import { useSettingsStore } from "@/stores/settingsStore";
+import { useStorageManagementStore } from "@/stores/storageManagementStore";
+import { useQueueStore } from "@/stores/queueStore";
 import { nodeCategories, nodeIconMap, nodeIconColors } from "@/config/nodeConfig";
 import { promptCategories, promptIconMap, promptIconColors, type PromptItem } from "@/config/promptConfig";
 import { Input } from "@/components/ui/Input";
@@ -39,9 +47,18 @@ const navItems: { id: SidebarView; icon: React.ComponentType<{ className?: strin
 
 interface SidebarProps {
   onDragStart: (event: React.DragEvent, nodeType: string, defaultData: Record<string, unknown>) => void;
+  onOpenHelp?: () => void;
 }
 
-export const Sidebar = memo(function Sidebar({ onDragStart }: SidebarProps) {
+export const Sidebar = memo(function Sidebar({ onDragStart, onOpenHelp }: SidebarProps) {
+  // 原右上角的设置类入口移到侧栏 rail 底部（左下角）
+  const { openSettings, openProviderPanel } = useSettingsStore();
+  const { openModal: openStorageModal } = useStorageManagementStore();
+  const isQueuePanelOpen = useQueueStore((s) => s.isQueuePanelOpen);
+  const setQueuePanelOpen = useQueueStore((s) => s.setQueuePanelOpen);
+  const activeQueueCount = useQueueStore(
+    (s) => s.jobs.filter((j) => j.status === "queued" || j.status === "running").length
+  );
   // 细粒度 selector 订阅，避免不相关状态变化触发重渲染
   const canvases = useCanvasStore((s) => s.canvases);
   const activeCanvasId = useCanvasStore((s) => s.activeCanvasId);
@@ -252,6 +269,45 @@ export const Sidebar = memo(function Sidebar({ onDragStart }: SidebarProps) {
             </button>
           );
         })}
+
+        {/* 底部工具区（原右上角的设置类入口，挪到左下角） */}
+        <div className="mt-auto flex flex-col items-center pt-2">
+          <hr className="nc-divider mb-2 w-6" />
+          <div className="tooltip tooltip-right" data-tip="生成队列">
+            <button
+              className="nc-icon-btn relative mb-1"
+              onClick={() => setQueuePanelOpen(!isQueuePanelOpen)}
+              aria-label="生成队列"
+            >
+              <ListTodo className="w-4 h-4" />
+              {activeQueueCount > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-medium leading-none text-primary-content">
+                  {activeQueueCount}
+                </span>
+              )}
+            </button>
+          </div>
+          <div className="tooltip tooltip-right" data-tip="存储管理">
+            <button className="nc-icon-btn mb-1" onClick={openStorageModal} aria-label="存储管理">
+              <HardDrive className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="tooltip tooltip-right" data-tip="供应商管理">
+            <button className="nc-icon-btn mb-1" onClick={openProviderPanel} aria-label="供应商管理">
+              <Server className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="tooltip tooltip-right" data-tip="帮助 (?)">
+            <button className="nc-icon-btn mb-1" onClick={onOpenHelp} aria-label="帮助">
+              <HelpCircle className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="tooltip tooltip-right" data-tip="设置">
+            <button className="nc-icon-btn" onClick={openSettings} aria-label="设置">
+              <Settings className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* 右侧内容面板 - 固定宽度 */}

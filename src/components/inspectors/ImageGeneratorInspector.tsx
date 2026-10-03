@@ -7,9 +7,9 @@ import { ImagePreviewModal } from "@/components/ui/ImagePreviewModal";
 import { useLoadingDots } from "@/hooks/useLoadingDots";
 import { useImageGeneratorExecution } from "@/hooks/useImageGeneratorExecution";
 import { useNodeConnectionStatus } from "@/hooks/useNodeConnectionStatus";
+import { useNodeProviderBinding } from "@/hooks/useNodeProviderBinding";
 import { getImageUrl } from "@/services/fileStorageService";
 import { useFlowStore } from "@/stores/flowStore";
-import { useSettingsStore } from "@/stores/settingsStore";
 import {
   filterPromptMentionSources,
   getActivePromptMentionQuery,
@@ -92,7 +92,8 @@ export function ImageGeneratorInspector({ nodeId, data }: ImageGeneratorInspecto
 
   const apiProtocol = getImageApiProtocol(data);
   const config = getImageApiProtocolConfig(apiProtocol);
-  const provider = useSettingsStore((s) => s.getNodeProvider(config.providerKey));
+  // 供应商绑定入口在节点 Inspector（供应商面板的手动分配区已移除）
+  const { provider, providerOptions, selectProvider } = useNodeProviderBinding(config.providerKey);
   const { handleGenerate, model, resolvedSize, sizeValidationError } = useImageGeneratorExecution(nodeId, data);
   const dots = useLoadingDots(data.status === "loading");
   const {
@@ -304,12 +305,29 @@ export function ImageGeneratorInspector({ nodeId, data }: ImageGeneratorInspecto
             />
           </div>
 
+          <div>
+            <label className="nc-field-label">供应商</label>
+            <Select
+              value={provider?.id || ""}
+              options={providerOptions}
+              onChange={selectProvider}
+              usePortal={false}
+            />
+            {provider ? null : (
+              <p className="mt-1 text-[11px] text-base-content/40">
+                未配置供应商时无法拉取模型列表
+              </p>
+            )}
+          </div>
+
+          {/* 模型：仅实时拉取列表 + 手动输入兜底，不再提供预设 */}
           <ModelSelector
             value={model}
-            options={config.presetModels}
+            options={[]}
             onChange={handleModelChange}
             variant={getModelSelectorVariant(config.accent)}
             allowCustom={true}
+            customPlaceholder="搜索、输入或从实时列表选择模型"
             modelCategory="imageGenerator"
             mode="inline"
             provider={provider}

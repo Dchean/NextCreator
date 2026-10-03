@@ -102,7 +102,9 @@
   --nc-z-overlay-top: 20;
   --nc-z-toolbar: 40;
   --nc-z-floating: 50;
-  --nc-z-dropdown: 80;
+  /* 下拉浮层必须高于 modal/nested modal：弹窗内（设置、供应商管理）的
+     Select/ModelSelector 下拉经 Portal 渲染到 body，低于 modal(100) 会被遮罩盖住、无法点选。 */
+  --nc-z-dropdown: 115;
   --nc-z-tooltip: 90;
   --nc-z-modal: 100;
   --nc-z-modal-nested: 110;
@@ -175,7 +177,7 @@
   --nc-z-overlay-top: 20;
   --nc-z-toolbar: 40;
   --nc-z-floating: 50;
-  --nc-z-dropdown: 80;
+  --nc-z-dropdown: 115;
   --nc-z-tooltip: 90;
   --nc-z-modal: 100;
   --nc-z-modal-nested: 110;
@@ -226,6 +228,24 @@ textarea {
   background: color-mix(in srgb, var(--nc-paper) 94%, transparent);
   border-bottom: 1px solid var(--nc-border);
   box-shadow: 0 1px 0 color-mix(in srgb, var(--nc-text) 2%, transparent);
+  backdrop-filter: blur(16px);
+}
+
+/* 底部悬浮工具条：原顶部中央的工作流操作，悬浮于客户端底部居中、略高于底边 */
+.nc-floating-toolbar {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--nc-z-floating);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: var(--nc-radius-lg);
+  border: 1px solid var(--nc-border);
+  background: color-mix(in srgb, var(--nc-paper) 92%, transparent);
+  box-shadow: var(--nc-shadow-card);
   backdrop-filter: blur(16px);
 }
 

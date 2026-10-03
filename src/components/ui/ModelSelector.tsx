@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
+import { useState, useEffect, useMemo, useRef, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent as ReactMouseEvent } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, X, Check, Trash2, Search, Plus, RefreshCw, CloudDownload, CircleAlert } from "lucide-react";
 import { useModal, getModalAnimationClasses } from "@/hooks/useModal";
 import { useCustomModelStore, type ModelCategory } from "@/stores/customModelStore";
 import { useModelListStore, getRemoteModelLabel } from "@/services/modelListService";
+import { useSettingsStore } from "@/stores/settingsStore";
 import type { Provider } from "@/types";
 
 export interface ModelOption {
@@ -58,6 +59,15 @@ export function ModelSelector({
     provider ? state.entries[provider.id] : undefined
   );
   const fetchModels = useModelListStore((state) => state.fetchModels);
+  // 设置页「模型管理」勾选的黑名单：imageGenerator/llmContent 各自独立，未指定分类不过滤
+  const disabledModels = useSettingsStore((state) =>
+    modelCategory === "imageGenerator"
+      ? state.settings.disabledModels?.image
+      : modelCategory === "llmContent"
+        ? state.settings.disabledModels?.llm
+        : undefined
+  );
+  const hiddenModelSet = useMemo(() => new Set(disabledModels ?? []), [disabledModels]);
 
   // 打开时自动拉取实时模型列表（store 内部带 TTL 去重）
   useEffect(() => {
@@ -66,15 +76,26 @@ export function ModelSelector({
     }
   }, [isOpen, provider, fetchModels]);
 
+  // 预设与实时列表都按黑名单过滤；自定义模型不参与过滤（是用户的显式输入）
+  const visibleOptions = useMemo(
+    () => options.filter((opt) => !hiddenModelSet.has(opt.value)),
+    [options, hiddenModelSet]
+  );
+
   // 实时模型：排除已在预设与自定义列表中的项
   const remoteOptions: ModelOption[] = provider
     ? (remoteEntry?.models || [])
-        .filter((m) => !options.some((opt) => opt.value === m.id) && !customModels.includes(m.id))
+        .filter(
+          (m) =>
+            !hiddenModelSet.has(m.id) &&
+            !options.some((opt) => opt.value === m.id) &&
+            !customModels.includes(m.id)
+        )
         .map((m) => ({ value: m.id, label: getRemoteModelLabel(m) }))
     : [];
 
   const selectedPreset =
-    options.find((opt) => opt.value === value) ||
+    visibleOptions.find((opt) => opt.value === value) ||
     remoteOptions.find((opt) => opt.value === value);
   // 检查是否是自定义模型（不在预设列表中）
   const isCustomModel = Boolean(value) && !selectedPreset;
@@ -160,7 +181,7 @@ export function ModelSelector({
       {isOpen && mode === "modal" && (
         <ModelSelectorModal
           value={value}
-          options={options}
+          options={visibleOptions}
           onChange={handleSelect}
           onClose={() => setIsOpen(false)}
           allowCustom={allowCustom}
@@ -177,7 +198,7 @@ export function ModelSelector({
       {isOpen && mode === "inline" && (
         <ModelSelectorDropdown
           value={value}
-          options={options}
+          options={visibleOptions}
           onChange={handleSelect}
           allowCustom={allowCustom}
           customPlaceholder={customPlaceholder}
@@ -503,7 +524,7 @@ function ModelSelectorDropdown({
           </div>
         )}
 
-        {(filteredRemoteOptions.length > 0 || remoteEntry?.error) && (
+        {(filteredRemoteOptions.length > 0 || remoteEntry?.error || remoteEntry?.loading) && (
           <div className="mt-2 border-t border-base-300/70 pt-2">
             <RemoteSectionHeader remoteEntry={remoteEntry} onRefreshRemote={onRefreshRemote} />
             {remoteEntry?.error && filteredRemoteOptions.length === 0 && (
@@ -696,34 +717,36 @@ function ModelSelectorModal({
 
         {/* 内容区域 */}
         <div className="p-4 space-y-3 max-h-[60vh] overflow-y-auto" role="listbox">
-          {/* 预设模型列表 */}
-          <div className="space-y-1">
-            <div className="nc-section-title-sm mb-1.5">预设模型</div>
-            {options.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                role="option"
-                aria-selected={value === opt.value}
-                className={`
-                  ${optionIdleClass}
-                  ${value === opt.value ? `nc-model-selector-option-selected ${getSelectedBg()}` : ""}
-                `}
-                onClick={() => handleSelectPreset(opt.value)}
-              >
-                <span className="flex flex-col items-start">
-                  <span>{opt.label}</span>
-                  {opt.label !== opt.value && (
-                    <span className="text-xs text-base-content/50">{opt.value}</span>
-                  )}
-                </span>
-                {value === opt.value && <Check className="w-4 h-4" />}
-              </button>
-            ))}
-          </div>
+          {/* 预设模型列表（options 为空时不渲染该区块，例如生图节点已改为纯实时列表） */}
+          {options.length > 0 && (
+            <div className="space-y-1">
+              <div className="nc-section-title-sm mb-1.5">预设模型</div>
+              {options.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  role="option"
+                  aria-selected={value === opt.value}
+                  className={`
+                    ${optionIdleClass}
+                    ${value === opt.value ? `nc-model-selector-option-selected ${getSelectedBg()}` : ""}
+                  `}
+                  onClick={() => handleSelectPreset(opt.value)}
+                >
+                  <span className="flex flex-col items-start">
+                    <span>{opt.label}</span>
+                    {opt.label !== opt.value && (
+                      <span className="text-xs text-base-content/50">{opt.value}</span>
+                    )}
+                  </span>
+                  {value === opt.value && <Check className="w-4 h-4" />}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* 实时获取的模型列表 */}
-          {(remoteOptions?.length || remoteEntry?.error) && (
+          {(remoteOptions?.length || remoteEntry?.error || remoteEntry?.loading) && (
             <div className="border-t border-base-300 pt-3 space-y-1">
               <RemoteSectionHeader remoteEntry={remoteEntry} onRefreshRemote={onRefreshRemote} />
               {remoteEntry?.error && !remoteOptions?.length && (

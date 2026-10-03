@@ -19,8 +19,8 @@ import { ErrorDetailModal } from "@/components/ui/ErrorDetailModal";
 import { useLoadingDots } from "@/hooks/useLoadingDots";
 import { useLLMContentExecution } from "@/hooks/useLLMContentExecution";
 import { useNodeConnectionStatus } from "@/hooks/useNodeConnectionStatus";
+import { useNodeProviderBinding } from "@/hooks/useNodeProviderBinding";
 import { useFlowStore } from "@/stores/flowStore";
-import { useSettingsStore } from "@/stores/settingsStore";
 import {
   filterPromptMentionSources,
   getActivePromptMentionQuery,
@@ -74,7 +74,8 @@ export function LLMContentInspector({ nodeId, data }: LLMContentInspectorProps) 
 
   const apiProtocol = getLLMApiProtocol(data);
   const config = getLLMApiProtocolConfig(apiProtocol);
-  const provider = useSettingsStore((s) => s.getNodeProvider(config.providerKey));
+  // 供应商绑定入口在节点 Inspector（供应商面板的手动分配区已移除）
+  const { provider, providerOptions, selectProvider } = useNodeProviderBinding(config.providerKey);
   const { handleGenerate, model, validationError } = useLLMContentExecution(nodeId, data);
   const dots = useLoadingDots(data.status === "loading");
   const {
@@ -229,6 +230,21 @@ export function LLMContentInspector({ nodeId, data }: LLMContentInspectorProps) 
               onChange={handleProtocolChange}
               usePortal={false}
             />
+          </div>
+
+          <div>
+            <label className="nc-field-label">供应商</label>
+            <Select
+              value={provider?.id || ""}
+              options={providerOptions}
+              onChange={selectProvider}
+              usePortal={false}
+            />
+            {provider ? null : (
+              <p className="mt-1 text-[11px] text-base-content/40">
+                未配置供应商时无法拉取模型列表
+              </p>
+            )}
           </div>
 
           <ModelSelector

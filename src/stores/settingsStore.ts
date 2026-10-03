@@ -11,6 +11,7 @@ const defaultSettings: AppSettings = {
   providers: [],
   nodeProviders: {},
   theme: "light",
+  disabledModels: { image: [], llm: [] },
 };
 
 // 数据迁移：为旧版供应商数据添加 protocol 字段并处理 baseUrl
@@ -205,7 +206,14 @@ export const useSettingsStore = create<SettingsStore>()(
             console.error("[settingsStore] 数据恢复失败:", error);
             return;
           }
-          if (!state || state.settings.providers.length === 0) return;
+          if (!state) return;
+
+          // 迁移 0：旧配置没有 disabledModels 字段时补默认值（必须在 providers 早退之前）
+          if (!state.settings.disabledModels) {
+            state.updateSettings({ disabledModels: { image: [], llm: [] } });
+          }
+
+          if (state.settings.providers.length === 0) return;
 
           // 迁移 1（既有）：为旧版供应商数据添加 protocol 字段并处理 baseUrl
           const migratedProviders = migrateProviders(state.settings.providers);

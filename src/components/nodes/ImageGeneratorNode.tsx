@@ -278,7 +278,7 @@ function ImageGeneratorNodeBase({ id, data, selected }: NodeProps<ImageGenerator
             />
             <InlineModelRow
               value={model}
-              options={config.presetModels}
+              options={[]}
               provider={provider}
               variant={getModelSelectorVariant(config.accent)}
               onSelect={(value) => updateData({ model: value })}

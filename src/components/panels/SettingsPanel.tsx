@@ -13,10 +13,12 @@ import {
   Info,
   FolderOpen,
   HardDrive,
+  ListChecks,
 } from "lucide-react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useToastStore } from "@/stores/toastStore";
+import { useModelListStore } from "@/services/modelListService";
 import { Select } from "@/components/ui/Select";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useModal, getModalAnimationClasses } from "@/hooks/useModal";
@@ -38,6 +40,120 @@ import { rewriteStoredImagePaths } from "@/utils/imagePathRewrite";
 
 // 更新按钮状态类型
 type UpdateButtonState = "idle" | "checking" | "latest" | "hasUpdate" | "error";
+
+// 模型可见性分组：image = 生图节点，llm = LLM 节点
+type ModelVisibilityCategory = "image" | "llm";
+
+const MODEL_CATEGORY_META: { key: ModelVisibilityCategory; label: string; hint: string }[] = [
+  { key: "image", label: "生图模型", hint: "绘图生成节点可选" },
+  { key: "llm", label: "LLM 模型", hint: "LLM 内容生成节点可选" },
+];
+
+/**
+ * 模型管理：勾选各节点类型可使用的模型。
+ * 数据来源 = 所有供应商实时模型列表的并集（进设置页时按 TTL 缓存拉取）；
+ * 黑名单语义——勾选=展示，取消勾选=从对应节点的模型选择器中隐藏。
+ */
+function ModelVisibilitySection() {
+  const providers = useSettingsStore((s) => s.settings.providers);
+  const disabledModels = useSettingsStore((s) => s.settings.disabledModels);
+  const updateSettings = useSettingsStore((s) => s.updateSettings);
+  const fetchModels = useModelListStore((s) => s.fetchModels);
+  const entries = useModelListStore((s) => s.entries);
+
+  const safeDisabled = disabledModels ?? { image: [], llm: [] };
+
+  useEffect(() => {
+    for (const p of providers) {
+      void fetchModels(p);
+    }
+  }, [providers, fetchModels]);
+
+  // 所有供应商模型并集（按 id 去重，保留首个 label）
+  const allModels = (() => {
+    const byId = new Map<string, string | undefined>();
+    for (const p of providers) {
+      for (const m of entries[p.id]?.models ?? []) {
+        if (!byId.has(m.id)) byId.set(m.id, m.label);
+      }
+    }
+    return [...byId.entries()].map(([id, label]) => ({ id, label }));
+  })();
+
+  const isLoading = providers.some((p) => entries[p.id]?.loading);
+  const loadError = providers.length > 0 ? entries[providers[0].id]?.error : undefined;
+
+  const toggleModel = (category: ModelVisibilityCategory, modelId: string) => {
+    const current = safeDisabled[category];
+    const next = current.includes(modelId)
+      ? current.filter((id) => id !== modelId)
+      : [...current, modelId];
+    updateSettings({ disabledModels: { ...safeDisabled, [category]: next } });
+  };
+
+  const renderGroup = (category: ModelVisibilityCategory) => {
+    const hidden = safeDisabled[category];
+    return (
+      <div className="nc-soft-panel space-y-1.5">
+        {allModels.length === 0 ? (
+          <div className="px-2 py-3 text-center text-xs text-base-content/45">
+            {providers.length === 0
+              ? "请先添加供应商"
+              : isLoading
+                ? "正在获取模型列表..."
+                : loadError
+                  ? `模型列表获取失败：${loadError}`
+                  : "供应商暂未返回模型列表"}
+          </div>
+        ) : (
+          allModels.map(({ id, label }) => {
+            const enabled = !hidden.includes(id);
+            return (
+              <label
+                key={id}
+                className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-base-200/50"
+              >
+                <input
+                  type="checkbox"
+                  className="checkbox checkbox-sm checkbox-primary"
+                  checked={enabled}
+                  onChange={() => toggleModel(category, id)}
+                />
+                <span className="min-w-0 flex-1 truncate text-sm">{label ?? id}</span>
+                {label && label !== id && (
+                  <span className="min-w-0 truncate text-[11px] text-base-content/40">{id}</span>
+                )}
+              </label>
+            );
+          })
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <ListChecks className="w-4 h-4 text-base-content/70" />
+        <span className="nc-section-title">模型管理</span>
+      </div>
+      <p className="text-xs text-base-content/50">
+        勾选各节点类型可以使用的模型（数据来自供应商实时列表）；取消勾选后模型不再出现在对应节点的选择器中，随时可以勾回来。
+      </p>
+      <div className="space-y-3">
+        {MODEL_CATEGORY_META.map(({ key, label, hint }) => (
+          <div key={key} className="space-y-1.5">
+            <div className="flex items-baseline gap-2">
+              <span className="text-sm font-medium">{label}</span>
+              <span className="text-[11px] text-base-content/40">{hint}</span>
+            </div>
+            {renderGroup(key)}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // 图片存储位置设置区块
 function StorageLocationSection() {
@@ -361,6 +477,12 @@ export function SettingsPanel() {
             </div>
             <div className="text-base-content/30">→</div>
           </div>
+
+          {/* 分隔线 */}
+          <hr className="nc-divider" />
+
+          {/* 模型管理 */}
+          <ModelVisibilitySection />
 
           {/* 分隔线 */}
           <hr className="nc-divider" />

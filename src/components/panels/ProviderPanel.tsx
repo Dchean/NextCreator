@@ -1,28 +1,15 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import {
-  X,
-  Plus,
-  Pencil,
-  Trash2,
-  Server,
-  Image,
-  MessageSquare,
-  ChevronDown,
-  ChevronRight,
-  Zap,
-} from "lucide-react";
+import { X, Plus, Pencil, Trash2, Server, Zap } from "lucide-react";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useModelListStore } from "@/services/modelListService";
 // REQ-007：密钥改存 OS 凭据库，此处是唯一的写入入口。
 import { setProviderApiKey } from "@/services/secretStore";
 import { useToastStore } from "@/stores/toastStore";
-import { Select } from "@/components/ui/Select";
 import { Input } from "@/components/ui/Input";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { useModal, getModalAnimationClasses } from "@/hooks/useModal";
-import { NODE_ALLOWED_PROTOCOLS } from "@/types";
-import type { Provider, NodeProviderMapping, ProviderProtocol } from "@/types";
+import type { Provider, ProviderProtocol } from "@/types";
 
 // 协议类型配置
 const protocolConfig: { key: ProviderProtocol; label: string }[] = [
@@ -40,45 +27,6 @@ const protocolLabels: Record<ProviderProtocol, string> = {
   claude: "Claude",
 };
 
-// 节点类型配置
-const nodeTypeConfig: { key: keyof NodeProviderMapping; label: string; description: string }[] = [
-  { key: "imageGeneratorNB2", label: "Gemini 图片协议", description: "绘图节点的 Gemini generateContent 供应商" },
-  { key: "gptImageGenerator", label: "OpenAI Images API", description: "绘图节点的 /images/generations 与 /images/edits 供应商" },
-  { key: "llmContent", label: "LLM 内容生成", description: "大语言模型内容生成节点" },
-];
-
-// 节点分组配置
-interface NodeGroup {
-  id: string;
-  label: string;
-  icon: typeof Image;
-  colorClass: string;
-  bgClass: string;
-  nodeKeys: (keyof NodeProviderMapping)[];
-}
-
-const nodeGroups: NodeGroup[] = [
-  {
-    id: "image",
-    label: "图片生成",
-    icon: Image,
-    colorClass: "text-[var(--nc-blue)]",
-    bgClass: "bg-[var(--nc-blue-soft)]",
-    nodeKeys: ["imageGeneratorNB2", "gptImageGenerator"],
-  },
-  {
-    id: "llm",
-    label: "文本 / LLM",
-    icon: MessageSquare,
-    colorClass: "text-[var(--nc-success)]",
-    bgClass: "bg-[color-mix(in_srgb,var(--nc-success)_10%,transparent)]",
-    nodeKeys: ["llmContent"],
-  },
-];
-
-// 根据 key 查找节点配置
-const nodeConfigMap = new Map(nodeTypeConfig.map((n) => [n.key, n]));
-
 export function ProviderPanel() {
   const {
     settings,
@@ -87,7 +35,6 @@ export function ProviderPanel() {
     addProvider,
     updateProvider,
     removeProvider,
-    setNodeProvider,
   } = useSettingsStore();
 
   // 编辑/添加供应商的弹窗状态
@@ -95,8 +42,6 @@ export function ProviderPanel() {
   const [isAddingProvider, setIsAddingProvider] = useState(false);
   // 删除确认状态
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string } | null>(null);
-  // 分组折叠状态（默认全部展开）
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   // 供应商连接测试状态
   const [testStates, setTestStates] = useState<
     Record<string, { status: "loading" | "ok" | "error"; modelCount?: number; error?: string }>
@@ -137,56 +82,6 @@ export function ProviderPanel() {
 
   // 确保 providers 数组存在
   const providers = settings.providers || [];
-  const nodeProviders = settings.nodeProviders || {};
-
-  // 计算配置进度
-  const totalNodes = nodeTypeConfig.length;
-  const configuredNodes = nodeTypeConfig.filter(
-    ({ key }) => nodeProviders[key] && providers.some((p) => p.id === nodeProviders[key])
-  ).length;
-
-  // 切换分组折叠
-  const toggleGroup = (groupId: string) => {
-    setCollapsedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(groupId)) {
-        next.delete(groupId);
-      } else {
-        next.add(groupId);
-      }
-      return next;
-    });
-  };
-
-  // 自动保存：直接更新 store
-  const handleNodeProviderChange = (nodeKey: keyof NodeProviderMapping, providerId: string) => {
-    setNodeProvider(nodeKey, providerId || undefined);
-  };
-
-  // 批量分配：将供应商分配给分组内所有兼容节点
-  const handleBatchAssign = (group: NodeGroup, providerId: string) => {
-    if (!providerId) return;
-    const provider = providers.find((p) => p.id === providerId);
-    if (!provider) return;
-
-    for (const key of group.nodeKeys) {
-      // 只分配给协议兼容的节点
-      if (NODE_ALLOWED_PROTOCOLS[key].includes(provider.protocol)) {
-        setNodeProvider(key, providerId);
-      }
-    }
-  };
-
-  // 获取分组内兼容的供应商列表（取所有节点兼容协议的并集）
-  const getGroupCompatibleProviders = (group: NodeGroup) => {
-    const allProtocols = new Set<ProviderProtocol>();
-    for (const key of group.nodeKeys) {
-      for (const p of NODE_ALLOWED_PROTOCOLS[key]) {
-        allProtocols.add(p);
-      }
-    }
-    return providers.filter((p) => allProtocols.has(p.protocol));
-  };
 
   // 删除供应商 - 显示确认弹窗
   const handleDeleteProvider = (provider: Provider) => {
@@ -219,12 +114,6 @@ export function ProviderPanel() {
           <div className="flex items-center gap-3">
             <Server className="w-5 h-5 text-primary" />
             <h2 className="nc-modal-title">供应商管理</h2>
-            {/* 配置进度 */}
-            {providers.length > 0 && (
-              <span className={`nc-chip ${configuredNodes === totalNodes ? "nc-chip-success" : "nc-chip-warning"}`}>
-                {configuredNodes}/{totalNodes}
-              </span>
-            )}
           </div>
           <button
             className="nc-icon-btn"
@@ -324,126 +213,6 @@ export function ProviderPanel() {
               <Plus className="w-4 h-4" />
               添加供应商
             </button>
-          </div>
-
-          {/* 分隔线 */}
-          <hr className="nc-divider nc-divider-compact" />
-
-          {/* 节点配置区域 - 分组显示 */}
-          <div className="space-y-3">
-            <h3 className="nc-section-title">
-              节点配置
-            </h3>
-
-            {providers.length === 0 ? (
-              <div className="nc-empty-state">
-                <p className="nc-empty-state-title">请先添加供应商</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {nodeGroups.map((group) => {
-                  const isCollapsed = collapsedGroups.has(group.id);
-                  const GroupIcon = group.icon;
-                  const compatibleProviders = getGroupCompatibleProviders(group);
-                  // 该分组已配置的节点数
-                  const groupConfigured = group.nodeKeys.filter(
-                    (key) => nodeProviders[key] && providers.some((p) => p.id === nodeProviders[key])
-                  ).length;
-
-                  return (
-                    <div key={group.id} className="rounded-[var(--nc-radius-lg)] border border-[var(--nc-border)] overflow-hidden">
-                      {/* 分组标题栏 */}
-                      <div
-                        className="flex items-center gap-2 px-3 py-2.5 bg-base-200/50 cursor-pointer select-none"
-                        onClick={() => toggleGroup(group.id)}
-                      >
-                        {/* 折叠箭头 */}
-                        {isCollapsed ? (
-                          <ChevronRight className="w-3.5 h-3.5 text-base-content/40 shrink-0" />
-                        ) : (
-                          <ChevronDown className="w-3.5 h-3.5 text-base-content/40 shrink-0" />
-                        )}
-                        {/* 分组图标 */}
-                        <div className={`w-6 h-6 rounded-md flex items-center justify-center ${group.bgClass}`}>
-                          <GroupIcon className={`w-3.5 h-3.5 ${group.colorClass}`} />
-                        </div>
-                        {/* 分组名称 + 进度 */}
-                        <span className="text-sm font-medium flex-1">{group.label}</span>
-                        <span className="text-[11px] text-base-content/40">
-                          {groupConfigured}/{group.nodeKeys.length}
-                        </span>
-                        {/* 批量分配按钮 */}
-                        {compatibleProviders.length > 0 && (
-                          <div
-                            className="ml-1"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Select
-                              value=""
-                              placeholder="批量分配"
-                              size="xs"
-                              options={compatibleProviders.map((p) => ({
-                                value: p.id,
-                                label: `${p.name}`,
-                              }))}
-                              onChange={(value) => handleBatchAssign(group, value)}
-                            />
-                          </div>
-                        )}
-                      </div>
-
-                      {/* 节点列表（折叠时隐藏） */}
-                      {!isCollapsed && (
-                        <div className="px-3 py-1.5 space-y-1">
-                          {group.nodeKeys.map((key) => {
-                            const nodeConfig = nodeConfigMap.get(key);
-                            if (!nodeConfig) return null;
-
-                            const currentProviderId = nodeProviders[key];
-                            const isConfigured = currentProviderId && providers.some((p) => p.id === currentProviderId);
-                            const compatibleForNode = providers.filter((p) =>
-                              NODE_ALLOWED_PROTOCOLS[key].includes(p.protocol)
-                            );
-
-                            return (
-                              <div
-                                key={key}
-                                className="flex items-center gap-2 py-1.5"
-                              >
-                                {/* 配置状态指示点 */}
-                                <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                                  isConfigured ? "bg-success" : "bg-base-content/20"
-                                }`} />
-                                {/* 节点名称 */}
-                                <span className="text-sm text-base-content/80 w-28 shrink-0 truncate" title={nodeConfig.description}>
-                                  {nodeConfig.label}
-                                </span>
-                                {/* 供应商选择 */}
-                                <div className="flex-1 min-w-0">
-                                  <Select
-                                    value={currentProviderId || ""}
-                                    placeholder="未配置"
-                                    size="xs"
-                                    options={[
-                                      { value: "", label: "未配置" },
-                                      ...compatibleForNode.map((p) => ({
-                                        value: p.id,
-                                        label: `${p.name} (${protocolLabels[p.protocol]})`,
-                                      })),
-                                    ]}
-                                    onChange={(value) => handleNodeProviderChange(key, value)}
-                                  />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
           </div>
         </div>
 

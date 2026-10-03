@@ -4,6 +4,7 @@ import { ReactFlowProvider } from "@xyflow/react";
 import { Toolbar } from "@/components/Toolbar";
 import { FlowCanvas } from "@/components/FlowCanvas";
 import { Sidebar } from "@/components/Sidebar";
+import { FloatingToolbar } from "@/components/canvas/FloatingToolbar";
 import { NodeInspector } from "@/components/inspectors/NodeInspector";
 import { SettingsPanel, KeyboardShortcutsPanel } from "@/components/panels";
 import { QueuePanel } from "@/components/panels/QueuePanel";
@@ -225,19 +226,22 @@ function App() {
   return (
     <ReactFlowProvider>
       <div className="nc-app-shell flex flex-col h-screen w-screen overflow-hidden">
-        {/* 顶部工具栏 */}
-        <Toolbar onOpenHelp={() => setIsHelpOpen(true)} />
+        {/* 顶部标题条（无标题栏窗口的自定义标题栏） */}
+        <Toolbar />
 
         {/* 主体内容 */}
         <div className="flex flex-1 overflow-hidden min-h-0">
           {/* 左侧导航栏（包含画布列表和节点库） */}
-          <Sidebar onDragStart={onDragStart} />
+          <Sidebar onDragStart={onDragStart} onOpenHelp={() => setIsHelpOpen(true)} />
 
           {/* 右侧画布区域 */}
           <FlowCanvas />
 
           {/* 选中节点检查器 */}
           <NodeInspector />
+
+          {/* 底部悬浮工具条（撤销/重做/运行/导入/导出/清空） */}
+          <FloatingToolbar />
         </div>
 
         {/* 设置面板 */}

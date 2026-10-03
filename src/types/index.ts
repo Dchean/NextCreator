@@ -148,6 +148,9 @@ export interface AppSettings {
   providers: Provider[];              // 供应商列表
   nodeProviders: NodeProviderMapping; // 节点类型 -> 供应商映射
   theme: "light" | "dark" | "system";
+  // 模型可见性（设置页勾选）：黑名单语义，未列出的模型默认可用。
+  // image = 生图节点可选模型，llm = LLM 节点可选模型，两组相互独立。
+  disabledModels: { image: string[]; llm: string[] };
 }
 
 // Store 状态
