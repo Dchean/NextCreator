@@ -31,3 +31,6 @@ reqwest = { version = "0.12", features = ["json", "multipart"] }
 image = "0.25"
 tauri-plugin-store = "=2.4.1"
 keyring = { version = "4.2.0", features = ["windows-native-keyring-store"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt", "macros"] }

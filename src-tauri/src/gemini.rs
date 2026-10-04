@@ -2,6 +2,22 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 
+/// 取响应文本预览：**按字符**截断，绝不按字节切。
+///
+/// 为什么不能写 `&text[..500]`：UTF-8 里一个中文字符占 3 字节，若第 500 字节
+/// 落在多字节字符内部，字节切片会 panic（byte index is not a char boundary）。
+/// panic 发生在 tauri 命令的 future 里会让该任务中止，IPC 响应永远不回 ——
+/// 前端的 invoke Promise 永不 settle，节点就**永久停留在「生成中」**，
+/// 且不走任何错误路径（0.4.1 实测：中文提示词 + 模型先输出中文文本 part 时必现）。
+fn response_preview(text: &str, max_chars: usize) -> String {
+    if text.chars().count() <= max_chars {
+        text.to_string()
+    } else {
+        let head: String = text.chars().take(max_chars).collect();
+        format!("{}...(truncated)", head)
+    }
+}
+
 // Gemini API 请求结构
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -246,12 +262,8 @@ pub async fn gemini_generate_content(params: GeminiRequestParams) -> GeminiResul
     };
 
     println!("[Rust] Response text length: {} bytes", response_text.len());
-    // 打印前 500 个字符用于调试
-    let preview = if response_text.len() > 500 {
-        format!("{}...(truncated)", &response_text[..500])
-    } else {
-        response_text.clone()
-    };
+    // 打印前 500 个字符用于调试（按字符截断，见 response_preview 的说明）
+    let preview = response_preview(&response_text, 500);
     println!("[Rust] Response preview: {}", preview);
 
     // 解析 JSON
@@ -598,5 +610,103 @@ pub async fn gemini_generate_text(params: LLMRequestParams) -> LLMResult {
         success: true,
         content,
         error: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 测试用 mock 中转：任何 POST 都返回一个 200 响应体。
+    /// 响应体由调用方构造（真实中转的 generateContent 200 响应形状）。
+    fn spawn_mock_relay(body: String) -> String {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+        let addr = listener.local_addr().expect("addr");
+        std::thread::spawn(move || {
+            if let Ok((mut stream, _)) = listener.accept() {
+                let mut buf = [0u8; 65536];
+                let _ = stream.read(&mut buf); // 读取请求（内容不关心）
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                let _ = stream.write_all(response.as_bytes());
+                let _ = stream.flush();
+            }
+        });
+        format!("http://{}", addr)
+    }
+
+    const TINY_PNG_BASE64: &str =
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+    /// 复刻 0.4.1 实测缺陷的毒响应：模型在图片**之前**输出一段中文文本 part，
+    /// 使 JSON 的第 500 **字节**落在一个中文字符内部。
+    /// 旧实现 `&response_text[..500]` 按字节切片 → panic → invoke Promise 永不
+    /// settle → 前端节点永久「生成中」。修复后必须正常返回图片。
+    #[tokio::test]
+    async fn chinese_text_part_crossing_byte_500_must_not_hang() {
+        let prefix = "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"";
+        // 保证第 500 字节确实落在中文字符（3 字节）内部而不是边界上
+        assert!(prefix.len() < 500);
+        assert!((500 - prefix.len()) % 3 != 0, "构造失败：需要让 500 落在字符内部");
+        let padding = "界".repeat(600);
+        let body = format!(
+            "{}{}\"}},{\"inlineData\":{{\"mimeType\":\"image/png\",\"data\":\"{}\"}}}}]}}]}}",
+            prefix, padding, TINY_PNG_BASE64
+        );
+        assert!(body.as_bytes().len() > 500);
+
+        let base_url = spawn_mock_relay(body);
+        let params = GeminiRequestParams {
+            base_url,
+            api_key: "test-key".to_string(),
+            model: "gemini-3-pro-image".to_string(),
+            prompt: "测试".to_string(),
+            input_images: None,
+            aspect_ratio: Some("1:1".to_string()),
+            image_size: Some("1K".to_string()),
+        };
+
+        let result = gemini_generate_content(params).await;
+        assert!(result.success, "应当成功，实际错误: {:?}", result.error);
+        assert!(result.image_data.is_some(), "应当返回图片数据");
+    }
+
+    /// 对照组：纯 ASCII 响应（旧实现也不会 panic）——修复不得破坏正常路径。
+    #[tokio::test]
+    async fn ascii_response_still_parses() {
+        let body = format!(
+            "{{\"candidates\":[{{\"content\":{{\"parts\":[{{\"text\":\"{}\"}},{{\"inlineData\":{{\"mimeType\":\"image/png\",\"data\":\"{}\"}}}}]}}}}]}}",
+            "a".repeat(800),
+            TINY_PNG_BASE64
+        );
+        let base_url = spawn_mock_relay(body);
+        let params = GeminiRequestParams {
+            base_url,
+            api_key: "test-key".to_string(),
+            model: "gemini-3-pro-image".to_string(),
+            prompt: "test".to_string(),
+            input_images: None,
+            aspect_ratio: None,
+            image_size: None,
+        };
+
+        let result = gemini_generate_content(params).await;
+        assert!(result.success, "应当成功，实际错误: {:?}", result.error);
+        assert!(result.image_data.is_some());
+    }
+
+    /// response_preview 的单元测试：中文字符串按字符截断，不 panic、不产生乱码。
+    #[test]
+    fn preview_is_char_boundary_safe() {
+        let text = "界".repeat(600);
+        let preview = response_preview(&text, 500);
+        assert!(preview.starts_with('界'));
+        assert!(preview.contains("...(truncated)"));
+        // 短文本原样返回
+        assert_eq!(response_preview("abc", 500), "abc");
     }
 }
